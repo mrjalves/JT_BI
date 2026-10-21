@@ -59,6 +59,10 @@ public class BIDashboardService : IBIDashboardService
                 {
                     var json = await File.ReadAllTextAsync(_dashboardsFilePath);
                     _cacheDashboards = JsonSerializer.Deserialize<List<BIDashboard>>(json) ?? new();
+                    foreach (var d in _cacheDashboards)
+                    {
+                        SanitizarDashboard(d);
+                    }
                 }
                 else
                 {
@@ -466,5 +470,58 @@ public class BIDashboardService : IBIDashboardService
         lista.Add(food);
 
         return lista;
+    }
+
+    private static void SanitizarDashboard(BIDashboard? d)
+    {
+        if (d == null) return;
+        d.Nome = SanitizarTexto(d.Nome);
+        d.Descricao = SanitizarTexto(d.Descricao);
+        d.Categoria = SanitizarTexto(d.Categoria);
+        if (d.Widgets != null)
+        {
+            foreach (var w in d.Widgets)
+            {
+                w.Titulo = SanitizarTexto(w.Titulo);
+                w.Subtitulo = SanitizarTexto(w.Subtitulo);
+                w.MetricaCampo = SanitizarTexto(w.MetricaCampo);
+                w.DimensaoCampo = SanitizarTexto(w.DimensaoCampo);
+            }
+        }
+    }
+
+    private static string SanitizarTexto(string? texto)
+    {
+        if (string.IsNullOrEmpty(texto)) return string.Empty;
+        return texto
+            .Replace("Ã¡", "á")
+            .Replace("Ã ", "à")
+            .Replace("Ã¢", "â")
+            .Replace("Ã£", "ã")
+            .Replace("Ã©", "é")
+            .Replace("Ãª", "ê")
+            .Replace("Ã­", "í")
+            .Replace("Ã³", "ó")
+            .Replace("Ã´", "ô")
+            .Replace("Ãµ", "õ")
+            .Replace("Ãº", "ú")
+            .Replace("Ã§", "ç")
+            .Replace("Ã‰", "É")
+            .Replace("ÃŠ", "Ê")
+            .Replace("Ã“", "Ó")
+            .Replace("Ã”", "Ô")
+            .Replace("Ãš", "Ú")
+            .Replace("Ã‡", "Ç")
+            .Replace("Â°", "°")
+            .Replace("Âº", "º")
+            .Replace("Âª", "ª")
+            .Replace("nÃƒÂ£o", "não")
+            .Replace("nÃÂ£o", "não")
+            .Replace("CÃ³pia", "Cópia")
+            .Replace("VisÃ£o", "Visão")
+            .Replace("EstratÃ©gico", "Estratégico")
+            .Replace("PÃºblico", "Público")
+            .Replace("lÃ­quida", "líquida")
+            .Replace("ConsolidaÃ§Ã£o", "Consolidação");
     }
 }

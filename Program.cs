@@ -78,6 +78,8 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<JwtTokenService>();
 
 // Registrar Serviços do JT_BI
+builder.Services.AddScoped<JT_UserInterface.Shared.Services.Interfaces.Comum.IMenuProvider, BIMenuProvider>();
+builder.Services.AddScoped<JT_UserInterface.Shared.Services.Interfaces.Comum.IModuloMenuProvider, BIMenuProvider>();
 builder.Services.AddSingleton<IBIDashboardService, BIDashboardService>();
 builder.Services.AddSingleton<IBIDataSourceService, BIDataSourceService>();
 builder.Services.AddSingleton<IBIImportService, BIImportService>();
