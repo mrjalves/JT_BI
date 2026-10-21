@@ -1,4 +1,4 @@
-﻿@using JT_BI.Models
+@using JT_BI.Models
 @using JT_BI.Services
 @inject IJSRuntime JSRuntime
 @inject NavigationManager Nav
@@ -106,7 +106,7 @@
         try
         {
             await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", texto);
-            copiadoMsg = "Link copiado para a Ã¡rea de transferÃªncia!";
+            copiadoMsg = "Link copiado para a área de transferência!";
         }
         catch
         {

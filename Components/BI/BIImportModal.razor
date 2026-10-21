@@ -1,4 +1,4 @@
-﻿@using JT_BI.Models
+@using JT_BI.Models
 @using JT_BI.Services
 @inject IBIImportService ImportService
 @inject IBIDashboardService DashboardService
@@ -37,12 +37,12 @@
 
                         <div class="col-12">
                             <div class="d-flex align-items-center justify-content-between mb-1">
-                                <label class="form-label fw-semibold small text-muted mb-0">Cole os dados brutos ou faÃ§a upload:</label>
+                                <label class="form-label fw-semibold small text-muted mb-0">Cole os dados brutos ou faça upload:</label>
                                 <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" @onclick="CarregarExemplo">
                                     <i class="bi bi-magic me-1"></i> Preencher Exemplo de Vendas
                                 </button>
                             </div>
-                            <textarea class="form-control font-monospace" rows="7" @bind="conteudoBruto" placeholder="Cole aqui o conteÃºdo CSV ou JSON..." style="font-size: 0.82rem;"></textarea>
+                            <textarea class="form-control font-monospace" rows="7" @bind="conteudoBruto" placeholder="Cole aqui o conteúdo CSV ou JSON..." style="font-size: 0.82rem;"></textarea>
                         </div>
 
                         @if (datasetPreview != null && datasetPreview.Linhas.Count > 0)

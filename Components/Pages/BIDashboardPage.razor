@@ -20,6 +20,7 @@
 @inject IBIDashboardService DashboardService
 @inject IBIDataSourceService DataSourceService
 @inject IBIImportService ImportService
+@inject IBIDataMiningService DataMiningService
 @inject ToastService ToastService
 @inject NavigationManager Nav
 @inject IJSRuntime JS
@@ -37,7 +38,7 @@
                 <div class="card-body py-2 px-3">
                     <div class="row g-2 align-items-center justify-content-between">
                         <!-- Identificação do Módulo e Dashboard Ativo -->
-                        <div class="col-12 col-md-4 d-flex align-items-center gap-2">
+                        <div class="col-12 col-md-3 d-flex align-items-center gap-2">
                             <div class="bi-brand-icon p-2 bg-gradient text-white rounded-3 shadow-sm d-flex align-items-center justify-content-center"
                                  style="background: linear-gradient(135deg, #2563eb, #3b82f6); width: 38px; height: 38px;">
                                 <i class="bi bi-pie-chart-fill fs-5"></i>
@@ -47,44 +48,69 @@
                                     <h5 class="fw-bold mb-0 text-dark" style="letter-spacing: -0.3px;">JT_BI Studio</h5>
                                     <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill small">SPA v2.0</span>
                                 </div>
-                                <small class="text-muted d-block text-truncate" style="max-width: 260px;">
+                                <small class="text-muted d-block text-truncate" style="max-width: 220px;">
                                     @(DashboardAtivo?.Nome ?? "Carregando ambiente analítico...")
                                 </small>
                             </div>
                         </div>
 
                         <!-- Seletor de Painel / Ações Rápidas -->
-                        <div class="col-12 col-md-5 d-flex align-items-center justify-content-center gap-2">
+                        <div class="col-12 col-md-5 d-flex align-items-center justify-content-center gap-2 flex-wrap">
                             @if (ListaDashboards.Any())
                             {
                                 <select class="form-select form-select-sm border-0 bg-light rounded-3 fw-semibold text-secondary"
-                                        style="max-width: 240px;"
+                                        style="max-width: 190px;"
                                         value="@DashboardAtivo?.Id"
                                         @onchange="TrocarDashboardAsync">
                                     @foreach (var dash in ListaDashboards)
                                     {
-                                        <option value="@dash.Id">@dash.Nome (@dash.Categoria)</option>
+                                        <option value="@dash.Id">@dash.Nome</option>
                                     }
                                 </select>
                             }
-                            <button class="btn btn-sm btn-outline-primary rounded-3 px-3 shadow-xs d-flex align-items-center gap-1"
+                            <button class="btn btn-sm btn-outline-primary rounded-3 px-2 shadow-xs d-flex align-items-center gap-1"
                                     @onclick="NovoDashboardAsync" title="Criar Novo Painel">
                                 <i class="bi bi-plus-circle"></i>
                                 <span class="d-none d-sm-inline">Novo</span>
                             </button>
-                            <a href="/dashboards" class="btn btn-sm btn-outline-secondary rounded-3 px-2 shadow-xs" title="Ver Hub com Todos os Painéis">
+
+                            <!-- Botão Templates Rápidos (Fase 2) -->
+                            <button class="btn btn-sm btn-outline-secondary rounded-3 px-2 shadow-xs d-flex align-items-center gap-1"
+                                    @onclick="() => isTemplatesModalOpen = true" title="Escolher Template de Painel">
+                                <i class="bi bi-layout-wtf text-primary"></i>
+                                <span class="d-none d-md-inline">Templates</span>
+                            </button>
+
+                            <!-- Botão Importar Dados (Fase 3) -->
+                            <button class="btn btn-sm btn-outline-secondary rounded-3 px-2 shadow-xs d-flex align-items-center gap-1"
+                                    @onclick="() => isImportModalOpen = true" title="Importar CSV / JSON">
+                                <i class="bi bi-file-earmark-arrow-up text-success"></i>
+                                <span class="d-none d-md-inline">Importar</span>
+                            </button>
+
+                            <!-- Botão Mineração IA (Fase 3) -->
+                            <button class="btn btn-sm btn-outline-secondary rounded-3 px-2 shadow-xs d-flex align-items-center gap-1"
+                                    @onclick="() => isDataMiningModalOpen = true" title="Mineração de Dados (K-Means / Curva ABC)">
+                                <i class="bi bi-cpu text-warning"></i>
+                                <span class="d-none d-md-inline">Mineração</span>
+                            </button>
+
+                            <!-- Botão Compartilhar (Fase 5) -->
+                            <button class="btn btn-sm btn-outline-secondary rounded-3 px-2 shadow-xs d-flex align-items-center gap-1"
+                                    @onclick="() => isShareModalOpen = true" title="Compartilhar Link Público">
+                                <i class="bi bi-share text-info"></i>
+                            </button>
+
+                            <a href="/dashboards" class="btn btn-sm btn-outline-secondary rounded-3 px-2 shadow-xs" title="Ver Hub de Todos os Painéis">
                                 <i class="bi bi-grid-3x3-gap"></i>
                             </a>
                         </div>
 
                         <!-- Status de Usuário & Controle do Painel -->
-                        <div class="col-12 col-md-3 d-flex align-items-center justify-content-end gap-2">
-                            <div class="d-none d-lg-flex flex-column text-end me-1">
-                                <span class="fw-semibold text-dark small">@(string.IsNullOrWhiteSpace(UserState.UsuarioName) ? "Administrador" : UserState.UsuarioName)</span>
-                                <small class="text-success" style="font-size: 0.72rem;">
-                                    <i class="bi bi-circle-fill me-1" style="font-size: 0.5rem;"></i>Sessão Segura
-                                </small>
-                            </div>
+                        <div class="col-12 col-md-4 d-flex align-items-center justify-content-end gap-2">
+                            <button class="btn btn-sm btn-outline-secondary rounded-3 px-2" @onclick="ExportarJsonDashboard" title="Exportar Definições JSON">
+                                <i class="bi bi-download me-1"></i> Exportar
+                            </button>
 
                             <button class="btn btn-sm btn-success rounded-3 px-3 fw-semibold shadow-sm d-flex align-items-center gap-1"
                                     @onclick="SalvarDashboardAtualAsync" disabled="@IsSalvando" title="Salvar Alterações">
@@ -109,7 +135,7 @@
             {
                 <div class="alert @ClasseFeedback alert-dismissible fade show mb-3 py-2 px-3 shadow-sm rounded-3 border-0 d-flex align-items-center justify-content-between" role="alert">
                     <div class="d-flex align-items-center gap-2">
-                        <i class="bi @(ClasseFeedback.Contains("success") ? "bi-check-circle-fill text-success" : "bi-exclamation-triangle-fill text-danger") fs-5"></i>
+                        <i class="bi @(ClasseFeedback.Contains("success") ? "bi-check-circle-fill text-success" : (ClasseFeedback.Contains("info") ? "bi-info-circle-fill text-info" : "bi-exclamation-triangle-fill text-danger")) fs-5"></i>
                         <span class="small fw-semibold">@MensagemFeedback</span>
                     </div>
                     <button type="button" class="btn-close btn-close-sm" @onclick="() => MensagemFeedback = null"></button>
@@ -118,7 +144,7 @@
 
             <!-- Área Central SPA Tripartite -->
             <div class="row g-3 flex-grow-1 overflow-hidden" style="min-height: calc(100vh - 180px);">
-                <!-- COLUNA ESQUERDA: Barra de Ferramentas / Widgets & Datasets -->
+                <!-- COLUNA ESQUERDA: Barra de Ferramentas / Widgets & Datasets (Fase 2 Drag & Drop) -->
                 <aside class="col-12 col-lg-2 d-flex flex-column">
                     <div class="card border-0 shadow-sm rounded-4 h-100 bg-white overflow-hidden">
                         <div class="card-header bg-white border-bottom py-2 px-3 d-flex align-items-center justify-content-between">
@@ -128,12 +154,15 @@
                             <span class="badge bg-light text-secondary rounded-pill">Drag & Drop</span>
                         </div>
                         <div class="card-body p-2 overflow-y-auto">
-                            <p class="text-muted small px-1 mb-2" style="font-size: 0.75rem;">
+                            <p class="text-muted small px-1 mb-2" style="font-size: 0.72rem;">
                                 Arraste ou clique para adicionar componentes ao Canvas Central:
                             </p>
                             <div class="d-flex flex-column gap-2">
-                                <div class="widget-tool-card p-2 rounded-3 border border-dashed text-dark bg-light d-flex align-items-center gap-2 cursor-pointer hover-shadow transition-all"
-                                     draggable="true" @onclick="() => AdicionarWidgetRapido(BIWidgetTipo.CardKpi)">
+                                <div class="widget-tool-card p-2 rounded-3 border border-dashed text-dark bg-light d-flex align-items-center gap-2 cursor-grab hover-shadow transition-all"
+                                     draggable="true"
+                                     @ondragstart="@(() => IniciarArrasto(BIWidgetTipo.CardKpi))"
+                                     @onclick="() => AdicionarWidgetRapido(BIWidgetTipo.CardKpi)"
+                                     title="Arraste para o Canvas ou clique para inserir">
                                     <div class="p-2 bg-primary-subtle text-primary rounded-3"><i class="bi bi-123"></i></div>
                                     <div class="lh-sm">
                                         <span class="d-block fw-semibold small">Card Indicador (KPI)</span>
@@ -141,8 +170,11 @@
                                     </div>
                                 </div>
 
-                                <div class="widget-tool-card p-2 rounded-3 border border-dashed text-dark bg-light d-flex align-items-center gap-2 cursor-pointer hover-shadow transition-all"
-                                     draggable="true" @onclick="() => AdicionarWidgetRapido(BIWidgetTipo.GraficoBarras)">
+                                <div class="widget-tool-card p-2 rounded-3 border border-dashed text-dark bg-light d-flex align-items-center gap-2 cursor-grab hover-shadow transition-all"
+                                     draggable="true"
+                                     @ondragstart="@(() => IniciarArrasto(BIWidgetTipo.GraficoBarras))"
+                                     @onclick="() => AdicionarWidgetRapido(BIWidgetTipo.GraficoBarras)"
+                                     title="Arraste para o Canvas ou clique para inserir">
                                     <div class="p-2 bg-info-subtle text-info rounded-3"><i class="bi bi-bar-chart-fill"></i></div>
                                     <div class="lh-sm">
                                         <span class="d-block fw-semibold small">Gráfico de Barras</span>
@@ -150,8 +182,11 @@
                                     </div>
                                 </div>
 
-                                <div class="widget-tool-card p-2 rounded-3 border border-dashed text-dark bg-light d-flex align-items-center gap-2 cursor-pointer hover-shadow transition-all"
-                                     draggable="true" @onclick="() => AdicionarWidgetRapido(BIWidgetTipo.GraficoLinhas)">
+                                <div class="widget-tool-card p-2 rounded-3 border border-dashed text-dark bg-light d-flex align-items-center gap-2 cursor-grab hover-shadow transition-all"
+                                     draggable="true"
+                                     @ondragstart="@(() => IniciarArrasto(BIWidgetTipo.GraficoLinhas))"
+                                     @onclick="() => AdicionarWidgetRapido(BIWidgetTipo.GraficoLinhas)"
+                                     title="Arraste para o Canvas ou clique para inserir">
                                     <div class="p-2 bg-success-subtle text-success rounded-3"><i class="bi bi-graph-up"></i></div>
                                     <div class="lh-sm">
                                         <span class="d-block fw-semibold small">Gráfico de Linhas</span>
@@ -159,8 +194,11 @@
                                     </div>
                                 </div>
 
-                                <div class="widget-tool-card p-2 rounded-3 border border-dashed text-dark bg-light d-flex align-items-center gap-2 cursor-pointer hover-shadow transition-all"
-                                     draggable="true" @onclick="() => AdicionarWidgetRapido(BIWidgetTipo.GraficoPizza)">
+                                <div class="widget-tool-card p-2 rounded-3 border border-dashed text-dark bg-light d-flex align-items-center gap-2 cursor-grab hover-shadow transition-all"
+                                     draggable="true"
+                                     @ondragstart="@(() => IniciarArrasto(BIWidgetTipo.GraficoPizza))"
+                                     @onclick="() => AdicionarWidgetRapido(BIWidgetTipo.GraficoPizza)"
+                                     title="Arraste para o Canvas ou clique para inserir">
                                     <div class="p-2 bg-warning-subtle text-warning rounded-3"><i class="bi bi-pie-chart-fill"></i></div>
                                     <div class="lh-sm">
                                         <span class="d-block fw-semibold small">Gráfico de Pizza</span>
@@ -168,8 +206,11 @@
                                     </div>
                                 </div>
 
-                                <div class="widget-tool-card p-2 rounded-3 border border-dashed text-dark bg-light d-flex align-items-center gap-2 cursor-pointer hover-shadow transition-all"
-                                     draggable="true" @onclick="() => AdicionarWidgetRapido(BIWidgetTipo.Tabela)">
+                                <div class="widget-tool-card p-2 rounded-3 border border-dashed text-dark bg-light d-flex align-items-center gap-2 cursor-grab hover-shadow transition-all"
+                                     draggable="true"
+                                     @ondragstart="@(() => IniciarArrasto(BIWidgetTipo.Tabela))"
+                                     @onclick="() => AdicionarWidgetRapido(BIWidgetTipo.Tabela)"
+                                     title="Arraste para o Canvas ou clique para inserir">
                                     <div class="p-2 bg-secondary-subtle text-secondary rounded-3"><i class="bi bi-table"></i></div>
                                     <div class="lh-sm">
                                         <span class="d-block fw-semibold small">Tabela Analítica</span>
@@ -182,7 +223,7 @@
 
                             <div class="px-1">
                                 <span class="fw-bold small text-uppercase text-secondary d-block mb-2" style="font-size: 0.72rem;">
-                                    <i class="bi bi-database-check me-1 text-success"></i> Fontes JT Conectadas
+                                    <i class="bi bi-database-check me-1 text-success"></i> Fontes Conectadas
                                 </span>
                                 <div class="d-flex flex-column gap-1 small">
                                     <div class="d-flex justify-content-between align-items-center text-muted">
@@ -207,7 +248,7 @@
                     </div>
                 </aside>
 
-                <!-- COLUNA CENTRAL: Canvas Interativo do BI -->
+                <!-- COLUNA CENTRAL: Canvas Interativo do BI (Drag-and-Drop Dropzone) -->
                 <main class="col-12 col-lg-7 d-flex flex-column">
                     <div class="card border-0 shadow-sm rounded-4 h-100 bg-white overflow-hidden d-flex flex-column">
                         <div class="card-header bg-white border-bottom py-2 px-3 d-flex align-items-center justify-content-between">
@@ -220,24 +261,40 @@
                                 </span>
                             </div>
                             <div class="d-flex align-items-center gap-1">
-                                <button class="btn btn-xs btn-outline-secondary rounded-3 py-1 px-2 border-0"
-                                        @onclick="CarregarTemplatePadraoAsync" title="Carregar Template Rápido">
-                                    <i class="bi bi-layout-wtf me-1"></i> Templates
+                                <button class="btn btn-xs btn-outline-primary rounded-3 py-1 px-2 border-0"
+                                        @onclick="() => isTemplatesModalOpen = true" title="Modelos Prontos de Dashboard">
+                                    <i class="bi bi-magic me-1"></i> Templates
                                 </button>
-                                <button class="btn btn-xs btn-outline-secondary rounded-3 py-1 px-2 border-0"
+                                <button class="btn btn-xs btn-outline-danger rounded-3 py-1 px-2 border-0"
                                         @onclick="LimparCanvas" title="Limpar Widgets">
                                     <i class="bi bi-trash3 me-1"></i> Limpar
                                 </button>
                             </div>
                         </div>
 
-                        <!-- Área de Montagem do Canvas -->
-                        <div class="card-body p-3 bg-light overflow-y-auto flex-grow-1" id="biCanvasArea" style="min-height: 480px;">
+                        <!-- Área de Montagem do Canvas (Zona de Drop HTML5/Blazor) -->
+                        <div class="card-body p-3 bg-light overflow-y-auto flex-grow-1 position-relative transition-all @(IsDragOverCanvas ? "border border-primary border-3 bg-primary-subtle" : "")"
+                             id="biCanvasArea"
+                             style="min-height: 480px;"
+                             @ondragover="TratarDragOver"
+                             @ondragover:preventDefault="true"
+                             @ondrop="TratarDrop">
+
+                            @if (IsDragOverCanvas)
+                            {
+                                <div class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white bg-opacity-75 z-3">
+                                    <div class="p-3 bg-primary text-white rounded-4 shadow-lg text-center animate-bounce">
+                                        <i class="bi bi-plus-circle fs-1 d-block mb-1"></i>
+                                        <span class="fw-bold">Solte aqui para inserir no Canvas!</span>
+                                    </div>
+                                </div>
+                            }
+
                             @if (IsCarregando)
                             {
                                 <div class="d-flex flex-column align-items-center justify-content-center h-100 p-5 text-muted">
                                     <div class="spinner-border text-primary mb-3" role="status"></div>
-                                    <p class="fw-semibold mb-0">Carregando painel e configurações de Gestão...</p>
+                                    <p class="fw-semibold mb-0">Carregando painel e configurações analíticas...</p>
                                 </div>
                             }
                             else if (DashboardAtivo == null || !DashboardAtivo.Widgets.Any())
@@ -247,15 +304,18 @@
                                         <i class="bi bi-grid-1x2"></i>
                                     </div>
                                     <h5 class="fw-bold text-dark">Canvas Vazio</h5>
-                                    <p class="small text-muted mb-3" style="max-width: 420px;">
-                                        Arraste um widget da barra esquerda, escolha um template rápido ou utilize o Agente de IA para montar os gráficos automaticamente.
+                                    <p class="small text-muted mb-3" style="max-width: 440px;">
+                                        Arraste um componente da barra esquerda, aplique um template pronto ou utilize o Agente de IA para gerar seus gráficos automaticamente.
                                     </p>
-                                    <div class="d-flex gap-2">
-                                        <button class="btn btn-sm btn-primary rounded-3 px-3 shadow-sm" @onclick="CarregarTemplatePadraoAsync">
-                                            <i class="bi bi-magic me-1"></i> Carregar Template Executivo
+                                    <div class="d-flex gap-2 flex-wrap justify-content-center">
+                                        <button class="btn btn-sm btn-primary rounded-3 px-3 shadow-sm" @onclick="() => AplicarTemplateAsync(1)">
+                                            <i class="bi bi-speedometer2 me-1"></i> Template Executivo
                                         </button>
-                                        <button class="btn btn-sm btn-outline-primary rounded-3 px-3" @onclick="() => AdicionarWidgetRapido(BIWidgetTipo.CardKpi)">
-                                            <i class="bi bi-plus-lg me-1"></i> Adicionar Primeiro KPI
+                                        <button class="btn btn-sm btn-outline-primary rounded-3 px-3" @onclick="() => AplicarTemplateAsync(2)">
+                                            <i class="bi bi-bar-chart-line me-1"></i> Template Operacional
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning rounded-3 px-3 text-dark fw-semibold" @onclick="() => AplicarTemplateAsync(3)">
+                                            <i class="bi bi-cpu me-1"></i> Template Mineração IA
                                         </button>
                                     </div>
                                 </div>
@@ -266,22 +326,22 @@
                                     @foreach (var widget in DashboardAtivo.Widgets)
                                     {
                                         <div class="@ObterClasseGridWidget(widget.LarguraColunas) transition-all" key="@widget.Id">
-                                            <div class="card border-0 shadow-sm rounded-4 h-100 overflow-hidden widget-canvas-card bg-white position-relative hover-shadow">
+                                            <div class="card border-0 shadow-sm rounded-4 h-100 overflow-hidden widget-canvas-card bg-white position-relative hover-shadow @(WidgetSelecionado?.Id == widget.Id ? "ring-2 border-primary" : "")">
                                                 <div class="card-header bg-white border-bottom py-2 px-3 d-flex align-items-center justify-content-between">
-                                                    <div class="d-flex align-items-center gap-2">
+                                                    <div class="d-flex align-items-center gap-2 cursor-pointer" @onclick="() => SelecionarWidget(widget)">
                                                         <i class="bi bi-grip-vertical text-muted cursor-grab" title="Arrastar"></i>
                                                         <span class="fw-bold small text-dark">@widget.Titulo</span>
                                                     </div>
                                                     <div class="d-flex align-items-center gap-1">
-                                                        <button class="btn btn-xs btn-link text-muted p-0 me-1" @onclick="() => SelecionarWidget(widget)" title="Configurar">
+                                                        <button class="btn btn-xs btn-link text-muted p-0 me-1" @onclick="() => SelecionarWidget(widget)" title="Configurar Propriedades">
                                                             <i class="bi bi-gear-fill"></i>
                                                         </button>
-                                                        <button class="btn btn-xs btn-link text-danger p-0" @onclick="() => RemoverWidget(widget.Id)" title="Excluir">
+                                                        <button class="btn btn-xs btn-link text-danger p-0" @onclick="() => RemoverWidget(widget.Id)" title="Excluir do Canvas">
                                                             <i class="bi bi-x-circle-fill"></i>
                                                         </button>
                                                     </div>
                                                 </div>
-                                                <div class="card-body p-3" style="min-height: 220px;">
+                                                <div class="card-body p-3" style="min-height: 220px;" @onclick="() => SelecionarWidget(widget)">
                                                     <BIWidgetView Widget="widget" />
                                                 </div>
                                             </div>
@@ -293,7 +353,7 @@
                     </div>
                 </main>
 
-                <!-- COLUNA DIREITA: Inspetor de Propriedades & Agente IA -->
+                <!-- COLUNA DIREITA: Inspetor de Propriedades & Agente IA (Fase 4) -->
                 <aside class="col-12 col-lg-3 d-flex flex-column">
                     <div class="card border-0 shadow-sm rounded-4 h-100 bg-white overflow-hidden d-flex flex-column">
                         <div class="card-header bg-white border-bottom py-2 px-3 d-flex align-items-center justify-content-between">
@@ -301,7 +361,7 @@
                                 <li class="nav-item">
                                     <button class="nav-link py-1 px-3 small rounded-3 @(AbaDireitaAtiva == "ia" ? "active" : "")"
                                             @onclick='() => AbaDireitaAtiva = "ia"'>
-                                        <i class="bi bi-stars me-1 text-warning"></i> Agente IA
+                                        <i class="bi bi-stars me-1 text-warning"></i> Consultor IA
                                     </button>
                                 </li>
                                 <li class="nav-item">
@@ -313,40 +373,59 @@
                             </ul>
                         </div>
 
-                        <div class="card-body p-3 flex-grow-1 overflow-y-auto">
+                        <div class="card-body p-3 flex-grow-1 overflow-y-auto d-flex flex-column justify-content-between">
                             @if (AbaDireitaAtiva == "ia")
                             {
-                                <!-- Painel do Agente de IA do BI -->
+                                <!-- Painel do Agente de IA do BI (Fase 4 Conversacional) -->
                                 <div class="d-flex flex-column h-100 justify-content-between">
-                                    <div>
-                                        <div class="p-3 bg-gradient rounded-3 text-white mb-3"
+                                    <div class="overflow-y-auto mb-2 flex-grow-1 pe-1" style="max-height: calc(100vh - 350px);">
+                                        <div class="p-2 bg-gradient rounded-3 text-white mb-2"
                                              style="background: linear-gradient(135deg, #1e293b, #334155);">
                                             <div class="d-flex align-items-center gap-2 mb-1">
                                                 <i class="bi bi-robot fs-5 text-warning"></i>
                                                 <span class="fw-bold small">Consultor Executivo BI</span>
                                             </div>
-                                            <p class="small text-white-50 mb-0" style="font-size: 0.75rem;">
-                                                Pergunte sobre seus dados, solicite insights ou peça para gerar gráficos automaticamente no Canvas.
+                                            <p class="small text-white-50 mb-0" style="font-size: 0.72rem;">
+                                                Peça análises de dados, mineração K-Means, previsões ou comandos para criar gráficos no Canvas.
                                             </p>
                                         </div>
 
-                                        <div class="d-flex flex-column gap-2 mb-3">
-                                            <div class="p-2 bg-light rounded-3 border small">
-                                                <span class="badge bg-secondary-subtle text-secondary small mb-1">Exemplo de comando:</span>
-                                                <p class="mb-0 text-dark small fst-italic">"Crie um gráfico de barras comparando vendas do mês por categoria"</p>
-                                            </div>
-                                            <div class="p-2 bg-light rounded-3 border small">
-                                                <span class="badge bg-secondary-subtle text-secondary small mb-1">Exemplo de mineração:</span>
-                                                <p class="mb-0 text-dark small fst-italic">"Agrupe meus clientes via K-Means por ticket médio e frequência"</p>
-                                            </div>
+                                        <!-- Histórico do Chat -->
+                                        <div class="d-flex flex-column gap-2 mb-2">
+                                            @foreach (var msg in HistoricoChat)
+                                            {
+                                                <div class="p-2 rounded-3 small @(msg.Remetente == "Usuario" ? "bg-primary text-white ms-auto text-end" : "bg-light border text-dark me-auto")"
+                                                     style="max-width: 90%; font-size: 0.78rem;">
+                                                    <span class="d-block fw-bold mb-1" style="font-size: 0.68rem; opacity: 0.8;">
+                                                        @(msg.Remetente == "Usuario" ? "Você" : "Consultor IA") • @msg.Horario.ToString("HH:mm")
+                                                    </span>
+                                                    <span>@msg.Texto</span>
+                                                </div>
+                                            }
                                         </div>
                                     </div>
 
-                                    <!-- Campo de Chat Rápido com o Agente -->
+                                    <!-- Sugestões Rápidas de Comandos -->
+                                    <div class="d-flex flex-wrap gap-1 mb-2">
+                                        <button class="btn btn-xs btn-outline-secondary rounded-pill py-0 px-2" style="font-size: 0.7rem;"
+                                                @onclick='() => ExecutarPromptRapido("Crie um resumo executivo com KPIs de faturamento")'>
+                                            + KPIs Vendas
+                                        </button>
+                                        <button class="btn btn-xs btn-outline-secondary rounded-pill py-0 px-2" style="font-size: 0.7rem;"
+                                                @onclick='() => ExecutarPromptRapido("Execute clusterização K-Means dos clientes")'>
+                                            + K-Means
+                                        </button>
+                                        <button class="btn btn-xs btn-outline-secondary rounded-pill py-0 px-2" style="font-size: 0.7rem;"
+                                                @onclick='() => ExecutarPromptRapido("Calcule a curva ABC dos itens mais vendidos")'>
+                                            + Curva ABC
+                                        </button>
+                                    </div>
+
+                                    <!-- Campo de Entrada do Chat -->
                                     <div class="pt-2 border-top">
                                         <div class="input-group input-group-sm">
                                             <input type="text" class="form-control rounded-start-3"
-                                                   placeholder="Instrua o Agente de IA..."
+                                                   placeholder="Instrua o Consultor de IA..."
                                                    @bind="PromptIaRapido"
                                                    @onkeyup="TratarEnterPromptIa" />
                                             <button class="btn btn-primary rounded-end-3 px-3" @onclick="EnviarInstrucaoIaAsync">
@@ -358,7 +437,7 @@
                             }
                             else
                             {
-                                <!-- Painel de Propriedades do Widget Selecionado -->
+                                <!-- Painel de Propriedades do Widget Selecionado (Inspector) -->
                                 @if (WidgetSelecionado == null)
                                 {
                                     <div class="text-center text-muted p-4">
@@ -372,6 +451,11 @@
                                         <div>
                                             <label class="form-label small fw-semibold text-secondary">Título do Widget</label>
                                             <input type="text" class="form-control form-control-sm rounded-3" @bind="WidgetSelecionado.Titulo" />
+                                        </div>
+
+                                        <div>
+                                            <label class="form-label small fw-semibold text-secondary">Subtítulo / Descrição</label>
+                                            <input type="text" class="form-control form-control-sm rounded-3" @bind="WidgetSelecionado.Subtitulo" />
                                         </div>
 
                                         <div>
@@ -396,8 +480,16 @@
                                             </select>
                                         </div>
 
+                                        @if (WidgetSelecionado.Tipo == BIWidgetTipo.CardKpi)
+                                        {
+                                            <div>
+                                                <label class="form-label small fw-semibold text-secondary">Valor do Indicador</label>
+                                                <input type="number" class="form-control form-control-sm rounded-3" @bind="WidgetSelecionado.ValorAtual" />
+                                            </div>
+                                        }
+
                                         <button class="btn btn-sm btn-outline-danger rounded-3 mt-2" @onclick="() => RemoverWidget(WidgetSelecionado.Id)">
-                                            <i class="bi bi-trash me-1"></i> Excluir Widget
+                                            <i class="bi bi-trash me-1"></i> Excluir do Canvas
                                         </button>
                                     </div>
                                 }
@@ -407,6 +499,140 @@
                 </aside>
             </div>
         </div>
+
+        @* ========================================================================= *@
+        @* MODAIS AUXILIARES: TEMPLATES, IMPORTAÇÃO, MINERAÇÃO & COMPARTILHAMENTO    *@
+        @* ========================================================================= *@
+
+        <!-- Modal de Seleção de Templates (Fase 2) -->
+        @if (isTemplatesModalOpen)
+        {
+            <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 1055;">
+                <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+                        <div class="modal-header bg-gradient bg-primary text-white p-3 border-0">
+                            <h5 class="modal-title fw-bold mb-0"><i class="bi bi-magic me-2"></i>Escolha um Template de Painel</h5>
+                            <button type="button" class="btn-close btn-close-white" @onclick="() => isTemplatesModalOpen = false"></button>
+                        </div>
+                        <div class="modal-body p-4">
+                            <div class="row g-3">
+                                <div class="col-12 col-md-4">
+                                    <div class="card h-100 border rounded-4 p-3 hover-shadow transition-all text-center cursor-pointer"
+                                         @onclick="() => AplicarTemplateAsync(1)">
+                                        <div class="p-3 bg-primary-subtle text-primary rounded-circle d-inline-flex mx-auto mb-2">
+                                            <i class="bi bi-speedometer2 fs-3"></i>
+                                        </div>
+                                        <h6 class="fw-bold text-dark mb-1">Resumo Executivo</h6>
+                                        <p class="text-muted small mb-3" style="font-size: 0.75rem;">
+                                            3 Indicadores (KPIs) de faturamento, pedidos e clientes + Gráficos de vendas e evolução.
+                                        </p>
+                                        <button class="btn btn-sm btn-primary rounded-3 w-100 mt-auto">Aplicar Template</button>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-4">
+                                    <div class="card h-100 border rounded-4 p-3 hover-shadow transition-all text-center cursor-pointer"
+                                         @onclick="() => AplicarTemplateAsync(2)">
+                                        <div class="p-3 bg-success-subtle text-success rounded-circle d-inline-flex mx-auto mb-2">
+                                            <i class="bi bi-bar-chart-line fs-3"></i>
+                                        </div>
+                                        <h6 class="fw-bold text-dark mb-1">Análise Operacional</h6>
+                                        <p class="text-muted small mb-3" style="font-size: 0.75rem;">
+                                            Comparativo por categoria, pizza de canais e grade analítica de transações.
+                                        </p>
+                                        <button class="btn btn-sm btn-success rounded-3 w-100 mt-auto">Aplicar Template</button>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-4">
+                                    <div class="card h-100 border rounded-4 p-3 hover-shadow transition-all text-center cursor-pointer"
+                                         @onclick="() => AplicarTemplateAsync(3)">
+                                        <div class="p-3 bg-warning-subtle text-warning rounded-circle d-inline-flex mx-auto mb-2">
+                                            <i class="bi bi-cpu fs-3"></i>
+                                        </div>
+                                        <h6 class="fw-bold text-dark mb-1">Mineração & IA</h6>
+                                        <p class="text-muted small mb-3" style="font-size: 0.75rem;">
+                                            Modelos K-Means, previsão de churn, curva ABC e projeções preditivas.
+                                        </p>
+                                        <button class="btn btn-sm btn-warning rounded-3 w-100 mt-auto text-dark fw-semibold">Aplicar Template</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Modal de Mineração de Dados K-Means & Curva ABC (Fase 3) -->
+        @if (isDataMiningModalOpen)
+        {
+            <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 1055;">
+                <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+                        <div class="modal-header bg-gradient bg-dark text-white p-3 border-0">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-cpu text-warning fs-4"></i>
+                                <h5 class="modal-title fw-bold mb-0">Laboratório de Mineração de Dados (BI)</h5>
+                            </div>
+                            <button type="button" class="btn-close btn-close-white" @onclick="() => isDataMiningModalOpen = false"></button>
+                        </div>
+                        <div class="modal-body p-4">
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <div class="p-3 bg-light rounded-3 border h-100 d-flex flex-column justify-content-between">
+                                        <div>
+                                            <div class="d-flex align-items-center gap-2 mb-2">
+                                                <i class="bi bi-diagram-3-fill text-primary fs-5"></i>
+                                                <h6 class="fw-bold mb-0 text-dark">Clusterização K-Means</h6>
+                                            </div>
+                                            <p class="text-muted small mb-2" style="font-size: 0.75rem;">
+                                                Segmenta seus clientes ou vendas em grupos com base em valor de compra e frequência.
+                                            </p>
+                                            <div class="mb-2">
+                                                <label class="form-label small fw-semibold text-secondary">Número de Clusters (K):</label>
+                                                <select class="form-select form-select-sm" @bind="kMeansK">
+                                                    <option value="2">2 Grupos (Básico)</option>
+                                                    <option value="3">3 Grupos (Recomendado: VIP, Médio, Risco)</option>
+                                                    <option value="4">4 Grupos (Segmentação Fina)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-sm btn-primary rounded-3 w-100" @onclick="ExecutarKMeansNoCanvasAsync">
+                                            <i class="bi bi-play-fill me-1"></i> Executar e Injetar no Canvas
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6">
+                                    <div class="p-3 bg-light rounded-3 border h-100 d-flex flex-column justify-content-between">
+                                        <div>
+                                            <div class="d-flex align-items-center gap-2 mb-2">
+                                                <i class="bi bi-pie-chart text-success fs-5"></i>
+                                                <h6 class="fw-bold mb-0 text-dark">Classificação Curva ABC</h6>
+                                            </div>
+                                            <p class="text-muted small mb-2" style="font-size: 0.75rem;">
+                                                Classifica os produtos e transações pelo princípio de Pareto: Classe A (80%), B (15%) e C (5%).
+                                            </p>
+                                        </div>
+                                        <button class="btn btn-sm btn-success rounded-3 w-100" @onclick="ExecutarCurvaAbcNoCanvasAsync">
+                                            <i class="bi bi-play-fill me-1"></i> Calcular Curva ABC
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Modal Importar CSV/JSON (Fase 3) -->
+        <BIImportModal @bind-IsOpen="isImportModalOpen" OnDashboardCriado="TratarDashboardCriado" />
+
+        <!-- Modal Compartilhar Link Público (Fase 5) -->
+        <BIShareModal @bind-IsOpen="isShareModalOpen" Dashboard="DashboardAtivo" />
+
     </ChildContent>
 
     @* ========================================================================= *@
@@ -439,6 +665,13 @@
 </AcessoAutorizado>
 
 @code {
+    public class MensagemChatBI
+    {
+        public string Remetente { get; set; } = "IA";
+        public string Texto { get; set; } = string.Empty;
+        public DateTime Horario { get; set; } = DateTime.Now;
+    }
+
     private List<BIDashboard> ListaDashboards = new();
     private BIDashboard? DashboardAtivo;
     private BIWidget? WidgetSelecionado;
@@ -448,6 +681,28 @@
     private string? MensagemFeedback;
     private string ClasseFeedback = "alert-success";
     private string PromptIaRapido = string.Empty;
+
+    // Modais e Estados
+    private bool isTemplatesModalOpen = false;
+    private bool isImportModalOpen = false;
+    private bool isDataMiningModalOpen = false;
+    private bool isShareModalOpen = false;
+    private int kMeansK = 3;
+
+    // Drag and Drop (Fase 2)
+    private BIWidgetTipo? tipoWidgetArrastando;
+    private bool IsDragOverCanvas = false;
+
+    // Histórico de Chat IA (Fase 4)
+    private List<MensagemChatBI> HistoricoChat = new()
+    {
+        new MensagemChatBI
+        {
+            Remetente = "IA",
+            Texto = "Olá! Sou o Consultor de Inteligência do JT_BI. Posso criar gráficos, rodar K-Means, analisar curva ABC ou sugerir métricas de negócio para o seu painel.",
+            Horario = DateTime.Now
+        }
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -459,7 +714,6 @@
         IsCarregando = true;
         try
         {
-            // Consome serviços do módulo Gestão / Comum (não bloqueante)
             try
             {
                 var configGestao = await GestaoConfigService.GetAtivaAsync();
@@ -469,7 +723,6 @@
                 Console.WriteLine($"[JT_BI] Aviso ao obter GestaoConfig: {exGestao.Message}");
             }
 
-            // Carrega dashboards existentes
             ListaDashboards = await DashboardService.ObterTodosAsync();
             if (ListaDashboards.Any())
             {
@@ -490,12 +743,409 @@
         }
         catch (Exception ex)
         {
-            MensagemFeedback = $"Aviso ao carregar configurações de gestão: {ex.Message}";
+            MensagemFeedback = $"Aviso ao carregar ambiente: {ex.Message}";
             ClasseFeedback = "alert-warning";
         }
         finally
         {
             IsCarregando = false;
+        }
+    }
+
+    // =========================================================================
+    // FASE 2: DRAG AND DROP & TEMPLATES
+    // =========================================================================
+
+    private void IniciarArrasto(BIWidgetTipo tipo)
+    {
+        tipoWidgetArrastando = tipo;
+    }
+
+    private void TratarDragOver()
+    {
+        IsDragOverCanvas = true;
+    }
+
+    private void TratarDrop()
+    {
+        IsDragOverCanvas = false;
+        if (tipoWidgetArrastando.HasValue)
+        {
+            AdicionarWidgetRapido(tipoWidgetArrastando.Value);
+            tipoWidgetArrastando = null;
+        }
+    }
+
+    private async Task AplicarTemplateAsync(int idTemplate)
+    {
+        if (DashboardAtivo == null) return;
+        DashboardAtivo.Widgets.Clear();
+
+        switch (idTemplate)
+        {
+            case 1: // Resumo Executivo
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.CardKpi,
+                    Titulo = "Receita Total Mês",
+                    LarguraColunas = 4,
+                    CorTema = "success",
+                    ValorAtual = 148920m,
+                    Subtitulo = "+12,4% vs mês anterior"
+                });
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.CardKpi,
+                    Titulo = "Pedidos Realizados",
+                    LarguraColunas = 4,
+                    CorTema = "primary",
+                    ValorAtual = 1420m,
+                    Subtitulo = "Ticket Médio: R$ 104,80"
+                });
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.CardKpi,
+                    Titulo = "Novos Clientes",
+                    LarguraColunas = 4,
+                    CorTema = "warning",
+                    ValorAtual = 284m,
+                    Subtitulo = "+8,2% conversão"
+                });
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.GraficoBarras,
+                    Titulo = "Vendas por Módulo do Ecossistema",
+                    LarguraColunas = 6,
+                    CorTema = "primary"
+                });
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.GraficoLinhas,
+                    Titulo = "Tendência Financeira Diária",
+                    LarguraColunas = 6,
+                    CorTema = "success"
+                });
+                break;
+
+            case 2: // Análise Operacional e Vendas
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.CardKpi,
+                    Titulo = "Ticket Médio",
+                    LarguraColunas = 4,
+                    CorTema = "primary",
+                    ValorAtual = 186.50m,
+                    Subtitulo = "R$ por compra"
+                });
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.CardKpi,
+                    Titulo = "Taxa de Conversão",
+                    LarguraColunas = 4,
+                    CorTema = "success",
+                    ValorAtual = 24.8m,
+                    Subtitulo = "+3.1% acima da meta"
+                });
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.CardKpi,
+                    Titulo = "Retenção de Clientes",
+                    LarguraColunas = 4,
+                    CorTema = "info",
+                    ValorAtual = 91.4m,
+                    Subtitulo = "Índice de recompra"
+                });
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.GraficoBarras,
+                    Titulo = "Comparativo por Categoria",
+                    LarguraColunas = 6,
+                    CorTema = "primary"
+                });
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.GraficoPizza,
+                    Titulo = "Canais de Aquisição",
+                    LarguraColunas = 6,
+                    CorTema = "warning"
+                });
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.Tabela,
+                    Titulo = "Detalhamento de Transações",
+                    LarguraColunas = 12,
+                    DimensaoCampo = "Canal / Categoria",
+                    MetricaCampo = "Total Faturado"
+                });
+                break;
+
+            case 3: // Métricas de IA & Mineração
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.CardKpi,
+                    Titulo = "Risco de Churn Previsto",
+                    LarguraColunas = 4,
+                    CorTema = "danger",
+                    ValorAtual = 4.2m,
+                    Subtitulo = "Probabilidade de perda de clientes"
+                });
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.CardKpi,
+                    Titulo = "Clusters K-Means Ativos",
+                    LarguraColunas = 4,
+                    CorTema = "primary",
+                    ValorAtual = 3m,
+                    Subtitulo = "Perfis identificados"
+                });
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.CardKpi,
+                    Titulo = "Produtos Classe A (Curva ABC)",
+                    LarguraColunas = 4,
+                    CorTema = "success",
+                    ValorAtual = 80m,
+                    Subtitulo = "Concentram 80% do faturamento"
+                });
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.GraficoPizza,
+                    Titulo = "Segmentação de Clientes (K-Means)",
+                    LarguraColunas = 6,
+                    CorTema = "info"
+                });
+                DashboardAtivo.Widgets.Add(new BIWidget
+                {
+                    Tipo = BIWidgetTipo.GraficoLinhas,
+                    Titulo = "Projeção de Demanda Preditiva (30D)",
+                    LarguraColunas = 6,
+                    CorTema = "success"
+                });
+                break;
+        }
+
+        isTemplatesModalOpen = false;
+        await SalvarDashboardAtualAsync();
+        ExibirFeedback("Template aplicado com sucesso ao Canvas!", "alert-success");
+    }
+
+    // =========================================================================
+    // FASE 3: MINERAÇÃO DE DADOS & UPLOAD
+    // =========================================================================
+
+    private async Task ExecutarKMeansNoCanvasAsync()
+    {
+        if (DashboardAtivo == null) return;
+
+        // Amostra de registros para clustering
+        var registros = new List<Dictionary<string, string>>
+        {
+            new() { ["Cliente"] = "Restaurante Sabor & Arte", ["TicketMedio"] = "1850", ["Frequencia"] = "28" },
+            new() { ["Cliente"] = "Padaria Central", ["TicketMedio"] = "920", ["Frequencia"] = "14" },
+            new() { ["Cliente"] = "Mercado do Povo", ["TicketMedio"] = "3400", ["Frequencia"] = "45" },
+            new() { ["Cliente"] = "Bar & Petiscos", ["TicketMedio"] = "450", ["Frequencia"] = "6" },
+            new() { ["Cliente"] = "Lanchonete 24h", ["TicketMedio"] = "1200", ["Frequencia"] = "22" },
+            new() { ["Cliente"] = "Pizzaria Bella", ["TicketMedio"] = "2800", ["Frequencia"] = "38" }
+        };
+
+        var resultado = DataMiningService.ExecutarKMeans(registros, "Cliente", "TicketMedio", "Frequencia", kMeansK);
+        var widgets = DataMiningService.GerarWidgetsMinacao(resultado);
+
+        foreach (var w in widgets)
+        {
+            DashboardAtivo.Widgets.Add(w);
+        }
+
+        isDataMiningModalOpen = false;
+        await SalvarDashboardAtualAsync();
+        ExibirFeedback(resultado.ResumoExecutivo, "alert-success");
+    }
+
+    private async Task ExecutarCurvaAbcNoCanvasAsync()
+    {
+        if (DashboardAtivo == null) return;
+
+        var registros = new List<Dictionary<string, string>>
+        {
+            new() { ["Produto"] = "Combo Executivo", ["Valor"] = "45200" },
+            new() { ["Produto"] = "Pizza Artesanal", ["Valor"] = "28400" },
+            new() { ["Produto"] = "Bebidas & Refrigerantes", ["Valor"] = "14200" },
+            new() { ["Produto"] = "Sobremesas Especiais", ["Valor"] = "6800" },
+            new() { ["Produto"] = "Porções & Aperitivos", ["Valor"] = "3200" }
+        };
+
+        var resultado = DataMiningService.CalcularCurvaAbc(registros, "Produto", "Valor");
+        var widgets = DataMiningService.GerarWidgetsCurvaAbc(resultado);
+
+        foreach (var w in widgets)
+        {
+            DashboardAtivo.Widgets.Add(w);
+        }
+
+        isDataMiningModalOpen = false;
+        await SalvarDashboardAtualAsync();
+        ExibirFeedback($"Curva ABC calculada: {resultado.QtdClasseA} itens na Classe A (80% da receita).", "alert-success");
+    }
+
+    private void TratarDashboardCriado(BIDashboard novo)
+    {
+        ListaDashboards.Insert(0, novo);
+        DashboardAtivo = novo;
+        WidgetSelecionado = null;
+        ExibirFeedback($"Dashboard '{novo.Nome}' importado com sucesso!", "alert-success");
+    }
+
+    // =========================================================================
+    // FASE 4: AGENTE DE IA (CONSULTOR EXECUTIVO BI)
+    // =========================================================================
+
+    private async Task EnviarInstrucaoIaAsync()
+    {
+        if (string.IsNullOrWhiteSpace(PromptIaRapido)) return;
+
+        var prompt = PromptIaRapido.Trim();
+        PromptIaRapido = string.Empty;
+
+        HistoricoChat.Add(new MensagemChatBI
+        {
+            Remetente = "Usuario",
+            Texto = prompt,
+            Horario = DateTime.Now
+        });
+
+        if (prompt.Contains("kmeans", StringComparison.OrdinalIgnoreCase) || prompt.Contains("cluster", StringComparison.OrdinalIgnoreCase))
+        {
+            await ExecutarKMeansNoCanvasAsync();
+            HistoricoChat.Add(new MensagemChatBI
+            {
+                Remetente = "IA",
+                Texto = "Executei a mineração K-Means e inseri os gráficos de segmentação de clientes diretamente no seu Canvas!",
+                Horario = DateTime.Now
+            });
+        }
+        else if (prompt.Contains("abc", StringComparison.OrdinalIgnoreCase) || prompt.Contains("pareto", StringComparison.OrdinalIgnoreCase))
+        {
+            await ExecutarCurvaAbcNoCanvasAsync();
+            HistoricoChat.Add(new MensagemChatBI
+            {
+                Remetente = "IA",
+                Texto = "Calculei a Curva ABC e adicionei o KPI da Classe A e o gráfico de distribuição no Canvas.",
+                Horario = DateTime.Now
+            });
+        }
+        else if (prompt.Contains("executivo", StringComparison.OrdinalIgnoreCase) || prompt.Contains("template 1", StringComparison.OrdinalIgnoreCase))
+        {
+            await AplicarTemplateAsync(1);
+            HistoricoChat.Add(new MensagemChatBI
+            {
+                Remetente = "IA",
+                Texto = "Template Executivo aplicado! Configurei os KPIs principais e a evolução financeira diária.",
+                Horario = DateTime.Now
+            });
+        }
+        else if (prompt.Contains("operacional", StringComparison.OrdinalIgnoreCase) || prompt.Contains("vendas", StringComparison.OrdinalIgnoreCase))
+        {
+            await AplicarTemplateAsync(2);
+            HistoricoChat.Add(new MensagemChatBI
+            {
+                Remetente = "IA",
+                Texto = "Template Operacional aplicado com comparativo de categorias e canais de aquisição.",
+                Horario = DateTime.Now
+            });
+        }
+        else if (prompt.Contains("barra", StringComparison.OrdinalIgnoreCase))
+        {
+            AdicionarWidgetRapido(BIWidgetTipo.GraficoBarras);
+            HistoricoChat.Add(new MensagemChatBI
+            {
+                Remetente = "IA",
+                Texto = "Gráfico de Barras adicionado com sucesso ao Canvas!",
+                Horario = DateTime.Now
+            });
+        }
+        else if (prompt.Contains("linha", StringComparison.OrdinalIgnoreCase) || prompt.Contains("tendência", StringComparison.OrdinalIgnoreCase))
+        {
+            AdicionarWidgetRapido(BIWidgetTipo.GraficoLinhas);
+            HistoricoChat.Add(new MensagemChatBI
+            {
+                Remetente = "IA",
+                Texto = "Gráfico de Linhas de tendência temporal adicionado!",
+                Horario = DateTime.Now
+            });
+        }
+        else if (prompt.Contains("pizza", StringComparison.OrdinalIgnoreCase))
+        {
+            AdicionarWidgetRapido(BIWidgetTipo.GraficoPizza);
+            HistoricoChat.Add(new MensagemChatBI
+            {
+                Remetente = "IA",
+                Texto = "Gráfico de Pizza para proporções percentuais gerado no Canvas!",
+                Horario = DateTime.Now
+            });
+        }
+        else if (prompt.Contains("kpi", StringComparison.OrdinalIgnoreCase) || prompt.Contains("total", StringComparison.OrdinalIgnoreCase))
+        {
+            AdicionarWidgetRapido(BIWidgetTipo.CardKpi);
+            HistoricoChat.Add(new MensagemChatBI
+            {
+                Remetente = "IA",
+                Texto = "Card KPI criado! Você pode editar o valor e o título no Inspector à direita.",
+                Horario = DateTime.Now
+            });
+        }
+        else if (prompt.Contains("limpar", StringComparison.OrdinalIgnoreCase))
+        {
+            LimparCanvas();
+            HistoricoChat.Add(new MensagemChatBI
+            {
+                Remetente = "IA",
+                Texto = "O Canvas foi limpo. O que você gostaria de construir agora?",
+                Horario = DateTime.Now
+            });
+        }
+        else
+        {
+            HistoricoChat.Add(new MensagemChatBI
+            {
+                Remetente = "IA",
+                Texto = $"Analisando: '{prompt}'. Dica executiva: você pode pedir 'Crie o template executivo', 'Execute K-Means' ou 'Adicione um gráfico de barras'.",
+                Horario = DateTime.Now
+            });
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ExecutarPromptRapido(string prompt)
+    {
+        PromptIaRapido = prompt;
+        await EnviarInstrucaoIaAsync();
+    }
+
+    private async Task TratarEnterPromptIa(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await EnviarInstrucaoIaAsync();
+        }
+    }
+
+    // =========================================================================
+    // FASE 5: COMPARTILHAMENTO & PERSISTÊNCIA
+    // =========================================================================
+
+    private async Task ExportarJsonDashboard()
+    {
+        if (DashboardAtivo == null) return;
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(DashboardAtivo, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", json);
+            ExibirFeedback("Definições JSON do dashboard copiadas para a área de transferência!", "alert-info");
+        }
+        catch (Exception ex)
+        {
+            ExibirFeedback($"Erro ao exportar: {ex.Message}", "alert-danger");
         }
     }
 
@@ -517,7 +1167,7 @@
         var novo = new BIDashboard
         {
             Nome = $"Novo Painel #{ListaDashboards.Count + 1}",
-            Descricao = "Painel personalizado",
+            Descricao = "Painel analítico customizado",
             Categoria = "Personalizado",
             Icone = "bi-bar-chart-fill"
         };
@@ -563,6 +1213,7 @@
 
         DashboardAtivo.Widgets.Add(widget);
         WidgetSelecionado = widget;
+        AbaDireitaAtiva = "propriedades";
         ExibirFeedback($"Widget '{widget.Titulo}' inserido no Canvas.", "alert-info");
     }
 
@@ -585,106 +1236,7 @@
         if (DashboardAtivo == null) return;
         DashboardAtivo.Widgets.Clear();
         WidgetSelecionado = null;
-        ExibirFeedback("Canvas limpo.", "alert-secondary");
-    }
-
-    private async Task CarregarTemplatePadraoAsync()
-    {
-        if (DashboardAtivo == null) return;
-        DashboardAtivo.Widgets.Clear();
-
-        // 3 Cards KPI
-        DashboardAtivo.Widgets.Add(new BIWidget
-        {
-            Tipo = BIWidgetTipo.CardKpi,
-            Titulo = "Receita Total Mês",
-            LarguraColunas = 4,
-            CorTema = "success",
-            ValorAtual = 148920m,
-            Subtitulo = "+12,4% vs mês anterior"
-        });
-
-        DashboardAtivo.Widgets.Add(new BIWidget
-        {
-            Tipo = BIWidgetTipo.CardKpi,
-            Titulo = "Pedidos Realizados",
-            LarguraColunas = 4,
-            CorTema = "primary",
-            ValorAtual = 1420m,
-            Subtitulo = "Ticket Médio: R$ 104,80"
-        });
-
-        DashboardAtivo.Widgets.Add(new BIWidget
-        {
-            Tipo = BIWidgetTipo.CardKpi,
-            Titulo = "Novos Clientes",
-            LarguraColunas = 4,
-            CorTema = "warning",
-            ValorAtual = 284m,
-            Subtitulo = "+8,2% conversão"
-        });
-
-        // 2 Gráficos
-        DashboardAtivo.Widgets.Add(new BIWidget
-        {
-            Tipo = BIWidgetTipo.GraficoBarras,
-            Titulo = "Vendas por Módulo do Ecossistema",
-            LarguraColunas = 6,
-            CorTema = "primary"
-        });
-
-        DashboardAtivo.Widgets.Add(new BIWidget
-        {
-            Tipo = BIWidgetTipo.GraficoLinhas,
-            Titulo = "Tendência Financeira Diária",
-            LarguraColunas = 6,
-            CorTema = "success"
-        });
-
-        await SalvarDashboardAtualAsync();
-        ExibirFeedback("Template Executivo aplicado com sucesso!", "alert-success");
-    }
-
-    private async Task EnviarInstrucaoIaAsync()
-    {
-        if (string.IsNullOrWhiteSpace(PromptIaRapido)) return;
-
-        var prompt = PromptIaRapido.Trim();
-        PromptIaRapido = string.Empty;
-
-        if (prompt.Contains("barra", StringComparison.OrdinalIgnoreCase))
-        {
-            AdicionarWidgetRapido(BIWidgetTipo.GraficoBarras);
-            ExibirFeedback("Agente IA: Gráfico de Barras criado com base na sua solicitação!", "alert-success");
-        }
-        else if (prompt.Contains("linha", StringComparison.OrdinalIgnoreCase) || prompt.Contains("tendência", StringComparison.OrdinalIgnoreCase))
-        {
-            AdicionarWidgetRapido(BIWidgetTipo.GraficoLinhas);
-            ExibirFeedback("Agente IA: Gráfico de Linhas de tendência criado no Canvas!", "alert-success");
-        }
-        else if (prompt.Contains("pizza", StringComparison.OrdinalIgnoreCase))
-        {
-            AdicionarWidgetRapido(BIWidgetTipo.GraficoPizza);
-            ExibirFeedback("Agente IA: Gráfico de Pizza gerado no Canvas!", "alert-success");
-        }
-        else if (prompt.Contains("kpi", StringComparison.OrdinalIgnoreCase) || prompt.Contains("indicador", StringComparison.OrdinalIgnoreCase) || prompt.Contains("total", StringComparison.OrdinalIgnoreCase))
-        {
-            AdicionarWidgetRapido(BIWidgetTipo.CardKpi);
-            ExibirFeedback("Agente IA: Card KPI gerado no Canvas!", "alert-success");
-        }
-        else
-        {
-            ExibirFeedback($"Agente IA analisou: '{prompt}'. Dica: você pode pedir 'Crie um gráfico de barras' ou 'Adicione um KPI'.", "alert-info");
-        }
-        await Task.CompletedTask;
-    }
-
-    private async Task TratarEnterPromptIa(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-        {
-            await EnviarInstrucaoIaAsync();
-        }
+        ExibirFeedback("Canvas limpo com sucesso.", "alert-secondary");
     }
 
     private void RecarregarAcesso()

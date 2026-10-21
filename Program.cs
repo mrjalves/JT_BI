@@ -81,6 +81,7 @@ builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddSingleton<IBIDashboardService, BIDashboardService>();
 builder.Services.AddSingleton<IBIDataSourceService, BIDataSourceService>();
 builder.Services.AddSingleton<IBIImportService, BIImportService>();
+builder.Services.AddSingleton<IBIDataMiningService, BIDataMiningService>();
 
 var app = builder.Build();
 
