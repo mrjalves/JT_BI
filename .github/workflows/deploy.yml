@@ -12,7 +12,7 @@ env:
 
 concurrency:
   group: deploy-jt_sistemas_bi
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
