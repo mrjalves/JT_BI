@@ -1,5 +1,8 @@
 using JT_BI.Components;
 using JT_BI.Services;
+using JT_Classes.Acessos;
+using JT_Servicos.Acessos;
+using JT_UserInterface.Shared;
 using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +17,12 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
 });
+
+// Registrar Camada de Interface Compartilhada e Segurança
+builder.Services.AddScoped<ISecureStorageService, WebSecureStorageService>();
+builder.Services.AddJTUserInterface();
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<JwtTokenService>();
 
 // Registrar Serviços do JT_BI
 builder.Services.AddSingleton<IBIDashboardService, BIDashboardService>();

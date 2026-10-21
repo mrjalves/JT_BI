@@ -1,4 +1,4 @@
-﻿namespace JT_BI.Models;
+namespace JT_BI.Models;
 
 public class BIWidget
 {
@@ -26,4 +26,10 @@ public class BIWidget
     public string MetricaCampo { get; set; } = "Faturamento";
     public string DimensaoCampo { get; set; } = "Periodo";
     public string Agregacao { get; set; } = "Soma"; // Soma, Media, Contagem, Max, Min
+
+    // Helpers e Compatibilidade de Grid / UI
+    public string CorDestaque { get => CorTema; set => CorTema = value; }
+    public int LarguraColunas { get; set; } = 6;
+    public string? ValorKpiAtual { get; set; }
+    public string? SubtituloKpi { get => Subtitulo; set => Subtitulo = value ?? string.Empty; }
 }
