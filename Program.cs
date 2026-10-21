@@ -43,35 +43,16 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
-// Configurar HttpClient com header X-Client-Config apontando para o ClientId JT_Sistemas
-builder.Services.AddHttpClient();
-builder.Services.AddScoped(sp =>
-{
-    var baseUrl = builder.Configuration["Config:Conexao:BaseApiUrl"]
-               ?? builder.Configuration["Config:FirebaseConfig:BaseApiUrl"]
-               ?? "https://api.jtecsistemas.com.br";
-    var httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
-
-    var clientId = Config.Instancia?.ClientId ?? "JT_Sistemas";
-    var configPayload = new ClientConfigPayload { ClientId = clientId };
-    if (Config.Instancia != null)
-    {
-        Config.Instancia.ClientId = configPayload.ClientId;
-    }
-
-    var json = JsonSerializer.Serialize(configPayload);
-    var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
-    if (!httpClient.DefaultRequestHeaders.Contains("X-Client-Config"))
-    {
-        httpClient.DefaultRequestHeaders.Add("X-Client-Config", encoded);
-    }
-
-    return httpClient;
-});
-
 // Registrar Camada de Interface Compartilhada e Segurança
 builder.Services.AddScoped<ISecureStorageService, WebSecureStorageService>();
 builder.Services.AddJTUserInterface();
+
+// Injetar HttpClient com JwtAuthorizationHandler registrado pelo AddJTUserInterface
+builder.Services.AddScoped(sp =>
+{
+    var factory = sp.GetRequiredService<IHttpClientFactory>();
+    return factory.CreateClient(string.Empty);
+});
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<JwtTokenService>();
 
