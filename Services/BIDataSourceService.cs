@@ -31,7 +31,7 @@ public class BIDataSourceService : IBIDataSourceService
             {
                 Id = "financeiro",
                 Nome = "Financeiro & Tesouraria",
-                Descricao = "Receitas, despesas, fluxo de caixa e inadimplÃªncia",
+                Descricao = "Receitas, despesas, fluxo de caixa e inadimplência",
                 Icone = "bi-cash-coin",
                 Cor = "success",
                 Metricas = new List<string> { "Faturamento", "Despesas", "Lucro Liquido", "Inadimplencia", "Saldo Caixa" },
@@ -41,7 +41,7 @@ public class BIDataSourceService : IBIDataSourceService
             {
                 Id = "food",
                 Nome = "Food & Restaurante (JT_Food)",
-                Descricao = "Mesas, comandas, pratos mais vendidos e ticket mÃ©dio",
+                Descricao = "Mesas, comandas, pratos mais vendidos e ticket médio",
                 Icone = "bi-cup-straw",
                 Cor = "warning",
                 Metricas = new List<string> { "Faturamento Restaurante", "Ticket Medio", "Qtd Pedidos", "Giro Mesas", "Tempo Medio Atendimento" },
@@ -51,7 +51,7 @@ public class BIDataSourceService : IBIDataSourceService
             {
                 Id = "vendas",
                 Nome = "Comercial & CRM",
-                Descricao = "Leads, taxas de conversÃ£o e metas batidas",
+                Descricao = "Leads, taxas de conversão e metas batidas",
                 Icone = "bi-graph-up-arrow",
                 Cor = "primary",
                 Metricas = new List<string> { "Novos Leads", "Taxa Conversao", "Vendas Fechadas", "Valor Pipeline" },
@@ -61,7 +61,7 @@ public class BIDataSourceService : IBIDataSourceService
             {
                 Id = "estoque",
                 Nome = "Estoque & Suprimentos",
-                Descricao = "Giro de mercadorias, curva ABC e reposiÃ§Ã£o",
+                Descricao = "Giro de mercadorias, curva ABC e reposição",
                 Icone = "bi-box-seam",
                 Cor = "info",
                 Metricas = new List<string> { "Valor Total Estoque", "Itens Criticos", "Giro Estoque", "Perdas / Descarte" },
@@ -94,7 +94,7 @@ public class BIDataSourceService : IBIDataSourceService
             }
         }
 
-        // Mock inteligente baseado na mÃ©trica
+        // Mock inteligente baseado na métrica
         decimal valor = widget.MetricaCampo switch
         {
             "Faturamento" => 284560.00m,
@@ -161,7 +161,7 @@ public class BIDataSourceService : IBIDataSourceService
             }
         }
 
-        // Mock predefinido para cada dimensÃ£o
+        // Mock predefinido para cada dimensão
         var lista = new List<BIDataPoint>();
         if (widget.DimensaoCampo == "Mes" || widget.DimensaoCampo == "Periodo")
         {
@@ -199,7 +199,7 @@ public class BIDataSourceService : IBIDataSourceService
         }
         else if (widget.DimensaoCampo == "Ambiente Salao")
         {
-            string[] ambs = new[] { "SalÃ£o Principal", "Varanda Externa", "Ãrea VIP / Lounge", "Deck Superior" };
+            string[] ambs = new[] { "Salão Principal", "Varanda Externa", "Área VIP / Lounge", "Deck Superior" };
             decimal[] vals = new[] { 68400m, 39100m, 24500m, 10800m };
             string[] cores = new[] { "#3b82f6", "#06b6d4", "#8b5cf6", "#f97316" };
             decimal total = vals.Sum();
@@ -218,8 +218,8 @@ public class BIDataSourceService : IBIDataSourceService
         }
         else
         {
-            // GenÃ©rico
-            string[] itens = new[] { "Direto", "WhatsApp", "iFood / Delivery", "IndicaÃ§Ã£o", "Redes Sociais" };
+            // Genérico
+            string[] itens = new[] { "Direto", "WhatsApp", "iFood / Delivery", "Indicação", "Redes Sociais" };
             decimal[] vals = new[] { 520m, 380m, 640m, 210m, 190m };
             string[] cores = new[] { "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899" };
             decimal total = vals.Sum();

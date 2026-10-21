@@ -30,7 +30,7 @@
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-semibold small text-muted">Formato de Origem:</label>
                             <select class="form-select form-select-sm" @bind="formato">
-                                <option value="CSV">CSV / TSV (Separado por ponto-e-vÃ­rgula ou vÃ­rgula)</option>
+                                <option value="CSV">CSV / TSV (Separado por ponto-e-vírgula ou vírgula)</option>
                                 <option value="JSON">JSON (Array de objetos [{...}])</option>
                             </select>
                         </div>
@@ -85,10 +85,10 @@
                     <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="Fechar">Cancelar</button>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-sm btn-outline-primary" @onclick="ProcessarPreview">
-                            <i class="bi bi-eye me-1"></i> PrÃ©-visualizar
+                            <i class="bi bi-eye me-1"></i> Pré-visualizar
                         </button>
                         <button type="button" class="btn btn-sm btn-primary" @onclick="SalvarEGerarDashboardAsync" disabled="@(string.IsNullOrWhiteSpace(conteudoBruto))">
-                            <i class="bi bi-speedometer2 me-1"></i> Gerar Dashboard AutomÃ¡tico
+                            <i class="bi bi-speedometer2 me-1"></i> Gerar Dashboard Automático
                         </button>
                     </div>
                 </div>
@@ -140,7 +140,7 @@
 
             if (datasetPreview.QtdLinhas == 0)
             {
-                mensagemErro = "Nenhum dado pÃ´de ser extraÃ­do. Verifique o formato informado.";
+                mensagemErro = "Nenhum dado pôde ser extraído. Verifique o formato informado.";
             }
         }
         catch (Exception ex)

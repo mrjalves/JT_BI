@@ -15,17 +15,17 @@
                         </div>
                         <div>
                             <h5 class="modal-title fw-bold mb-0">Compartilhar Painel</h5>
-                            <small class="text-white-50">Acesso pÃºblico sem necessidade de login</small>
+                            <small class="text-white-50">Acesso público sem necessidade de login</small>
                         </div>
                     </div>
                     <button type="button" class="btn-close btn-close-white" @onclick="Fechar"></button>
                 </div>
 
                 <div class="modal-body p-4">
-                    <!-- Switch de Acesso PÃºblico -->
+                    <!-- Switch de Acesso Público -->
                     <div class="d-flex align-items-center justify-content-between p-3 rounded-3 bg-light mb-3 border">
                         <div>
-                            <span class="fw-bold d-block text-dark">Permitir Acesso PÃºblico</span>
+                            <span class="fw-bold d-block text-dark">Permitir Acesso Público</span>
                             <small class="text-muted">Qualquer pessoa com o link pode visualizar sem credenciais de login</small>
                         </div>
                         <div class="form-check form-switch fs-4 mb-0">
@@ -38,7 +38,7 @@
                         var linkCompleto = $"{Nav.BaseUri}compartilhado/{Dashboard.PublicToken}";
 
                         <div class="mb-3">
-                            <label class="form-label fw-semibold small text-muted">Link de VisualizaÃ§Ã£o Direta:</label>
+                            <label class="form-label fw-semibold small text-muted">Link de Visualização Direta:</label>
                             <div class="input-group">
                                 <input type="text" class="form-control form-control-sm font-monospace" value="@linkCompleto" readonly />
                                 <button class="btn btn-sm btn-primary" @onclick="() => CopiarTexto(linkCompleto)">
@@ -51,9 +51,9 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label fw-semibold small text-muted">AtualizaÃ§Ã£o AutomÃ¡tica (Segundos):</label>
+                            <label class="form-label fw-semibold small text-muted">Atualização Automática (Segundos):</label>
                             <select class="form-select form-select-sm" @bind="Dashboard.AutoRefreshSegundos">
-                                <option value="0">Desativado (EstÃ¡tico)</option>
+                                <option value="0">Desativado (Estático)</option>
                                 <option value="15">A cada 15 segundos (Tempo Real)</option>
                                 <option value="30">A cada 30 segundos</option>
                                 <option value="60">A cada 1 minuto</option>
@@ -62,14 +62,14 @@
                         </div>
 
                         <div>
-                            <label class="form-label fw-semibold small text-muted">CÃ³digo para Incorporar (iFrame):</label>
+                            <label class="form-label fw-semibold small text-muted">Código para Incorporar (iFrame):</label>
                             <textarea class="form-control form-control-sm font-monospace" rows="2" readonly style="font-size: 0.75rem;">&lt;iframe src="@linkCompleto" width="100%" height="700" frameborder="0" allowfullscreen&gt;&lt;/iframe&gt;</textarea>
                         </div>
                     }
                     else
                     {
                         <div class="alert alert-warning py-2 small mb-0">
-                            <i class="bi bi-lock-fill me-1"></i> O compartilhamento pÃºblico deste painel estÃ¡ desativado. Ative a chave acima para gerar o link.
+                            <i class="bi bi-lock-fill me-1"></i> O compartilhamento público deste painel está desativado. Ative a chave acima para gerar o link.
                         </div>
                     }
 
@@ -84,7 +84,7 @@
                 <div class="modal-footer bg-light p-3 border-0 d-flex justify-content-between">
                     <button type="button" class="btn btn-sm btn-secondary" @onclick="Fechar">Fechar</button>
                     <button type="button" class="btn btn-sm btn-primary" @onclick="SalvarConfiguracoesAsync">
-                        <i class="bi bi-save me-1"></i> Salvar ConfiguraÃ§Ãµes
+                        <i class="bi bi-save me-1"></i> Salvar Configurações
                     </button>
                 </div>
             </div>

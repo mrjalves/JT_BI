@@ -156,11 +156,11 @@ public class BIImportService : IBIImportService
             FormatoValor = "Numero"
         });
 
-        // 2. KPI MÃ©dia
+        // 2. KPI Média
         dash.Widgets.Add(new BIWidget
         {
-            Titulo = $"MÃ©dia {colNumerica?.Nome ?? "Valores"}",
-            Subtitulo = "MÃ©dia por ocorrÃªncia",
+            Titulo = $"Média {colNumerica?.Nome ?? "Valores"}",
+            Subtitulo = "Média por ocorrência",
             Tipo = BIWidgetTipo.CardKpi,
             PosX = 26,
             PosY = 2,
@@ -195,11 +195,11 @@ public class BIImportService : IBIImportService
             ValorAtual = dataset.QtdLinhas
         });
 
-        // 4. GrÃ¡fico de Barras por Categoria
+        // 4. Gráfico de Barras por Categoria
         dash.Widgets.Add(new BIWidget
         {
-            Titulo = $"DistribuiÃ§Ã£o por {colTexto?.Nome ?? "Categoria"}",
-            Subtitulo = $"Valores de {colNumerica?.Nome ?? "MÃ©trica"}",
+            Titulo = $"Distribuição por {colTexto?.Nome ?? "Categoria"}",
+            Subtitulo = $"Valores de {colNumerica?.Nome ?? "Métrica"}",
             Tipo = BIWidgetTipo.GraficoBarras,
             PosX = 2,
             PosY = 24,
@@ -214,11 +214,11 @@ public class BIImportService : IBIImportService
             FormatoValor = "Numero"
         });
 
-        // 5. GrÃ¡fico de Pizza / Donut
+        // 5. Gráfico de Pizza / Donut
         dash.Widgets.Add(new BIWidget
         {
-            Titulo = $"ParticipaÃ§Ã£o % por {colTexto?.Nome ?? "Categoria"}",
-            Subtitulo = "ProporÃ§Ã£o comparativa",
+            Titulo = $"Participação % por {colTexto?.Nome ?? "Categoria"}",
+            Subtitulo = "Proporção comparativa",
             Tipo = BIWidgetTipo.GraficoPizza,
             PosX = 50,
             PosY = 24,

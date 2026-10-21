@@ -4,7 +4,7 @@ public class BIDashboard
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Nome { get; set; } = "Novo Painel de BI";
-    public string Descricao { get; set; } = "Painel analÃ­tico customizado";
+    public string Descricao { get; set; } = "Painel analítico customizado";
     public string Categoria { get; set; } = "Geral";
     public string Icone { get; set; } = "bi-speedometer2";
     public string CorDestaque { get; set; } = "primary";

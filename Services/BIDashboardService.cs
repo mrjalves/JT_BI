@@ -131,13 +131,13 @@ public class BIDashboardService : IBIDashboardService
     {
         var original = await ObterPorIdAsync(id);
         if (original == null)
-            throw new Exception("Dashboard nÃƒÂ£o encontrado.");
+            throw new Exception("Dashboard não encontrado.");
 
         var json = JsonSerializer.Serialize(original);
         var copia = JsonSerializer.Deserialize<BIDashboard>(json)!;
         copia.Id = Guid.NewGuid();
         copia.PublicToken = Guid.NewGuid().ToString("N");
-        copia.Nome = $"{original.Nome} (CÃ³pia)";
+        copia.Nome = $"{original.Nome} (Cópia)";
         copia.DataCriacao = DateTime.Now;
         copia.DataAtualizacao = DateTime.Now;
 
@@ -223,13 +223,13 @@ public class BIDashboardService : IBIDashboardService
     {
         var lista = new List<BIDashboard>();
 
-        // 1. VisÃ£o Executiva 360Â°
+        // 1. Visão Executiva 360°
         var exec = new BIDashboard
         {
             Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-            Nome = "VisÃ£o Executiva 360Â°",
-            Descricao = "ConsolidaÃ§Ã£o de receitas, margem lÃ­quida, lucratividade e metas empresariais.",
-            Categoria = "EstratÃ©gico",
+            Nome = "Visão Executiva 360°",
+            Descricao = "Consolidação de receitas, margem líquida, lucratividade e metas empresariais.",
+            Categoria = "Estratégico",
             Icone = "bi-speedometer2",
             CorDestaque = "primary",
             DataCriacao = DateTime.Now.AddDays(-10),
@@ -259,7 +259,7 @@ public class BIDashboardService : IBIDashboardService
         exec.Widgets.Add(new BIWidget
         {
             Id = Guid.NewGuid(),
-            Titulo = "Lucro LÃ­quido",
+            Titulo = "Lucro Líquido",
             Subtitulo = "Margem operacional de 39%",
             Tipo = BIWidgetTipo.CardKpi,
             PosX = 26,
@@ -279,8 +279,8 @@ public class BIDashboardService : IBIDashboardService
         exec.Widgets.Add(new BIWidget
         {
             Id = Guid.NewGuid(),
-            Titulo = "Ticket MÃ©dio",
-            Subtitulo = "MÃ©dia por transaÃ§Ã£o",
+            Titulo = "Ticket Médio",
+            Subtitulo = "Média por transação",
             Tipo = BIWidgetTipo.CardKpi,
             PosX = 50,
             PosY = 2,
@@ -319,8 +319,8 @@ public class BIDashboardService : IBIDashboardService
         exec.Widgets.Add(new BIWidget
         {
             Id = Guid.NewGuid(),
-            Titulo = "EvoluÃ§Ã£o do Faturamento Mensal",
-            Subtitulo = "HistÃ³rico dos Ãºltimos meses",
+            Titulo = "Evolução do Faturamento Mensal",
+            Subtitulo = "Histórico dos últimos meses",
             Tipo = BIWidgetTipo.GraficoLinhas,
             PosX = 2,
             PosY = 23,
@@ -338,7 +338,7 @@ public class BIDashboardService : IBIDashboardService
         {
             Id = Guid.NewGuid(),
             Titulo = "Faturamento por Categoria",
-            Subtitulo = "ParticipaÃ§Ã£o percentual no faturamento",
+            Subtitulo = "Participação percentual no faturamento",
             Tipo = BIWidgetTipo.GraficoPizza,
             PosX = 62,
             PosY = 23,
@@ -371,7 +371,7 @@ public class BIDashboardService : IBIDashboardService
         {
             Id = Guid.NewGuid(),
             Titulo = "Faturamento Restaurante",
-            Subtitulo = "Vendas totais do salÃ£o e delivery",
+            Subtitulo = "Vendas totais do salão e delivery",
             Tipo = BIWidgetTipo.CardKpi,
             PosX = 2,
             PosY = 2,
@@ -390,8 +390,8 @@ public class BIDashboardService : IBIDashboardService
         food.Widgets.Add(new BIWidget
         {
             Id = Guid.NewGuid(),
-            Titulo = "Giro MÃ©dio de Mesas",
-            Subtitulo = "OcupaÃ§Ãµes completas por mesa / dia",
+            Titulo = "Giro Médio de Mesas",
+            Subtitulo = "Ocupações completas por mesa / dia",
             Tipo = BIWidgetTipo.CardKpi,
             PosX = 26,
             PosY = 2,
@@ -430,8 +430,8 @@ public class BIDashboardService : IBIDashboardService
         food.Widgets.Add(new BIWidget
         {
             Id = Guid.NewGuid(),
-            Titulo = "Receita por Ambiente do SalÃ£o",
-            Subtitulo = "Comparativo entre salÃ£o principal, varanda e deck",
+            Titulo = "Receita por Ambiente do Salão",
+            Subtitulo = "Comparativo entre salão principal, varanda e deck",
             Tipo = BIWidgetTipo.GraficoBarras,
             PosX = 2,
             PosY = 23,

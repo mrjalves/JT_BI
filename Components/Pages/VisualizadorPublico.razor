@@ -7,15 +7,15 @@
 @inject NavigationManager Nav
 @implements IDisposable
 
-<PageTitle>@(dashboard?.Nome ?? "VisualizaÃ§Ã£o do Painel") - JT_BI</PageTitle>
+<PageTitle>@(dashboard?.Nome ?? "Visualização do Painel") - JT_BI</PageTitle>
 
 @if (dashboard == null && !carregando)
 {
     <div class="container py-5 text-center">
         <div class="card border-0 shadow-sm rounded-4 p-5 max-w-md mx-auto">
             <i class="bi bi-shield-x text-danger" style="font-size: 3.5rem;"></i>
-            <h4 class="fw-bold text-dark mt-3">Painel nÃ£o encontrado ou privado</h4>
-            <p class="text-muted small">Este painel pode ter sido desativado pelo proprietÃ¡rio ou o token informado Ã© invÃ¡lido.</p>
+            <h4 class="fw-bold text-dark mt-3">Painel não encontrado ou privado</h4>
+            <p class="text-muted small">Este painel pode ter sido desativado pelo proprietário ou o token informado é inválido.</p>
             <a href="/" class="btn btn-sm btn-primary rounded-pill px-4 mx-auto">
                 <i class="bi bi-house me-1"></i> Ir para a Central
             </a>
@@ -25,7 +25,7 @@
 else if (dashboard != null)
 {
     <div class="min-vh-100 @(isDarkMode ? "bg-dark text-white" : "bg-slate-50 text-dark") p-3 p-md-4 transition-all">
-        <!-- Topo da ApresentaÃ§Ã£o -->
+        <!-- Topo da Apresentação -->
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 pb-3 border-bottom @(isDarkMode ? "border-secondary" : "border-light")">
             <div class="d-flex align-items-center gap-3">
                 <div class="p-3 bg-@dashboard.CorDestaque text-white rounded-4 shadow-sm">
@@ -37,7 +37,7 @@ else if (dashboard != null)
                 </div>
             </div>
 
-            <!-- Controles do Modo ApresentaÃ§Ã£o -->
+            <!-- Controles do Modo Apresentação -->
             <div class="d-flex align-items-center gap-2">
                 @if (dashboard.AutoRefreshSegundos > 0)
                 {
@@ -54,7 +54,7 @@ else if (dashboard != null)
             </div>
         </div>
 
-        <!-- Grade DinÃ¢mica de Widgets -->
+        <!-- Grade Dinâmica de Widgets -->
         <div class="row g-3">
             @foreach (var w in dashboard.Widgets)
             {

@@ -8,7 +8,7 @@
 <PageTitle>Hub de Dashboards - JT_BI</PageTitle>
 
 <div class="container-fluid py-4 px-md-4">
-    <!-- Topo: Hero & EstatÃ­sticas -->
+    <!-- Topo: Hero & Estatísticas -->
     <div class="row align-items-center mb-4">
         <div class="col-12 col-md-7">
             <div class="d-flex align-items-center gap-3">
@@ -16,8 +16,8 @@
                     <i class="bi bi-speedometer2 fs-2"></i>
                 </div>
                 <div>
-                    <h3 class="fw-bold text-dark mb-0">Central de InteligÃªncia (JT_BI)</h3>
-                    <p class="text-muted mb-0 small">CriaÃ§Ã£o visual interativa, importaÃ§Ã£o Ã¡gil e compartilhamento pÃºblico de dados analÃ­ticos.</p>
+                    <h3 class="fw-bold text-dark mb-0">Central de Inteligência (JT_BI)</h3>
+                    <p class="text-muted mb-0 small">Criação visual interativa, importação ágil e compartilhamento público de dados analíticos.</p>
                 </div>
             </div>
         </div>
@@ -31,13 +31,13 @@
         </div>
     </div>
 
-    <!-- Cards de Resumo RÃ¡pido -->
+    <!-- Cards de Resumo Rápido -->
     <div class="row g-3 mb-4">
         <div class="col-12 col-sm-6 col-lg-3">
             <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <span class="text-muted small fw-semibold">PainÃ©is Ativos</span>
+                        <span class="text-muted small fw-semibold">Painéis Ativos</span>
                         <h4 class="fw-bold mb-0 text-dark">@dashboards.Count</h4>
                     </div>
                     <div class="p-3 bg-primary-subtle text-primary rounded-circle">
@@ -93,7 +93,7 @@
         {
             <div class="col-12 text-center py-5">
                 <div class="spinner-border text-primary" role="status"></div>
-                <p class="text-muted small mt-2">Carregando painÃ©is...</p>
+                <p class="text-muted small mt-2">Carregando painéis...</p>
             </div>
         }
         else if (dashboards.Count == 0)
@@ -130,8 +130,8 @@
                                 </div>
                                 @if (dash.PermiteAcessoPublico)
                                 {
-                                    <span class="badge bg-success-subtle text-success small" title="Compartilhamento pÃºblico ativo">
-                                        <i class="bi bi-globe me-1"></i> PÃºblico
+                                    <span class="badge bg-success-subtle text-success small" title="Compartilhamento público ativo">
+                                        <i class="bi bi-globe me-1"></i> Público
                                     </span>
                                 }
                             </div>
@@ -145,10 +145,10 @@
                             </div>
                         </div>
 
-                        <!-- RodapÃ© de AÃ§Ãµes -->
+                        <!-- Rodapé de Ações -->
                         <div class="card-footer bg-light p-3 border-0 d-flex align-items-center justify-content-between">
                             <div class="d-flex gap-1">
-                                <a href="/compartilhado/@dash.PublicToken" target="_blank" class="btn btn-sm btn-outline-secondary rounded-3" title="Visualizar ApresentaÃ§Ã£o">
+                                <a href="/compartilhado/@dash.PublicToken" target="_blank" class="btn btn-sm btn-outline-secondary rounded-3" title="Visualizar Apresentação">
                                     <i class="bi bi-eye"></i>
                                 </a>
                                 <button type="button" class="btn btn-sm btn-outline-secondary rounded-3" @onclick="() => AbrirCompartilhar(dash)" title="Compartilhar Link">
@@ -202,7 +202,7 @@
         var novo = new BIDashboard
         {
             Nome = $"Novo Painel #{dashboards.Count + 1}",
-            Descricao = "Painel analÃ­tico criado no construtor visual.",
+            Descricao = "Painel analítico criado no construtor visual.",
             Categoria = "Personalizado",
             Icone = "bi-speedometer2"
         };
