@@ -16,7 +16,7 @@ Group=www-data
 # Variáveis de ambiente
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
-Environment=ASPNETCORE_URLS=http://127.0.0.1:5010
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5020
 
 # Hardening / Segurança de processo no Linux
 ProtectSystem=full

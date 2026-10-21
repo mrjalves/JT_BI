@@ -8,7 +8,7 @@ on:
 env:
   SERVICE: jt_sistemas_bi
   DEST: /var/www/jt_sistemas_bi
-  PORT: 5010
+  PORT: 5020
 
 concurrency:
   group: deploy-jt_sistemas_bi

@@ -7,7 +7,7 @@ services:
     container_name: jt_bi_app
     restart: unless-stopped
     ports:
-      - "5010:8080"
+      - "5020:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
