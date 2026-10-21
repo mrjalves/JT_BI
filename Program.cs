@@ -20,8 +20,7 @@ var secaoConfig = builder.Configuration.GetSection("Config");
 var dadosConfig = secaoConfig.Get<Config>() ?? new Config
 {
     ClientId = "JT_BI",
-    Nome = "JT BI",
-    TipoApp = eTipoApp.WEB,
+    TipoApp = "WEB",
     Executor = "API"
 };
 Config.SetInstancia(dadosConfig);
@@ -31,7 +30,7 @@ var dadosFConfig = secaoFConfig.Get<FirebaseConfig>() ?? new FirebaseConfig
 {
     BaseApiUrl = "https://api.jtecsistemas.com.br",
     DatabaseUrl = "https://api.jtecsistemas.com.br",
-    ProjetoID = "controlefinanceiro-35e2a",
+    ProjetoId = "controlefinanceiro-35e2a",
     ApiKey = "AIzaSyBMGBmvLhvar7rpys7NDvzEexbH_TZUEJs"
 };
 FirebaseConfig.SetInstancia(dadosFConfig);

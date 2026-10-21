@@ -459,8 +459,15 @@
         IsCarregando = true;
         try
         {
-            // Consome serviços do módulo Gestão / Comum
-            var configGestao = await GestaoConfigService.GetAtivaAsync();
+            // Consome serviços do módulo Gestão / Comum (não bloqueante)
+            try
+            {
+                var configGestao = await GestaoConfigService.GetAtivaAsync();
+            }
+            catch (Exception exGestao)
+            {
+                Console.WriteLine($"[JT_BI] Aviso ao obter GestaoConfig: {exGestao.Message}");
+            }
 
             // Carrega dashboards existentes
             ListaDashboards = await DashboardService.ObterTodosAsync();
