@@ -1,0 +1,485 @@
+﻿@page "/dashboards/editor/{Id:guid}"
+@using JT_BI.Models
+@using JT_BI.Services
+@using JT_BI.Components.BI
+@inject IBIDashboardService DashboardService
+@inject IBIDataSourceService DataSourceService
+@inject NavigationManager Nav
+
+<PageTitle>@(dashboard?.Nome ?? "Editor de Dashboard") - JT_BI</PageTitle>
+
+@if (dashboard == null)
+{
+    <div class="d-flex align-items-center justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <span class="ms-2">Carregando painel no construtor...</span>
+    </div>
+}
+else
+{
+    <div class="d-flex flex-column h-100" style="min-height: calc(100vh - 70px);">
+        <!-- Barra de Ferramentas Superior (Estilo JT_Food Construtor) -->
+        <div class="card border-0 shadow-sm mb-3 rounded-4 overflow-hidden">
+            <div class="card-body p-3 bg-white">
+                <div class="row g-2 align-items-center justify-content-between">
+                    <!-- TÃ­tulo & NavegaÃ§Ã£o -->
+                    <div class="col-12 col-md-4 d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-outline-secondary rounded-3" @onclick="VoltarAoHub" title="Voltar aos PainÃ©is">
+                            <i class="bi bi-arrow-left"></i>
+                        </button>
+                        <div class="flex-grow-1">
+                            <input type="text" class="form-control form-control-sm fw-bold border-0 bg-light rounded-3 px-2 py-1 text-dark"
+                                   @bind="dashboard.Nome" placeholder="Nome do Dashboard..." style="font-size: 1.05rem;" />
+                        </div>
+                    </div>
+
+                    <!-- Paleta de InserÃ§Ã£o RÃ¡pida de Widgets -->
+                    <div class="col-12 col-md-5 d-flex flex-wrap gap-1 justify-content-center">
+                        <button class="btn btn-sm btn-outline-primary rounded-3" @onclick="() => AdicionarWidget(BIWidgetTipo.CardKpi)" title="Inserir Card KPI de Indicador">
+                            <i class="bi bi-123 me-1"></i> + KPI
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary rounded-3" @onclick="() => AdicionarWidget(BIWidgetTipo.GraficoBarras)" title="Inserir GrÃ¡fico de Barras">
+                            <i class="bi bi-bar-chart me-1"></i> + Barras
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary rounded-3" @onclick="() => AdicionarWidget(BIWidgetTipo.GraficoLinhas)" title="Inserir GrÃ¡fico de Linhas / TendÃªncia">
+                            <i class="bi bi-graph-up me-1"></i> + Linhas
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary rounded-3" @onclick="() => AdicionarWidget(BIWidgetTipo.GraficoPizza)" title="Inserir GrÃ¡fico de Pizza / Donut">
+                            <i class="bi bi-pie-chart me-1"></i> + Pizza
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary rounded-3" @onclick="() => AdicionarWidget(BIWidgetTipo.Tabela)" title="Inserir Tabela Detalhada">
+                            <i class="bi bi-table me-1"></i> + Tabela
+                        </button>
+                    </div>
+
+                    <!-- AÃ§Ãµes: Compartilhar, Apresentar e Salvar -->
+                    <div class="col-12 col-md-3 d-flex gap-2 justify-content-end align-items-center">
+                        <button class="btn btn-sm btn-outline-dark rounded-3" @onclick="() => isShareModalOpen = true" title="Compartilhar Link PÃºblico">
+                            <i class="bi bi-share me-1"></i> Compartilhar
+                        </button>
+                        <a href="/compartilhado/@dashboard.PublicToken" target="_blank" class="btn btn-sm btn-outline-secondary rounded-3" title="Modo ApresentaÃ§Ã£o Fullscreen">
+                            <i class="bi bi-play-circle me-1"></i> Apresentar
+                        </a>
+                        <button class="btn btn-sm btn-success rounded-3 px-3 fw-semibold shadow-sm" @onclick="SalvarAsync" title="Salvar todas as alteraÃ§Ãµes">
+                            <i class="bi bi-check2-circle me-1"></i> Salvar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(feedbackMsg))
+        {
+            <div class="alert @feedbackClass alert-dismissible fade show mb-2 py-2 shadow-sm rounded-3" role="alert">
+                <small class="fw-semibold">@feedbackMsg</small>
+                <button type="button" class="btn-close btn-close-sm" @onclick="() => feedbackMsg = null"></button>
+            </div>
+        }
+
+        <!-- Ãrea Central: Canvas Visual (9 Colunas) + Inspetor de Propriedades (3 Colunas) -->
+        <div class="row g-3 flex-grow-1">
+            <!-- Canvas Interativo Estilo Salao / Mesas -->
+            <div class="col-12 @(widgetSelecionado != null ? "col-lg-9" : "col-12") transition-all">
+                <div class="card border-0 shadow-sm rounded-4 h-100 overflow-hidden bg-white">
+                    <div class="card-header bg-white py-2 px-3 border-bottom d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-primary-subtle text-primary fw-semibold">
+                                <i class="bi bi-grid-3x3 me-1"></i> Canvas Visual
+                            </span>
+                            <small class="text-muted">Clique em qualquer widget para selecionar, redimensionar e configurar propriedades</small>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-xs btn-outline-secondary py-1 px-2 border-0" @onclick="ReorganizarAutomatico" title="Organizar Widgets em Grade">
+                                <i class="bi bi-grid me-1"></i> Auto Alinhar
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card-body p-2 position-relative bg-light" style="overflow: auto;">
+                        <div id="biCanvasContainer"
+                             class="position-relative rounded-3 shadow-inner w-100"
+                             style="min-height: 650px; height: 740px; background-color: #f8fafc; background-image: radial-gradient(#94a3b8 1.5px, transparent 1.5px); background-size: 24px 24px; border: 2px dashed #cbd5e1; overflow: hidden;"
+                             @onclick="DeselecionarCanvas">
+
+                            @if (dashboard.Widgets.Count == 0)
+                            {
+                                <div class="position-absolute top-50 start-50 translate-middle text-center p-4">
+                                    <div class="p-3 bg-white rounded-circle shadow-sm d-inline-block mb-3">
+                                        <i class="bi bi-layout-wtf text-primary" style="font-size: 2.5rem;"></i>
+                                    </div>
+                                    <h5 class="fw-bold text-dark mb-1">Seu painel estÃ¡ pronto para receber dados!</h5>
+                                    <p class="text-muted small mb-3">Clique nos botÃµes da barra superior (+ KPI, + Barras, + Linhas) para adicionar seus primeiros componentes ao canvas.</p>
+                                    <button class="btn btn-sm btn-primary rounded-pill px-4" @onclick="() => AdicionarWidget(BIWidgetTipo.CardKpi)">
+                                        <i class="bi bi-plus-lg me-1"></i> Adicionar Primeiro Widget
+                                    </button>
+                                </div>
+                            }
+
+                            @foreach (var w in dashboard.Widgets)
+                            {
+                                bool isSel = widgetSelecionado?.Id == w.Id;
+
+                                <div id="@($"widget_{w.Id}")"
+                                     class="position-absolute user-select-none transition-shadow @(isSel ? "ring-2 ring-primary shadow-2xl z-30" : "shadow-sm z-10")"
+                                     style="left: @w.PosX.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%;
+                                            top: @w.PosY.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%;
+                                            width: @w.Largura.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%;
+                                            height: @w.Altura.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%;
+                                            cursor: pointer;"
+                                     @onclick:stopPropagation="true"
+                                     @onclick="() => SelecionarWidget(w)">
+
+                                    <BIWidgetView Widget="w"
+                                                  IsEditor="true"
+                                                  IsSelected="isSel"
+                                                  Datasets="datasetsDisponiveis"
+                                                  OnEdit="() => SelecionarWidget(w)"
+                                                  OnDelete="() => ExcluirWidget(w)" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inspetor Lateral de Propriedades do Widget Selecionado -->
+            @if (widgetSelecionado != null)
+            {
+                <div class="col-12 col-lg-3">
+                    <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+                        <div class="card-header bg-white py-3 px-3 border-bottom d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-primary text-white p-2 rounded-3">
+                                    <i class="bi bi-sliders"></i>
+                                </span>
+                                <div>
+                                    <h6 class="mb-0 fw-bold text-dark">Propriedades</h6>
+                                    <small class="text-muted">Ajuste em tempo real</small>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-close btn-close-sm" @onclick="() => widgetSelecionado = null"></button>
+                        </div>
+
+                        <div class="card-body p-3 overflow-auto" style="max-height: calc(100vh - 220px);">
+                            <div class="row g-2">
+                                <!-- TÃ­tulo & SubtÃ­tulo -->
+                                <div class="col-12">
+                                    <label class="form-label small fw-bold text-muted mb-1">TÃ­tulo do Indicador:</label>
+                                    <input type="text" class="form-control form-control-sm" @bind="widgetSelecionado.Titulo" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small fw-bold text-muted mb-1">SubtÃ­tulo explicativo:</label>
+                                    <input type="text" class="form-control form-control-sm" @bind="widgetSelecionado.Subtitulo" />
+                                </div>
+
+                                <!-- Tipo de VisualizaÃ§Ã£o -->
+                                <div class="col-12">
+                                    <label class="form-label small fw-bold text-muted mb-1">Tipo de Widget:</label>
+                                    <select class="form-select form-select-sm" @bind="widgetSelecionado.Tipo">
+                                        <option value="@BIWidgetTipo.CardKpi">Card KPI (NÃºmero em Destaque)</option>
+                                        <option value="@BIWidgetTipo.GraficoBarras">GrÃ¡fico de Barras</option>
+                                        <option value="@BIWidgetTipo.GraficoLinhas">GrÃ¡fico de Linhas (TendÃªncia)</option>
+                                        <option value="@BIWidgetTipo.GraficoPizza">GrÃ¡fico de Pizza / Donut</option>
+                                        <option value="@BIWidgetTipo.Tabela">Tabela de Dados</option>
+                                    </select>
+                                </div>
+
+                                <!-- Fonte de Dados & MÃ©trica -->
+                                <div class="col-12">
+                                    <label class="form-label small fw-bold text-muted mb-1">Fonte de Dados:</label>
+                                    <select class="form-select form-select-sm" @bind="widgetSelecionado.FonteDadosId" @bind:after="AjustarFonteDados">
+                                        @foreach (var f in fontesDisponiveis)
+                                        {
+                                            <option value="@f.Id">@f.Nome</option>
+                                        }
+                                        @foreach (var ds in datasetsDisponiveis)
+                                        {
+                                            <option value="@($"dataset_{ds.Id}")">Dataset: @ds.Nome</option>
+                                        }
+                                    </select>
+                                </div>
+
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold text-muted mb-1">MÃ©trica (Valor):</label>
+                                    <input type="text" class="form-control form-control-sm" @bind="widgetSelecionado.MetricaCampo" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold text-muted mb-1">DimensÃ£o (Eixo):</label>
+                                    <input type="text" class="form-control form-control-sm" @bind="widgetSelecionado.DimensaoCampo" />
+                                </div>
+
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold text-muted mb-1">Formato do Valor:</label>
+                                    <select class="form-select form-select-sm" @bind="widgetSelecionado.FormatoValor">
+                                        <option value="Moeda">Moeda (R$)</option>
+                                        <option value="Numero">NÃºmero Inteiro</option>
+                                        <option value="Percentual">Percentual (%)</option>
+                                        <option value="Decimal">Decimal</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold text-muted mb-1">Cor do Tema:</label>
+                                    <select class="form-select form-select-sm" @bind="widgetSelecionado.CorTema">
+                                        <option value="primary">Azul (Primary)</option>
+                                        <option value="success">Verde (Success)</option>
+                                        <option value="warning">Laranja (Warning)</option>
+                                        <option value="info">Ciano (Info)</option>
+                                        <option value="purple">Roxo (Purple)</option>
+                                        <option value="danger">Vermelho (Danger)</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label small fw-bold text-muted mb-1">Meta / Alvo (opcional):</label>
+                                    <input type="number" class="form-control form-control-sm" @bind="widgetSelecionado.MetaValor" placeholder="Ex: 100000" />
+                                </div>
+
+                                <!-- DimensÃµes e PosiÃ§Ãµes no Canvas (Inspirado em Mesas) -->
+                                <div class="col-12 mt-3 pt-2 border-top">
+                                    <span class="small fw-bold text-dark d-block mb-2">Posicionamento no Canvas:</span>
+                                    
+                                    <!-- Atalhos de Largura -->
+                                    <label class="form-label small text-muted mb-1">Largura rÃ¡pida:</label>
+                                    <div class="btn-group btn-group-sm w-100 mb-2">
+                                        <button type="button" class="btn btn-outline-secondary" @onclick="() => AjustarTamanho(22, widgetSelecionado.Altura)">1/4</button>
+                                        <button type="button" class="btn btn-outline-secondary" @onclick="() => AjustarTamanho(31, widgetSelecionado.Altura)">1/3</button>
+                                        <button type="button" class="btn btn-outline-secondary" @onclick="() => AjustarTamanho(48, widgetSelecionado.Altura)">1/2</button>
+                                        <button type="button" class="btn btn-outline-secondary" @onclick="() => AjustarTamanho(64, widgetSelecionado.Altura)">2/3</button>
+                                        <button type="button" class="btn btn-outline-secondary" @onclick="() => AjustarTamanho(96, widgetSelecionado.Altura)">Full</button>
+                                    </div>
+
+                                    <!-- Atalhos de Altura -->
+                                    <label class="form-label small text-muted mb-1">Altura rÃ¡pida:</label>
+                                    <div class="btn-group btn-group-sm w-100 mb-2">
+                                        <button type="button" class="btn btn-outline-secondary" @onclick="() => AjustarTamanho(widgetSelecionado.Largura, 18)">Card</button>
+                                        <button type="button" class="btn btn-outline-secondary" @onclick="() => AjustarTamanho(widgetSelecionado.Largura, 30)">MÃ©dio</button>
+                                        <button type="button" class="btn btn-outline-secondary" @onclick="() => AjustarTamanho(widgetSelecionado.Largura, 45)">GrÃ¡fico</button>
+                                        <button type="button" class="btn btn-outline-secondary" @onclick="() => AjustarTamanho(widgetSelecionado.Largura, 65)">Alto</button>
+                                    </div>
+
+                                    <!-- Controles de Deslocamento D-Pad -->
+                                    <label class="form-label small text-muted mb-1">Mover no Canvas:</label>
+                                    <div class="d-flex justify-content-center gap-1 mb-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => MoverWidget(-4, 0)" title="Esquerda">
+                                            <i class="bi bi-arrow-left"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => MoverWidget(0, -4)" title="Cima">
+                                            <i class="bi bi-arrow-up"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => MoverWidget(0, 4)" title="Baixo">
+                                            <i class="bi bi-arrow-down"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => MoverWidget(4, 0)" title="Direita">
+                                            <i class="bi bi-arrow-right"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 mt-2 pt-2 border-top d-flex justify-content-between">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => ExcluirWidget(widgetSelecionado)">
+                                        <i class="bi bi-trash me-1"></i> Excluir
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => DuplicarWidget(widgetSelecionado)">
+                                        <i class="bi bi-copy me-1"></i> Duplicar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <BIShareModal @bind-IsOpen="isShareModalOpen" Dashboard="dashboard" OnSaved="StateHasChanged" />
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private BIDashboard? dashboard;
+    private BIWidget? widgetSelecionado;
+    private List<FonteDadosInfo> fontesDisponiveis = new();
+    private List<BIDataset> datasetsDisponiveis = new();
+    private bool isShareModalOpen = false;
+    private string? feedbackMsg = null;
+    private string feedbackClass = "alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        fontesDisponiveis = DataSourceService.ObterFontesDisponiveis();
+        datasetsDisponiveis = await DashboardService.ObterDatasetsAsync();
+        dashboard = await DashboardService.ObterPorIdAsync(Id);
+
+        if (dashboard == null)
+        {
+            Nav.NavigateTo("/dashboards");
+        }
+    }
+
+    private void SelecionarWidget(BIWidget w)
+    {
+        widgetSelecionado = w;
+    }
+
+    private void DeselecionarCanvas()
+    {
+        widgetSelecionado = null;
+    }
+
+    private void AdicionarWidget(BIWidgetTipo tipo)
+    {
+        if (dashboard == null) return;
+
+        double wWidth = tipo == BIWidgetTipo.CardKpi ? 22 : 48;
+        double wHeight = tipo == BIWidgetTipo.CardKpi ? 18 : 42;
+
+        // Encontrar posiÃ§Ã£o livre
+        double posX = 2;
+        double posY = 2;
+        if (dashboard.Widgets.Count > 0)
+        {
+            var ultimo = dashboard.Widgets.Last();
+            if (ultimo.PosX + ultimo.Largura + wWidth <= 98)
+            {
+                posX = ultimo.PosX + ultimo.Largura + 2;
+                posY = ultimo.PosY;
+            }
+            else
+            {
+                posX = 2;
+                posY = ultimo.PosY + ultimo.Altura + 4;
+            }
+        }
+
+        var novo = new BIWidget
+        {
+            Id = Guid.NewGuid(),
+            Titulo = tipo switch
+            {
+                BIWidgetTipo.CardKpi => "Novo Indicador",
+                BIWidgetTipo.GraficoBarras => "DistribuiÃ§Ã£o em Barras",
+                BIWidgetTipo.GraficoLinhas => "TendÃªncia HistÃ³rica",
+                BIWidgetTipo.GraficoPizza => "ProporÃ§Ã£o de ParticipaÃ§Ã£o",
+                BIWidgetTipo.Tabela => "Tabela AnalÃ­tica",
+                _ => "Novo Widget"
+            },
+            Tipo = tipo,
+            PosX = posX,
+            PosY = posY,
+            Largura = wWidth,
+            Altura = wHeight,
+            CorTema = "primary",
+            Icone = tipo == BIWidgetTipo.CardKpi ? "bi-graph-up" : "bi-bar-chart",
+            FonteDadosId = "financeiro",
+            MetricaCampo = "Faturamento",
+            DimensaoCampo = "Mes",
+            FormatoValor = "Moeda"
+        };
+
+        dashboard.Widgets.Add(novo);
+        widgetSelecionado = novo;
+    }
+
+    private void ExcluirWidget(BIWidget w)
+    {
+        if (dashboard == null) return;
+        dashboard.Widgets.Remove(w);
+        if (widgetSelecionado?.Id == w.Id)
+            widgetSelecionado = null;
+    }
+
+    private void DuplicarWidget(BIWidget w)
+    {
+        if (dashboard == null) return;
+        var clone = new BIWidget
+        {
+            Id = Guid.NewGuid(),
+            Titulo = $"{w.Titulo} (CÃ³pia)",
+            Subtitulo = w.Subtitulo,
+            Tipo = w.Tipo,
+            PosX = Math.Min(90, w.PosX + 4),
+            PosY = Math.Min(90, w.PosY + 4),
+            Largura = w.Largura,
+            Altura = w.Altura,
+            CorTema = w.CorTema,
+            Icone = w.Icone,
+            FonteDadosId = w.FonteDadosId,
+            MetricaCampo = w.MetricaCampo,
+            DimensaoCampo = w.DimensaoCampo,
+            Agregacao = w.Agregacao,
+            FormatoValor = w.FormatoValor,
+            MetaValor = w.MetaValor
+        };
+        dashboard.Widgets.Add(clone);
+        widgetSelecionado = clone;
+    }
+
+    private void AjustarTamanho(double w, double h)
+    {
+        if (widgetSelecionado == null) return;
+        widgetSelecionado.Largura = Math.Max(15, Math.Min(98, w));
+        widgetSelecionado.Altura = Math.Max(15, Math.Min(90, h));
+    }
+
+    private void MoverWidget(double dx, double dy)
+    {
+        if (widgetSelecionado == null) return;
+        widgetSelecionado.PosX = Math.Max(1, Math.Min(95 - widgetSelecionado.Largura, widgetSelecionado.PosX + dx));
+        widgetSelecionado.PosY = Math.Max(1, Math.Min(95 - widgetSelecionado.Altura, widgetSelecionado.PosY + dy));
+    }
+
+    private void AjustarFonteDados()
+    {
+        if (widgetSelecionado == null) return;
+        var fonte = fontesDisponiveis.FirstOrDefault(f => f.Id == widgetSelecionado.FonteDadosId);
+        if (fonte != null)
+        {
+            widgetSelecionado.MetricaCampo = fonte.Metricas.FirstOrDefault() ?? "Valor";
+            widgetSelecionado.DimensaoCampo = fonte.Dimensoes.FirstOrDefault() ?? "Categoria";
+        }
+    }
+
+    private void ReorganizarAutomatico()
+    {
+        if (dashboard == null) return;
+        double currentX = 2;
+        double currentY = 2;
+        double maxHeightInRow = 0;
+
+        foreach (var w in dashboard.Widgets)
+        {
+            if (currentX + w.Largura > 98)
+            {
+                currentX = 2;
+                currentY += maxHeightInRow + 3;
+                maxHeightInRow = 0;
+            }
+
+            w.PosX = currentX;
+            w.PosY = currentY;
+            currentX += w.Largura + 2;
+            if (w.Altura > maxHeightInRow)
+                maxHeightInRow = w.Altura;
+        }
+
+        feedbackMsg = "Widgets reorganizados automaticamente em grade!";
+        feedbackClass = "alert-success";
+    }
+
+    private async Task SalvarAsync()
+    {
+        if (dashboard != null)
+        {
+            await DashboardService.SalvarAsync(dashboard);
+            feedbackMsg = "Painel salvo com sucesso!";
+            feedbackClass = "alert-success";
+            _ = Task.Delay(3500).ContinueWith(_ => InvokeAsync(() => { feedbackMsg = null; StateHasChanged(); }));
+        }
+    }
+
+    private void VoltarAoHub()
+    {
+        Nav.NavigateTo("/dashboards");
+    }
+}

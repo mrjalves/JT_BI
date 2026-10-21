@@ -1,0 +1,108 @@
+name: Build e Deploy JT_BI
+
+on:
+  push:
+    branches: [main, Master]
+  workflow_dispatch:
+
+env:
+  SERVICE: jt_bi
+  DEST: /var/www/jt_bi
+  PORT: 5010
+
+concurrency:
+  group: deploy-jt_bi
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout JT_BI
+        uses: actions/checkout@v4
+        with:
+          path: JT_BI
+
+      # Checkout de JT_ApplicationLayer lado a lado para satisfazer as ProjectReferences relativas
+      - name: Checkout JT_ApplicationLayer (dependências de classe)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/JT_ApplicationLayer
+          token: ${{ secrets.GH_PAT_REPO || github.token }}
+          path: JT_ApplicationLayer
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publicar Aplicação (Release)
+        run: |
+          cd JT_BI
+          dotnet publish JT_BI.csproj -c Release -o ../publish
+
+      - name: Enviar artefatos para a VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: "publish/*"
+          target: "/tmp/release_${{ env.SERVICE }}"
+          strip_components: 1
+          rm: true
+
+      - name: Aplicar arquivos e reiniciar serviço
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            SRC=/tmp/release_${{ env.SERVICE }}
+            DEST=${{ env.DEST }}
+            SERVICE=${{ env.SERVICE }}
+            BKP=/home/deploy/backups/$SERVICE
+
+            # Garantir existência dos diretórios
+            sudo mkdir -p $DEST
+            mkdir -p /home/deploy/backups
+
+            # Realizar backup da versão anterior
+            rm -rf $BKP
+            if [ -d "$DEST" ] && [ "$(ls -A $DEST)" ]; then
+              cp -a $DEST $BKP
+            fi
+
+            # Sincronizar arquivos preservando arquivos de ambiente e logs
+            sudo rsync -a --delete \
+              --exclude 'appsettings.Production.json' \
+              --exclude 'appsettings.Local.json' \
+              --exclude '*.db' \
+              --exclude 'uploads/' \
+              --exclude 'wwwroot/uploads/' \
+              --exclude 'logs/' \
+              $SRC/ $DEST/
+
+            # Ajustar permissões para o usuário de execução
+            sudo chown -R www-data:www-data $DEST || true
+
+            # Reiniciar serviço systemd
+            sudo systemctl restart $SERVICE
+            sleep 5
+
+            # Validar se o serviço subiu com sucesso; em caso de falha, aciona rollback
+            if ! systemctl is-active --quiet $SERVICE; then
+              echo "Falha na inicialização do serviço. Executando rollback..."
+              if [ -d "$BKP" ]; then
+                sudo rsync -a --delete $BKP/ $DEST/
+                sudo systemctl restart $SERVICE
+              fi
+              exit 1
+            fi
+
+            rm -rf $SRC
+            echo "Deploy do JT_BI concluído com sucesso!"

@@ -1,0 +1,18 @@
+services:
+  jt-bi:
+    image: jt-bi:latest
+    build:
+      context: ..
+      dockerfile: JT_BI/Dockerfile
+    container_name: jt_bi_app
+    restart: unless-stopped
+    ports:
+      - "5010:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - Logging__LogLevel__Default=Information
+      - Logging__LogLevel__Microsoft.AspNetCore=Warning
+    volumes:
+      # Mapear pasta de logs ou uploads caso necessário
+      - ./logs:/app/logs

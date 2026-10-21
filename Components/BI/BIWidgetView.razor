@@ -1,0 +1,270 @@
+﻿@using JT_BI.Models
+@using JT_BI.Services
+@inject IBIDataSourceService DataSourceService
+
+<div class="bi-widget-card h-100 w-100 d-flex flex-column rounded-3 shadow-sm border @(IsSelected ? "border-primary shadow-lg ring-2" : "border-slate-200") bg-white overflow-hidden position-relative">
+    <!-- Header do Widget -->
+    <div class="px-3 pt-3 pb-2 d-flex align-items-center justify-content-between border-bottom border-light bg-light bg-opacity-25">
+        <div class="d-flex align-items-center gap-2 text-truncate me-2">
+            @if (!string.IsNullOrEmpty(Widget.Icone))
+            {
+                <div class="widget-icon-pill bg-@Widget.CorTema text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 26px; height: 26px; font-size: 0.85rem;">
+                    <i class="bi @Widget.Icone"></i>
+                </div>
+            }
+            <div class="text-truncate">
+                <h6 class="mb-0 fw-bold text-dark text-truncate" style="font-size: 0.92rem;" title="@Widget.Titulo">@Widget.Titulo</h6>
+                @if (!string.IsNullOrEmpty(Widget.Subtitulo))
+                {
+                    <small class="text-muted text-truncate d-block" style="font-size: 0.72rem;">@Widget.Subtitulo</small>
+                }
+            </div>
+        </div>
+
+        @if (IsEditor)
+        {
+            <div class="d-flex align-items-center gap-1">
+                <button type="button" class="btn btn-xs btn-outline-secondary p-1 border-0" @onclick="() => OnEdit.InvokeAsync(Widget)" title="Configurar Propriedades">
+                    <i class="bi bi-gear text-secondary"></i>
+                </button>
+                <button type="button" class="btn btn-xs btn-outline-danger p-1 border-0" @onclick="() => OnDelete.InvokeAsync(Widget)" title="Excluir Widget">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        }
+    </div>
+
+    <!-- ConteÃºdo do Widget -->
+    <div class="p-3 flex-grow-1 d-flex flex-column justify-content-center position-relative overflow-hidden">
+        @if (isLoading)
+        {
+            <div class="d-flex align-items-center justify-content-center h-100">
+                <div class="spinner-border spinner-border-sm text-@Widget.CorTema" role="status"></div>
+            </div>
+        }
+        else if (Widget.Tipo == BIWidgetTipo.CardKpi)
+        {
+            <div class="d-flex flex-column justify-content-center h-100">
+                <div class="d-flex align-items-baseline justify-content-between">
+                    <div class="display-6 fw-bold text-dark mb-0" style="font-size: clamp(1.4rem, 2.5vw, 2.1rem); letter-spacing: -0.5px;">
+                        @FormatValue(kpiValor)
+                    </div>
+                    @if (kpiVariacao.HasValue)
+                    {
+                        <span class="badge @(kpiVariacao >= 0 ? "bg-success-subtle text-success" : "bg-danger-subtle text-danger") px-2 py-1 rounded-pill" style="font-size: 0.75rem;">
+                            <i class="bi @(kpiVariacao >= 0 ? "bi-arrow-up-right" : "bi-arrow-down-right") me-1"></i>
+                            @(kpiVariacao >= 0 ? "+" : "")@kpiVariacao.Value.ToString("F1")%
+                        </span>
+                    }
+                </div>
+                @if (Widget.MetaValor.HasValue && Widget.MetaValor > 0)
+                {
+                    var percMeta = Math.Min(100, Math.Round((kpiValor / Widget.MetaValor.Value) * 100, 1));
+                    <div class="mt-2">
+                        <div class="d-flex justify-content-between small text-muted mb-1" style="font-size: 0.72rem;">
+                            <span>Meta: @FormatValue(Widget.MetaValor.Value)</span>
+                            <span class="fw-bold">@percMeta%</span>
+                        </div>
+                        <div class="progress" style="height: 5px;">
+                            <div class="progress-bar bg-@Widget.CorTema" style="width: @percMeta%;"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else if (Widget.Tipo == BIWidgetTipo.GraficoBarras)
+        {
+            <div class="w-100 h-100 d-flex flex-column justify-content-end pt-2">
+                @if (dataPoints.Count == 0)
+                {
+                    <div class="text-center text-muted small py-4">Sem dados disponÃ­veis</div>
+                }
+                else
+                {
+                    var maxVal = dataPoints.Max(p => p.Valor);
+                    if (maxVal == 0) maxVal = 1;
+                    <div class="d-flex align-items-end justify-content-around h-100 gap-2 pb-1" style="min-height: 120px;">
+                        @foreach (var pt in dataPoints)
+                        {
+                            var hPerc = Math.Max(10, Math.Min(100, (int)((pt.Valor / maxVal) * 100)));
+                            <div class="d-flex flex-column align-items-center flex-grow-1 h-100 justify-content-end" title="@pt.Rotulo: @pt.ValorFormatado">
+                                <span class="text-muted fw-semibold mb-1" style="font-size: 0.68rem;">@pt.ValorFormatado</span>
+                                <div class="w-100 rounded-top transition-all" style="height: @hPerc%; background-color: @pt.Cor; max-width: 45px; min-width: 14px; opacity: 0.9;"></div>
+                                <span class="text-muted text-truncate mt-1 text-center w-100" style="font-size: 0.7rem;">@pt.Rotulo</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else if (Widget.Tipo == BIWidgetTipo.GraficoLinhas)
+        {
+            <div class="w-100 h-100 d-flex flex-column justify-content-center">
+                @if (dataPoints.Count < 2)
+                {
+                    <div class="text-center text-muted small py-4">Dados insuficientes para linha</div>
+                }
+                else
+                {
+                    var maxVal = dataPoints.Max(p => p.Valor);
+                    var minVal = dataPoints.Min(p => p.Valor);
+                    var range = maxVal - minVal;
+                    if (range == 0) range = 1;
+
+                    var wStep = 100.0 / (dataPoints.Count - 1);
+                    var pointsSvg = string.Join(" ", dataPoints.Select((pt, idx) =>
+                    {
+                        var x = (idx * wStep).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                        var y = (90 - ((pt.Valor - minVal) / range * 75)).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                        return $"{x},{y}";
+                    }));
+
+                    <div class="w-100 h-100 position-relative" style="min-height: 120px;">
+                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="w-100 h-100" style="overflow: visible;">
+                            <defs>
+                                <linearGradient id="lineGrad_@Widget.Id" x1="0%" y1="0%" x2="0%" y2="100%">
+                                    <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35" />
+                                    <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.0" />
+                                </linearGradient>
+                            </defs>
+                            <polyline fill="url(#lineGrad_@Widget.Id)" stroke="none" points="0,95 @pointsSvg 100,95" />
+                            <polyline fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="@pointsSvg" />
+                            @for (int i = 0; i < dataPoints.Count; i++)
+                            {
+                                var pt = dataPoints[i];
+                                var cx = (i * wStep).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                                var cy = (90 - ((pt.Valor - minVal) / range * 75)).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                                <circle cx="@cx" cy="@cy" r="2.5" fill="#ffffff" stroke="#2563eb" stroke-width="1.8" />
+                            }
+                        </svg>
+                    </div>
+                    <div class="d-flex justify-content-between mt-1 text-muted" style="font-size: 0.68rem;">
+                        <span>@dataPoints.First().Rotulo</span>
+                        <span>@dataPoints.Last().Rotulo</span>
+                    </div>
+                }
+            </div>
+        }
+        else if (Widget.Tipo == BIWidgetTipo.GraficoPizza)
+        {
+            <div class="w-100 h-100 d-flex align-items-center justify-content-center gap-3">
+                @if (dataPoints.Count == 0)
+                {
+                    <div class="text-center text-muted small py-4">Sem dados</div>
+                }
+                else
+                {
+                    var conicStops = new List<string>();
+                    decimal acc = 0;
+                    foreach (var pt in dataPoints)
+                    {
+                        var start = acc;
+                        acc += pt.Percentual ?? 0;
+                        conicStops.Add($"{pt.Cor} {start.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}% {acc.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}%");
+                    }
+                    var gradientStr = $"conic-gradient({string.Join(", ", conicStops)})";
+
+                    <div class="rounded-circle shadow-inner position-relative d-flex align-items-center justify-content-center flex-shrink-0" style="width: 100px; height: 100px; background: @gradientStr;">
+                        <div class="rounded-circle bg-white d-flex align-items-center justify-content-center shadow-sm" style="width: 58px; height: 58px;">
+                            <i class="bi @Widget.Icone text-muted" style="font-size: 1.1rem;"></i>
+                        </div>
+                    </div>
+
+                    <div class="flex-grow-1 overflow-auto" style="max-height: 120px;">
+                        @foreach (var pt in dataPoints.Take(5))
+                        {
+                            <div class="d-flex align-items-center justify-content-between mb-1" style="font-size: 0.72rem;">
+                                <div class="d-flex align-items-center gap-1 text-truncate">
+                                    <span class="rounded-circle d-inline-block flex-shrink-0" style="width: 8px; height: 8px; background-color: @pt.Cor;"></span>
+                                    <span class="text-truncate text-muted">@pt.Rotulo</span>
+                                </div>
+                                <span class="fw-bold ms-1 text-dark">@(pt.Percentual?.ToString("F1") ?? "0")%</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else if (Widget.Tipo == BIWidgetTipo.Tabela)
+        {
+            <div class="table-responsive h-100 overflow-auto" style="max-height: 160px;">
+                <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.78rem;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>@Widget.DimensaoCampo</th>
+                            <th class="text-end">@Widget.MetricaCampo</th>
+                            <th class="text-end">%</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in dataPoints)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@row.Rotulo</td>
+                                <td class="text-end">@row.ValorFormatado</td>
+                                <td class="text-end text-muted">@(row.Percentual?.ToString("F1") ?? "-")%</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="text-center text-muted small py-4">Visualizador do widget</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public BIWidget Widget { get; set; } = new();
+    [Parameter] public bool IsEditor { get; set; } = false;
+    [Parameter] public bool IsSelected { get; set; } = false;
+    [Parameter] public List<BIDataset>? Datasets { get; set; }
+    [Parameter] public EventCallback<BIWidget> OnEdit { get; set; }
+    [Parameter] public EventCallback<BIWidget> OnDelete { get; set; }
+
+    private bool isLoading = true;
+    private decimal kpiValor = 0;
+    private decimal? kpiVariacao = null;
+    private List<BIDataPoint> dataPoints = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await CarregarDadosAsync();
+    }
+
+    private async Task CarregarDadosAsync()
+    {
+        isLoading = true;
+        try
+        {
+            if (Widget.Tipo == BIWidgetTipo.CardKpi)
+            {
+                var res = await DataSourceService.ObterValorKpiAsync(Widget, Datasets);
+                kpiValor = res.Valor;
+                kpiVariacao = res.Variacao;
+            }
+            else
+            {
+                dataPoints = await DataSourceService.ObterDadosWidgetAsync(Widget, Datasets);
+            }
+        }
+        catch { }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string FormatValue(decimal val)
+    {
+        return Widget.FormatoValor switch
+        {
+            "Moeda" => $"R$ {val:N2}",
+            "Percentual" => $"{val:N1}%",
+            "Decimal" => $"{val:N2}",
+            _ => $"{val:N0}"
+        };
+    }
+}

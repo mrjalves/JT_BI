@@ -1,0 +1,101 @@
+## =======================================================================
+## .gitignore - JT_BI (.NET 10 Blazor Web Application)
+## =======================================================================
+
+# User-specific files (Visual Studio, Rider, VS Code)
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.ide
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.vs/
+
+# Build results and compilation output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Pp]ublish/
+publish/
+dist/
+bld/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+
+# .NET temporary and metadata files
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.log
+*.pidb
+*.svclog
+*.scc
+*.vspscc
+*.vssscc
+Generated\ Files/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Test and coverage results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.VisualState.xml
+TestResult.xml
+nunit-*.xml
+coverage*.xml
+coverage*.json
+*.coverage
+*.coveragexml
+
+# Logs and runtime databases
+[Ll]og/
+[Ll]ogs/
+*.log
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets & Environment specific overrides
+# Keep appsettings.json and appsettings.Development.json tracked as base templates
+appsettings.Production.json
+appsettings.Staging.json
+appsettings.*.local.json
+*.env
+*.env.*
+*.pfx
+*.cer
+*.key
+*.pem
+
+# Uploads / user dynamic content (if generated locally)
+uploads/
+wwwroot/uploads/
+wwwroot/temp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/

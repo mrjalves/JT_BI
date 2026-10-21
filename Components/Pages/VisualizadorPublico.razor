@@ -1,0 +1,132 @@
+﻿@page "/compartilhado/{Token}"
+@layout JT_BI.Components.Layout.MainLayout
+@using JT_BI.Models
+@using JT_BI.Services
+@using JT_BI.Components.BI
+@inject IBIDashboardService DashboardService
+@inject NavigationManager Nav
+@implements IDisposable
+
+<PageTitle>@(dashboard?.Nome ?? "VisualizaÃ§Ã£o do Painel") - JT_BI</PageTitle>
+
+@if (dashboard == null && !carregando)
+{
+    <div class="container py-5 text-center">
+        <div class="card border-0 shadow-sm rounded-4 p-5 max-w-md mx-auto">
+            <i class="bi bi-shield-x text-danger" style="font-size: 3.5rem;"></i>
+            <h4 class="fw-bold text-dark mt-3">Painel nÃ£o encontrado ou privado</h4>
+            <p class="text-muted small">Este painel pode ter sido desativado pelo proprietÃ¡rio ou o token informado Ã© invÃ¡lido.</p>
+            <a href="/" class="btn btn-sm btn-primary rounded-pill px-4 mx-auto">
+                <i class="bi bi-house me-1"></i> Ir para a Central
+            </a>
+        </div>
+    </div>
+}
+else if (dashboard != null)
+{
+    <div class="min-vh-100 @(isDarkMode ? "bg-dark text-white" : "bg-slate-50 text-dark") p-3 p-md-4 transition-all">
+        <!-- Topo da ApresentaÃ§Ã£o -->
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 pb-3 border-bottom @(isDarkMode ? "border-secondary" : "border-light")">
+            <div class="d-flex align-items-center gap-3">
+                <div class="p-3 bg-@dashboard.CorDestaque text-white rounded-4 shadow-sm">
+                    <i class="bi @dashboard.Icone fs-4"></i>
+                </div>
+                <div>
+                    <h4 class="fw-bold mb-0">@dashboard.Nome</h4>
+                    <small class="@(isDarkMode ? "text-light opacity-75" : "text-muted")">@dashboard.Descricao</small>
+                </div>
+            </div>
+
+            <!-- Controles do Modo ApresentaÃ§Ã£o -->
+            <div class="d-flex align-items-center gap-2">
+                @if (dashboard.AutoRefreshSegundos > 0)
+                {
+                    <span class="badge @(isDarkMode ? "bg-secondary" : "bg-light text-dark border") px-3 py-2 rounded-pill small">
+                        <i class="bi bi-arrow-repeat me-1 spin"></i> Atualiza em @contadorRefresh s
+                    </span>
+                }
+                <button type="button" class="btn btn-sm @(isDarkMode ? "btn-outline-light" : "btn-outline-dark") rounded-3" @onclick="AlternarTema" title="Alternar Modo Escuro / Claro">
+                    <i class="bi @(isDarkMode ? "bi-sun-fill text-warning" : "bi-moon-stars-fill")"></i>
+                </button>
+                <a href="/dashboards/editor/@dashboard.Id" class="btn btn-sm btn-outline-primary rounded-3" title="Editar no Construtor">
+                    <i class="bi bi-pencil-square me-1"></i> Construtor
+                </a>
+            </div>
+        </div>
+
+        <!-- Grade DinÃ¢mica de Widgets -->
+        <div class="row g-3">
+            @foreach (var w in dashboard.Widgets)
+            {
+                // Mapear largura em classes responsivas Bootstrap
+                string colClass = w.Largura switch
+                {
+                    <= 25 => "col-12 col-sm-6 col-lg-3",
+                    <= 35 => "col-12 col-md-4",
+                    <= 55 => "col-12 col-lg-6",
+                    <= 70 => "col-12 col-lg-8",
+                    _ => "col-12"
+                };
+
+                <div class="@colClass">
+                    <div class="rounded-4 overflow-hidden h-100 shadow-sm" style="min-height: 180px;">
+                        <BIWidgetView Widget="w" IsEditor="false" Datasets="datasetsDisponiveis" />
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Token { get; set; } = string.Empty;
+
+    private BIDashboard? dashboard;
+    private List<BIDataset> datasetsDisponiveis = new();
+    private bool carregando = true;
+    private bool isDarkMode = false;
+    private int contadorRefresh = 0;
+    private System.Threading.Timer? refreshTimer;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        carregando = true;
+        datasetsDisponiveis = await DashboardService.ObterDatasetsAsync();
+        dashboard = await DashboardService.ObterPorTokenPublicoAsync(Token);
+        carregando = false;
+
+        IniciarTimerRefresh();
+    }
+
+    private void IniciarTimerRefresh()
+    {
+        refreshTimer?.Dispose();
+        if (dashboard?.AutoRefreshSegundos > 0)
+        {
+            contadorRefresh = dashboard.AutoRefreshSegundos;
+            refreshTimer = new System.Threading.Timer(async _ =>
+            {
+                if (contadorRefresh > 1)
+                {
+                    contadorRefresh--;
+                    await InvokeAsync(StateHasChanged);
+                }
+                else
+                {
+                    contadorRefresh = dashboard.AutoRefreshSegundos;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }, null, 1000, 1000);
+        }
+    }
+
+    private void AlternarTema()
+    {
+        isDarkMode = !isDarkMode;
+    }
+
+    public void Dispose()
+    {
+        refreshTimer?.Dispose();
+    }
+}

@@ -1,0 +1,133 @@
+﻿@using JT_BI.Models
+@using JT_BI.Services
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Nav
+
+@if (IsOpen && Dashboard != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 1055;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-2xl rounded-4 overflow-hidden">
+                <div class="modal-header bg-dark text-white p-3 border-0">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="p-2 bg-primary rounded-3 text-white">
+                            <i class="bi bi-share-fill"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title fw-bold mb-0">Compartilhar Painel</h5>
+                            <small class="text-white-50">Acesso pÃºblico sem necessidade de login</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" @onclick="Fechar"></button>
+                </div>
+
+                <div class="modal-body p-4">
+                    <!-- Switch de Acesso PÃºblico -->
+                    <div class="d-flex align-items-center justify-content-between p-3 rounded-3 bg-light mb-3 border">
+                        <div>
+                            <span class="fw-bold d-block text-dark">Permitir Acesso PÃºblico</span>
+                            <small class="text-muted">Qualquer pessoa com o link pode visualizar sem credenciais de login</small>
+                        </div>
+                        <div class="form-check form-switch fs-4 mb-0">
+                            <input class="form-check-input" type="checkbox" @bind="Dashboard.PermiteAcessoPublico" />
+                        </div>
+                    </div>
+
+                    @if (Dashboard.PermiteAcessoPublico)
+                    {
+                        var linkCompleto = $"{Nav.BaseUri}compartilhado/{Dashboard.PublicToken}";
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small text-muted">Link de VisualizaÃ§Ã£o Direta:</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control form-control-sm font-monospace" value="@linkCompleto" readonly />
+                                <button class="btn btn-sm btn-primary" @onclick="() => CopiarTexto(linkCompleto)">
+                                    <i class="bi bi-clipboard me-1"></i> Copiar
+                                </button>
+                                <a href="@linkCompleto" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-box-arrow-up-right"></i>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small text-muted">AtualizaÃ§Ã£o AutomÃ¡tica (Segundos):</label>
+                            <select class="form-select form-select-sm" @bind="Dashboard.AutoRefreshSegundos">
+                                <option value="0">Desativado (EstÃ¡tico)</option>
+                                <option value="15">A cada 15 segundos (Tempo Real)</option>
+                                <option value="30">A cada 30 segundos</option>
+                                <option value="60">A cada 1 minuto</option>
+                                <option value="300">A cada 5 minutos</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="form-label fw-semibold small text-muted">CÃ³digo para Incorporar (iFrame):</label>
+                            <textarea class="form-control form-control-sm font-monospace" rows="2" readonly style="font-size: 0.75rem;">&lt;iframe src="@linkCompleto" width="100%" height="700" frameborder="0" allowfullscreen&gt;&lt;/iframe&gt;</textarea>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning py-2 small mb-0">
+                            <i class="bi bi-lock-fill me-1"></i> O compartilhamento pÃºblico deste painel estÃ¡ desativado. Ative a chave acima para gerar o link.
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(copiadoMsg))
+                    {
+                        <div class="alert alert-success py-2 small mt-3 mb-0">
+                            <i class="bi bi-check2-circle me-1"></i> @copiadoMsg
+                        </div>
+                    }
+                </div>
+
+                <div class="modal-footer bg-light p-3 border-0 d-flex justify-content-between">
+                    <button type="button" class="btn btn-sm btn-secondary" @onclick="Fechar">Fechar</button>
+                    <button type="button" class="btn btn-sm btn-primary" @onclick="SalvarConfiguracoesAsync">
+                        <i class="bi bi-save me-1"></i> Salvar ConfiguraÃ§Ãµes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BIDashboard? Dashboard { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Inject] IBIDashboardService DashboardService { get; set; } = default!;
+
+    private string? copiadoMsg = null;
+
+    private async Task CopiarTexto(string texto)
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", texto);
+            copiadoMsg = "Link copiado para a Ã¡rea de transferÃªncia!";
+        }
+        catch
+        {
+            copiadoMsg = "Selecione e copie o link no campo acima.";
+        }
+        _ = Task.Delay(3000).ContinueWith(_ => InvokeAsync(() => { copiadoMsg = null; StateHasChanged(); }));
+    }
+
+    private async Task SalvarConfiguracoesAsync()
+    {
+        if (Dashboard != null)
+        {
+            await DashboardService.SalvarAsync(Dashboard);
+            await OnSaved.InvokeAsync();
+        }
+        await Fechar();
+    }
+
+    private async Task Fechar()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
+}

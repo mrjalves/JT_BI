@@ -1,0 +1,16 @@
+**/.git
+**/.github
+**/.vs
+**/.vscode
+**/.idea
+**/bin
+**/obj
+**/publish
+**/*.user
+**/*.suo
+**/*.log
+deploy/
+docs/
+appsettings.Production.json
+appsettings.Local.json
+uploads/

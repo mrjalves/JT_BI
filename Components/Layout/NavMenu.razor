@@ -1,0 +1,58 @@
+﻿<div class="top-row ps-3 navbar navbar-dark bg-dark">
+    <div class="container-fluid d-flex align-items-center gap-2">
+        <div class="p-2 bg-primary rounded-3 text-white d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+            <i class="bi bi-speedometer2"></i>
+        </div>
+        <a class="navbar-brand fw-bold mb-0 text-white" href="">JT_BI</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column py-2">
+        <div class="nav-item px-3 mb-1">
+            <NavLink class="nav-link rounded-3" href="" Match="NavLinkMatch.All">
+                <i class="bi bi-grid-fill me-2"></i> Hub de PainÃ©is
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3 mb-1">
+            <NavLink class="nav-link rounded-3" href="dashboards">
+                <i class="bi bi-collection-play me-2"></i> Todos os Dashboards
+            </NavLink>
+        </div>
+
+        <div class="px-3 py-2 text-muted small text-uppercase fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+            Fontes Conectadas
+        </div>
+
+        <div class="nav-item px-3 mb-1">
+            <div class="nav-link text-white-50 small d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-cash-coin text-success me-2"></i> Financeiro</span>
+                <span class="badge bg-success-subtle text-success" style="font-size: 0.65rem;">Ativo</span>
+            </div>
+        </div>
+
+        <div class="nav-item px-3 mb-1">
+            <div class="nav-link text-white-50 small d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-cup-straw text-warning me-2"></i> Food / Restaurante</span>
+                <span class="badge bg-warning-subtle text-warning" style="font-size: 0.65rem;">Ativo</span>
+            </div>
+        </div>
+
+        <div class="nav-item px-3 mb-1">
+            <div class="nav-link text-white-50 small d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-graph-up text-primary me-2"></i> Vendas / CRM</span>
+                <span class="badge bg-primary-subtle text-primary" style="font-size: 0.65rem;">Ativo</span>
+            </div>
+        </div>
+
+        <div class="nav-item px-3 mb-1">
+            <div class="nav-link text-white-50 small d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-box-seam text-info me-2"></i> Estoque</span>
+                <span class="badge bg-info-subtle text-info" style="font-size: 0.65rem;">Ativo</span>
+            </div>
+        </div>
+    </nav>
+</div>

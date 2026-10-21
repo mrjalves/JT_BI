@@ -1,0 +1,27 @@
+[Unit]
+Description=JT_BI - Painel e Business Intelligence (.NET 10 Blazor Server)
+After=network.target
+
+[Service]
+WorkingDirectory=/var/www/jt_bi
+ExecStart=/usr/bin/dotnet /var/www/jt_bi/JT_BI.dll
+Restart=always
+# Reiniciar se cair após 10 segundos
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=jt_bi
+User=www-data
+Group=www-data
+
+# Variáveis de ambiente
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5010
+
+# Hardening / Segurança de processo no Linux
+ProtectSystem=full
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
