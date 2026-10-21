@@ -246,6 +246,7 @@ public class BIDashboardService : IBIDashboardService
             Titulo = "Faturamento Mensal",
             Subtitulo = "Receita bruta consolidada",
             Tipo = BIWidgetTipo.CardKpi,
+            LarguraColunas = 3,
             PosX = 2,
             PosY = 2,
             Largura = 22,
@@ -266,6 +267,7 @@ public class BIDashboardService : IBIDashboardService
             Titulo = "Lucro Líquido",
             Subtitulo = "Margem operacional de 39%",
             Tipo = BIWidgetTipo.CardKpi,
+            LarguraColunas = 3,
             PosX = 26,
             PosY = 2,
             Largura = 22,
@@ -286,6 +288,7 @@ public class BIDashboardService : IBIDashboardService
             Titulo = "Ticket Médio",
             Subtitulo = "Média por transação",
             Tipo = BIWidgetTipo.CardKpi,
+            LarguraColunas = 3,
             PosX = 50,
             PosY = 2,
             Largura = 22,
@@ -306,6 +309,7 @@ public class BIDashboardService : IBIDashboardService
             Titulo = "Metas Comercial",
             Subtitulo = "Meta batida no trimestre",
             Tipo = BIWidgetTipo.CardKpi,
+            LarguraColunas = 3,
             PosX = 74,
             PosY = 2,
             Largura = 24,
@@ -326,6 +330,7 @@ public class BIDashboardService : IBIDashboardService
             Titulo = "Evolução do Faturamento Mensal",
             Subtitulo = "Histórico dos últimos meses",
             Tipo = BIWidgetTipo.GraficoLinhas,
+            LarguraColunas = 8,
             PosX = 2,
             PosY = 23,
             Largura = 58,
@@ -344,6 +349,7 @@ public class BIDashboardService : IBIDashboardService
             Titulo = "Faturamento por Categoria",
             Subtitulo = "Participação percentual no faturamento",
             Tipo = BIWidgetTipo.GraficoPizza,
+            LarguraColunas = 4,
             PosX = 62,
             PosY = 23,
             Largura = 36,
@@ -486,6 +492,20 @@ public class BIDashboardService : IBIDashboardService
                 w.Subtitulo = SanitizarTexto(w.Subtitulo);
                 w.MetricaCampo = SanitizarTexto(w.MetricaCampo);
                 w.DimensaoCampo = SanitizarTexto(w.DimensaoCampo);
+
+                // Normalização de colunas para layout perfeito
+                if (w.Tipo == BIWidgetTipo.CardKpi && (w.LarguraColunas == 6 || w.LarguraColunas <= 0))
+                {
+                    w.LarguraColunas = 3;
+                }
+                else if (w.Tipo == BIWidgetTipo.GraficoLinhas && (w.LarguraColunas == 6 || w.LarguraColunas <= 0))
+                {
+                    w.LarguraColunas = 8;
+                }
+                else if (w.Tipo == BIWidgetTipo.GraficoPizza && (w.LarguraColunas == 6 || w.LarguraColunas <= 0))
+                {
+                    w.LarguraColunas = 4;
+                }
             }
         }
     }
