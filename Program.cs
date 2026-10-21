@@ -19,9 +19,9 @@ builder.Services.AddRazorComponents()
 var secaoConfig = builder.Configuration.GetSection("Config");
 var dadosConfig = secaoConfig.Get<Config>() ?? new Config
 {
-    ClientId = "JT_BI",
+    ClientId = "JT_Sistemas",
     TipoApp = "WEB",
-    Executor = "API"
+    Executor = "Sistema"
 };
 Config.SetInstancia(dadosConfig);
 
@@ -43,19 +43,17 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
-// Configurar HttpClient com header X-Client-Config apontando para o ClientId JT_BI
+// Configurar HttpClient com header X-Client-Config apontando para o ClientId JT_Sistemas
 builder.Services.AddHttpClient();
 builder.Services.AddScoped(sp =>
 {
-    var factory = sp.GetRequiredService<IHttpClientFactory>();
-    var httpClient = factory.CreateClient(string.Empty);
-
     var baseUrl = builder.Configuration["Config:Conexao:BaseApiUrl"]
                ?? builder.Configuration["Config:FirebaseConfig:BaseApiUrl"]
                ?? "https://api.jtecsistemas.com.br";
-    httpClient.BaseAddress = new Uri(baseUrl);
+    var httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
 
-    var configPayload = new ClientConfigPayload { ClientId = "JT_BI" };
+    var clientId = Config.Instancia?.ClientId ?? "JT_Sistemas";
+    var configPayload = new ClientConfigPayload { ClientId = clientId };
     if (Config.Instancia != null)
     {
         Config.Instancia.ClientId = configPayload.ClientId;
