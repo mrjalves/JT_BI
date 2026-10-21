@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using JT_BI.Models;
 
 namespace JT_BI.Services;
@@ -26,9 +26,23 @@ public class BIDashboardService : IBIDashboardService
 
     public BIDashboardService(IWebHostEnvironment env)
     {
-        _storageDir = Path.Combine(env.ContentRootPath, "Data");
-        if (!Directory.Exists(_storageDir))
-            Directory.CreateDirectory(_storageDir);
+        try
+        {
+            _storageDir = Path.Combine(env.ContentRootPath, "Data");
+            if (!Directory.Exists(_storageDir))
+                Directory.CreateDirectory(_storageDir);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[BIDashboardService] Fallback de diretório devido a permissões: {ex.Message}");
+            _storageDir = Path.Combine(Path.GetTempPath(), "JT_BI_Data");
+            try
+            {
+                if (!Directory.Exists(_storageDir))
+                    Directory.CreateDirectory(_storageDir);
+            }
+            catch { }
+        }
 
         _dashboardsFilePath = Path.Combine(_storageDir, "dashboards.json");
         _datasetsFilePath = Path.Combine(_storageDir, "datasets.json");
@@ -173,8 +187,15 @@ public class BIDashboardService : IBIDashboardService
             else
                 _cacheDatasets.Add(dataset);
 
-            var json = JsonSerializer.Serialize(_cacheDatasets, new JsonSerializerOptions { WriteIndented = true });
-            await File.WriteAllTextAsync(_datasetsFilePath, json);
+            try
+            {
+                var json = JsonSerializer.Serialize(_cacheDatasets, new JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(_datasetsFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BIDashboardService] Aviso ao gravar dataset no disco: {ex.Message}");
+            }
         }
         finally
         {
@@ -186,8 +207,15 @@ public class BIDashboardService : IBIDashboardService
     {
         if (_cacheDashboards != null)
         {
-            var json = JsonSerializer.Serialize(_cacheDashboards, new JsonSerializerOptions { WriteIndented = true });
-            await File.WriteAllTextAsync(_dashboardsFilePath, json);
+            try
+            {
+                var json = JsonSerializer.Serialize(_cacheDashboards, new JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(_dashboardsFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BIDashboardService] Aviso ao gravar dashboards no disco: {ex.Message}");
+            }
         }
     }
 
