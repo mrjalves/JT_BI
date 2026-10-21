@@ -99,6 +99,9 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode()
+    .AddAdditionalAssemblies(
+        typeof(JT_UserInterface.Shared._Imports).Assembly
+    );
 
 app.Run();
