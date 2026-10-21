@@ -20,16 +20,20 @@ jobs:
     steps:
       - name: Checkout JT_BI
         uses: actions/checkout@v4
-        with:
-          path: JT_BI
 
       # Checkout de JT_ApplicationLayer lado a lado para satisfazer as ProjectReferences relativas
-      - name: Checkout JT_ApplicationLayer (dependências de classe)
+      - name: Checkout JT_ApplicationLayer
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository_owner }}/JT_ApplicationLayer
-          token: ${{ secrets.GH_PAT_REPO || github.token }}
+          repository: mrjalves/JT_ApplicationLayer
+          token: ${{ secrets.GH_PAT || secrets.GH_PAT_REPO }}
           path: JT_ApplicationLayer
+          ref: Master
+
+      - name: Prepare JT_ApplicationLayer sibling path
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/../JT_ApplicationLayer"
+          mv "$GITHUB_WORKSPACE/JT_ApplicationLayer" "$GITHUB_WORKSPACE/../JT_ApplicationLayer"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -38,8 +42,7 @@ jobs:
 
       - name: Publicar Aplicação (Release)
         run: |
-          cd JT_BI
-          dotnet publish JT_BI.csproj -c Release -o ../publish
+          dotnet publish JT_BI.csproj -c Release -o publish
 
       - name: Enviar artefatos para a VPS
         uses: appleboy/scp-action@v0.1.7
