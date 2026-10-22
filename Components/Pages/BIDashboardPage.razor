@@ -611,6 +611,25 @@ else
                         </div>
                         <div class="modal-body p-4">
                             <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label small fw-semibold text-secondary">Origem de Dados (EDW):</label>
+                                    <select class="form-select form-select-sm" @bind="origemMineracaoId" @bind:after="AjustarCamposMineracao">
+                                        @foreach (var fonte in fontesMineracao.Where(f => f.OrigemId.HasValue))
+                                        {
+                                            <option value="@fonte.OrigemId">@fonte.Nome</option>
+                                        }
+                                    </select>
+                                    @if (!fontesMineracao.Any(f => f.OrigemId.HasValue))
+                                    {
+                                        <div class="alert alert-warning py-2 px-3 small mt-2 mb-0">
+                                            Nenhuma origem EDW disponível. Configure e carregue uma origem de dados antes de minerar.
+                                        </div>
+                                    }
+                                    @if (FonteMineracao != null)
+                                    {
+                                        <div class="form-text">@FonteMineracao.Descricao</div>
+                                    }
+                                </div>
                                 <div class="col-12 col-md-6">
                                     <div class="p-3 bg-light rounded-3 border h-100 d-flex flex-column justify-content-between">
                                         <div>
@@ -629,6 +648,26 @@ else
                                                     <option value="4">4 Grupos (Segmentação Fina)</option>
                                                 </select>
                                             </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small fw-semibold text-secondary mb-1">Campo de identificação:</label>
+                                                <input class="form-control form-control-sm" list="camposMineracao" @bind="campoMineracaoNome" />
+                                            </div>
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <label class="form-label small fw-semibold text-secondary mb-1">Valor 1:</label>
+                                                    <input class="form-control form-control-sm" list="camposMineracao" @bind="campoMineracaoValor1" />
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label small fw-semibold text-secondary mb-1">Valor 2:</label>
+                                                    <input class="form-control form-control-sm" list="camposMineracao" @bind="campoMineracaoValor2" />
+                                                </div>
+                                            </div>
+                                            <datalist id="camposMineracao">
+                                                @foreach (var coluna in ColunasMineracao)
+                                                {
+                                                    <option value="@coluna"></option>
+                                                }
+                                            </datalist>
                                         </div>
                                         <button class="btn btn-sm btn-primary rounded-3 w-100" @onclick="ExecutarKMeansNoCanvasAsync">
                                             <i class="bi bi-play-fill me-1"></i> Executar e Injetar no Canvas
@@ -646,6 +685,14 @@ else
                                             <p class="text-muted small mb-2" style="font-size: 0.75rem;">
                                                 Classifica os produtos e transações pelo princípio de Pareto: Classe A (80%), B (15%) e C (5%).
                                             </p>
+                                            <div class="mb-2">
+                                                <label class="form-label small fw-semibold text-secondary mb-1">Campo de identificação:</label>
+                                                <input class="form-control form-control-sm" list="camposMineracao" @bind="campoMineracaoNome" />
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small fw-semibold text-secondary mb-1">Campo de valor:</label>
+                                                <input class="form-control form-control-sm" list="camposMineracao" @bind="campoMineracaoValorAbc" />
+                                            </div>
                                         </div>
                                         <button class="btn btn-sm btn-success rounded-3 w-100" @onclick="ExecutarCurvaAbcNoCanvasAsync">
                                             <i class="bi bi-play-fill me-1"></i> Calcular Curva ABC
@@ -690,6 +737,12 @@ else
     private bool isDataMiningModalOpen = false;
     private bool isShareModalOpen = false;
     private int kMeansK = 3;
+    private List<FonteDadosInfo> fontesMineracao = new();
+    private int origemMineracaoId;
+    private string campoMineracaoNome = "Cliente";
+    private string campoMineracaoValor1 = "TicketMedio";
+    private string campoMineracaoValor2 = "Frequencia";
+    private string campoMineracaoValorAbc = "Valor";
 
     // Drag and Drop (Fase 2)
     private BIWidgetTipo? tipoWidgetArrastando;
@@ -762,6 +815,23 @@ else
         }
     }
 
+    private FonteDadosInfo? FonteMineracao
+        => fontesMineracao.FirstOrDefault(f => f.OrigemId == origemMineracaoId);
+
+    private List<string> ColunasMineracao
+        => FonteMineracao?.Metricas ?? new List<string>();
+
+    private void AjustarCamposMineracao()
+    {
+        var colunas = ColunasMineracao;
+        if (colunas.Count == 0) return;
+
+        campoMineracaoNome = colunas[0];
+        campoMineracaoValor1 = colunas.Count > 1 ? colunas[1] : colunas[0];
+        campoMineracaoValor2 = colunas.Count > 2 ? colunas[2] : campoMineracaoValor1;
+        campoMineracaoValorAbc = colunas.Count > 1 ? colunas[1] : colunas[0];
+    }
+
     private async Task CarregarAmbienteAsync()
     {
         IsCarregando = true;
@@ -774,6 +844,14 @@ else
             catch (Exception exGestao)
             {
                 Console.WriteLine($"[JT_BI] Aviso ao obter GestaoConfig: {exGestao.Message}");
+            }
+
+            fontesMineracao = await DataSourceService.ObterFontesDisponiveisAsync();
+            var fonteMineracaoInicial = fontesMineracao.FirstOrDefault(f => f.OrigemId.HasValue);
+            if (fonteMineracaoInicial?.OrigemId is > 0)
+            {
+                origemMineracaoId = fonteMineracaoInicial.OrigemId.Value;
+                AjustarCamposMineracao();
             }
 
             ListaDashboards = await DashboardService.ObterTodosAsync();
@@ -990,18 +1068,13 @@ else
     {
         if (DashboardAtivo == null) return;
 
-        // Amostra de registros para clustering
-        var registros = new List<Dictionary<string, string>>
-        {
-            new() { ["Cliente"] = "Restaurante Sabor & Arte", ["TicketMedio"] = "1850", ["Frequencia"] = "28" },
-            new() { ["Cliente"] = "Padaria Central", ["TicketMedio"] = "920", ["Frequencia"] = "14" },
-            new() { ["Cliente"] = "Mercado do Povo", ["TicketMedio"] = "3400", ["Frequencia"] = "45" },
-            new() { ["Cliente"] = "Bar & Petiscos", ["TicketMedio"] = "450", ["Frequencia"] = "6" },
-            new() { ["Cliente"] = "Lanchonete 24h", ["TicketMedio"] = "1200", ["Frequencia"] = "22" },
-            new() { ["Cliente"] = "Pizzaria Bella", ["TicketMedio"] = "2800", ["Frequencia"] = "38" }
-        };
+        var registros = await ObterRegistrosMineracaoAsync(
+            new[] { campoMineracaoNome, campoMineracaoValor1, campoMineracaoValor2 });
 
-        var resultado = DataMiningService.ExecutarKMeans(registros, "Cliente", "TicketMedio", "Frequencia", kMeansK);
+        if (registros.Count < 2) return;
+
+        var resultado = DataMiningService.ExecutarKMeans(
+            registros, campoMineracaoNome, campoMineracaoValor1, campoMineracaoValor2, kMeansK);
         var widgets = DataMiningService.GerarWidgetsMinacao(resultado);
 
         foreach (var w in widgets)
@@ -1018,16 +1091,13 @@ else
     {
         if (DashboardAtivo == null) return;
 
-        var registros = new List<Dictionary<string, string>>
-        {
-            new() { ["Produto"] = "Combo Executivo", ["Valor"] = "45200" },
-            new() { ["Produto"] = "Pizza Artesanal", ["Valor"] = "28400" },
-            new() { ["Produto"] = "Bebidas & Refrigerantes", ["Valor"] = "14200" },
-            new() { ["Produto"] = "Sobremesas Especiais", ["Valor"] = "6800" },
-            new() { ["Produto"] = "Porções & Aperitivos", ["Valor"] = "3200" }
-        };
+        var registros = await ObterRegistrosMineracaoAsync(
+            new[] { campoMineracaoNome, campoMineracaoValorAbc });
 
-        var resultado = DataMiningService.CalcularCurvaAbc(registros, "Produto", "Valor");
+        if (registros.Count == 0) return;
+
+        var resultado = DataMiningService.CalcularCurvaAbc(
+            registros, campoMineracaoNome, campoMineracaoValorAbc);
         var widgets = DataMiningService.GerarWidgetsCurvaAbc(resultado);
 
         foreach (var w in widgets)
@@ -1038,6 +1108,35 @@ else
         isDataMiningModalOpen = false;
         await SalvarDashboardAtualAsync();
         ExibirFeedback($"Curva ABC calculada: {resultado.QtdClasseA} itens na Classe A (80% da receita).", "alert-success");
+    }
+
+    private async Task<List<Dictionary<string, string>>> ObterRegistrosMineracaoAsync(IEnumerable<string> colunas)
+    {
+        var listaColunas = colunas
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (origemMineracaoId <= 0)
+        {
+            ExibirFeedback("Selecione uma origem de dados EDW para executar a mineração.", "alert-warning");
+            return new List<Dictionary<string, string>>();
+        }
+
+        if (listaColunas.Count == 0)
+        {
+            ExibirFeedback("Selecione os campos usados pela mineração.", "alert-warning");
+            return new List<Dictionary<string, string>>();
+        }
+
+        var registros = await DataSourceService.ObterAmostraAsync(origemMineracaoId, listaColunas, 5000);
+        if (registros.Count == 0)
+        {
+            ExibirFeedback("Nenhum registro encontrado. Verifique a carga do EDW e os nomes dos campos.", "alert-warning");
+            return new List<Dictionary<string, string>>();
+        }
+
+        return registros;
     }
 
     private void TratarDashboardCriado(BIDashboard novo)

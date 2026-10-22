@@ -13,7 +13,7 @@ public class BIDashboard
     public DateTime DataAtualizacao { get; set; } = DateTime.Now;
 
     // Compartilhamento e Acesso Publico (Sem necessidade de login ativo)
-    public bool PermiteAcessoPublico { get; set; } = true;
+    public bool PermiteAcessoPublico { get; set; } = false;
     public string PublicToken { get; set; } = Guid.NewGuid().ToString("N");
     public int AutoRefreshSegundos { get; set; } = 0; // 0 = desligado, 30, 60, 300
 

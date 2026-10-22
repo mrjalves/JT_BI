@@ -61,9 +61,12 @@ builder.Services.AddScoped<JT_UserInterface.Shared.Services.Interfaces.Comum.IMe
 builder.Services.AddScoped<JT_UserInterface.Shared.Services.Interfaces.Comum.IModuloMenuProvider, BIMenuProvider>();
 builder.Services.AddScoped<JT_UserInterface.Shared.Services.Interfaces.Comum.ITutorialProvider, BITutorialProvider>();
 builder.Services.AddSingleton<IBIDashboardService, BIDashboardService>();
-builder.Services.AddSingleton<IBIDataSourceService, BIDataSourceService>();
+builder.Services.AddScoped<IBIDataSourceService, BIDataSourceService>();
 builder.Services.AddSingleton<IBIImportService, BIImportService>();
 builder.Services.AddSingleton<IBIDataMiningService, BIDataMiningService>();
+builder.Services.AddScoped<JT_Servicos.DW.OrigemDadosService>();
+builder.Services.AddScoped<JT_Servicos.DW.DwConsultaService>();
+builder.Services.AddScoped<JT_Servicos.DW.IndicadorDashboardService>();
 
 var app = builder.Build();
 

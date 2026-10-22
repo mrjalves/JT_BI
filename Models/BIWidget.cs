@@ -22,10 +22,16 @@ public class BIWidget
     public decimal? VariacaoPercentual { get; set; }
 
     // Vinculacao de Dados
-    public string FonteDadosId { get; set; } = "financeiro"; // financeiro, food, vendas, estoque, dataset_{id}
+    public string FonteDadosId { get; set; } = "financeiro"; // origem_{id}, dataset_{id} ou fonte demonstrativa
+    public int? OrigemId { get; set; }
     public string MetricaCampo { get; set; } = "Faturamento";
     public string DimensaoCampo { get; set; } = "Periodo";
+    public string? ColunaData { get; set; }
+    public bool AgruparPorMes { get; set; }
     public string Agregacao { get; set; } = "Soma"; // Soma, Media, Contagem, Max, Min
+
+    // Resultados de mineração ou dados materializados no próprio widget
+    public List<BIDataPoint> DadosEstaticos { get; set; } = new();
 
     // Helpers e Compatibilidade de Grid / UI
     public string CorDestaque { get => CorTema; set => CorTema = value; }

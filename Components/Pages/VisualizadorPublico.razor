@@ -48,9 +48,6 @@ else if (dashboard != null)
                 <button type="button" class="btn btn-sm @(isDarkMode ? "btn-outline-light" : "btn-outline-dark") rounded-3" @onclick="AlternarTema" title="Alternar Modo Escuro / Claro">
                     <i class="bi @(isDarkMode ? "bi-sun-fill text-warning" : "bi-moon-stars-fill")"></i>
                 </button>
-                <a href="/dashboards/editor/@dashboard.Id" class="btn btn-sm btn-outline-primary rounded-3" title="Editar no Construtor">
-                    <i class="bi bi-pencil-square me-1"></i> Construtor
-                </a>
             </div>
         </div>
 
@@ -91,8 +88,20 @@ else if (dashboard != null)
     protected override async Task OnParametersSetAsync()
     {
         carregando = true;
-        datasetsDisponiveis = await DashboardService.ObterDatasetsAsync();
         dashboard = await DashboardService.ObterPorTokenPublicoAsync(Token);
+
+        if (dashboard != null && dashboard.DatasetsVinculadosIds.Count > 0)
+        {
+            var todos = await DashboardService.ObterDatasetsAsync();
+            datasetsDisponiveis = todos
+                .Where(d => dashboard.DatasetsVinculadosIds.Contains(d.Id))
+                .ToList();
+        }
+        else
+        {
+            datasetsDisponiveis = new List<BIDataset>();
+        }
+
         carregando = false;
 
         IniciarTimerRefresh();

@@ -8,6 +8,7 @@ public class ClusterItem
     public string Id { get; set; } = string.Empty;
     public string Rotulo { get; set; } = string.Empty;
     public double[] Valores { get; set; } = Array.Empty<double>();
+    public double[] ValoresOriginais { get; set; } = Array.Empty<double>();
     public int ClusterId { get; set; }
 }
 
@@ -95,6 +96,7 @@ public class BIDataMiningService : IBIDataMiningService
                 Id = Guid.NewGuid().ToString("N"),
                 Rotulo = nome,
                 Valores = new double[] { v1, v2 },
+                ValoresOriginais = new double[] { v1, v2 },
                 ClusterId = 0
             });
         }
@@ -105,18 +107,31 @@ public class BIDataMiningService : IBIDataMiningService
         }
 
         // 2. Inicializar centróides aleatoriamente baseados nos extremos
-        var minV1 = itens.Min(it => it.Valores[0]);
-        var maxV1 = itens.Max(it => it.Valores[0]);
-        var minV2 = itens.Min(it => it.Valores[1]);
-        var maxV2 = itens.Max(it => it.Valores[1]);
+        // Normaliza cada dimensão (z-score) para evitar que valores monetários dominem a distância.
+        var mediaV1 = itens.Average(it => it.Valores[0]);
+        var mediaV2 = itens.Average(it => it.Valores[1]);
+        var desvioV1 = DesvioPadrao(itens.Select(it => it.Valores[0]), mediaV1);
+        var desvioV2 = DesvioPadrao(itens.Select(it => it.Valores[1]), mediaV2);
 
-        var centroides = new List<double[]>();
-        var random = new Random(42);
-        for (int i = 0; i < k; i++)
+        foreach (var item in itens)
         {
-            var seedItem = itens[(i * (itens.Count / k)) % itens.Count];
-            centroides.Add(new double[] { seedItem.Valores[0], seedItem.Valores[1] });
+            item.Valores = new[]
+            {
+                (item.ValoresOriginais[0] - mediaV1) / desvioV1,
+                (item.ValoresOriginais[1] - mediaV2) / desvioV2
+            };
         }
+
+        // Sementes determinísticas e distintas, escolhidas com Random(42).
+        var random = new Random(42);
+        var indicesSemente = Enumerable.Range(0, itens.Count)
+            .OrderBy(_ => random.Next())
+            .Take(k)
+            .ToList();
+
+        var centroides = indicesSemente
+            .Select(indice => new[] { itens[indice].Valores[0], itens[indice].Valores[1] })
+            .ToList();
 
         // 3. Iterações K-Means
         bool mudou = true;
@@ -196,6 +211,41 @@ public class BIDataMiningService : IBIDataMiningService
             });
         }
 
+        var ranking = Enumerable.Range(0, k)
+            .Select(c => new
+            {
+                Cluster = c,
+                MediaValor = itens.Where(it => it.ClusterId == c)
+                    .Select(it => it.ValoresOriginais[0])
+                    .DefaultIfEmpty(0)
+                    .Average(),
+                MediaFrequencia = itens.Where(it => it.ClusterId == c)
+                    .Select(it => it.ValoresOriginais[1])
+                    .DefaultIfEmpty(0)
+                    .Average()
+            })
+            .OrderByDescending(x => x.MediaValor)
+            .ToList();
+
+        var nomesRank = k switch
+        {
+            2 => new[] { "Alto Valor / VIP", "Baixo Valor / Risco" },
+            3 => new[] { "Alto Valor / VIP", "Médio Potencial", "Baixo Valor / Risco" },
+            4 => new[] { "Alto Valor / VIP", "Médio-Alto", "Médio-Baixo", "Baixo Valor / Risco" },
+            _ => Enumerable.Range(1, k).Select(i => $"Cluster {i}").ToArray()
+        };
+
+        for (var rank = 0; rank < ranking.Count; rank++)
+        {
+            var item = ranking[rank];
+            var grupo = resultado.Grupos.FirstOrDefault(g => g.Id == item.Cluster);
+            if (grupo == null) continue;
+
+            grupo.Nome = rank < nomesRank.Length ? nomesRank[rank] : $"Cluster {rank + 1}";
+            grupo.Descricao = $"Média valor: {item.MediaValor:N1} | Média frequência: {item.MediaFrequencia:N1}";
+            grupo.Centroide = new[] { item.MediaValor, item.MediaFrequencia };
+        }
+
         resultado.ResumoExecutivo = $"Mineração K-Means finalizada em {iter} iterações. Identificados {k} clusters distintos entre {itens.Count} registros analisados.";
         return resultado;
     }
@@ -220,15 +270,17 @@ public class BIDataMiningService : IBIDataMiningService
         decimal acumulado = 0;
         foreach (var it in itens)
         {
+            var acumuladoAnterior = acumulado;
             acumulado += it.Valor;
             it.PercentualAcumulado = total > 0 ? (acumulado / total) * 100m : 0;
 
-            if (it.PercentualAcumulado <= 80m)
+            // O item que cruza a faixa pertence à classe que ele completou.
+            if (acumuladoAnterior < 80m)
             {
                 it.Classe = "A";
                 res.QtdClasseA++;
             }
-            else if (it.PercentualAcumulado <= 95m)
+            else if (acumuladoAnterior < 95m)
             {
                 it.Classe = "B";
                 res.QtdClasseB++;
@@ -294,6 +346,7 @@ public class BIDataMiningService : IBIDataMiningService
             Titulo = "Clusters K-Means Ativos",
             LarguraColunas = 4,
             CorTema = "primary",
+            FonteDadosId = "mineracao",
             ValorAtual = kMeans.Grupos.Count,
             Subtitulo = $"{kMeans.Itens.Count} amostras clusterizadas"
         });
@@ -305,7 +358,16 @@ public class BIDataMiningService : IBIDataMiningService
             Tipo = BIWidgetTipo.GraficoPizza,
             Titulo = "Segmentação K-Means dos Clientes",
             LarguraColunas = 8,
-            CorTema = "info"
+            CorTema = "info",
+            FonteDadosId = "mineracao",
+            DadosEstaticos = kMeans.Grupos.Select(g => new BIDataPoint
+            {
+                Rotulo = g.Nome,
+                Valor = g.QuantidadeItens,
+                Percentual = (decimal)g.Percentual,
+                ValorFormatado = $"{g.QuantidadeItens} clientes",
+                Cor = g.Cor
+            }).ToList()
         });
 
         // 3. Tabela com os Itens e Clusters
@@ -315,6 +377,15 @@ public class BIDataMiningService : IBIDataMiningService
             Tipo = BIWidgetTipo.Tabela,
             Titulo = "Tabela Detalhada por Cluster",
             LarguraColunas = 12,
+            FonteDadosId = "mineracao",
+            DadosEstaticos = kMeans.Grupos.Select(g => new BIDataPoint
+            {
+                Rotulo = g.Nome,
+                Valor = g.QuantidadeItens,
+                Percentual = (decimal)g.Percentual,
+                ValorFormatado = $"{g.QuantidadeItens} clientes ({g.Percentual:N1}%)",
+                Cor = g.Cor
+            }).ToList(),
             DimensaoCampo = "Grupo / Cliente",
             MetricaCampo = "Classificação"
         });
@@ -335,6 +406,7 @@ public class BIDataMiningService : IBIDataMiningService
             Titulo = "Itens Classe A (80% Faturamento)",
             LarguraColunas = 4,
             CorTema = "success",
+            FonteDadosId = "mineracao",
             ValorAtual = curvaAbc.QtdClasseA,
             Subtitulo = "Foco em retenção prioritária"
         });
@@ -346,10 +418,50 @@ public class BIDataMiningService : IBIDataMiningService
             Tipo = BIWidgetTipo.GraficoBarras,
             Titulo = "Distribuição de Itens por Classe (A, B, C)",
             LarguraColunas = 8,
-            CorTema = "warning"
+            CorTema = "warning",
+            FonteDadosId = "mineracao",
+            DadosEstaticos = new List<BIDataPoint>
+            {
+                new()
+                {
+                    Rotulo = "Classe A",
+                    Valor = curvaAbc.QtdClasseA,
+                    ValorFormatado = $"{curvaAbc.QtdClasseA} itens",
+                    Cor = "#10b981",
+                    Percentual = PercentualItens(curvaAbc.QtdClasseA, curvaAbc.Itens.Count)
+                },
+                new()
+                {
+                    Rotulo = "Classe B",
+                    Valor = curvaAbc.QtdClasseB,
+                    ValorFormatado = $"{curvaAbc.QtdClasseB} itens",
+                    Cor = "#f59e0b",
+                    Percentual = PercentualItens(curvaAbc.QtdClasseB, curvaAbc.Itens.Count)
+                },
+                new()
+                {
+                    Rotulo = "Classe C",
+                    Valor = curvaAbc.QtdClasseC,
+                    ValorFormatado = $"{curvaAbc.QtdClasseC} itens",
+                    Cor = "#ef4444",
+                    Percentual = PercentualItens(curvaAbc.QtdClasseC, curvaAbc.Itens.Count)
+                }
+            }
         });
 
         return widgets;
+    }
+
+    private static decimal PercentualItens(int quantidade, int total)
+        => total == 0 ? 0 : Math.Round((decimal)quantidade / total * 100, 2);
+
+    private static double DesvioPadrao(IEnumerable<double> valores, double media)
+    {
+        var lista = valores.ToList();
+        if (lista.Count <= 1) return 1;
+
+        var variancia = lista.Sum(v => Math.Pow(v - media, 2)) / lista.Count;
+        return Math.Sqrt(variancia) is var desvio && desvio > 0 ? desvio : 1;
     }
 
     private double ExtrairDouble(Dictionary<string, string> r, string chave, double padrao)

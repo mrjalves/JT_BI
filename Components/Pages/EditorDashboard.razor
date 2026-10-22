@@ -201,11 +201,43 @@ else
 
                                 <div class="col-6">
                                     <label class="form-label small fw-bold text-muted mb-1">Métrica (Valor):</label>
-                                    <input type="text" class="form-control form-control-sm" @bind="widgetSelecionado.MetricaCampo" />
+                                    <input type="text" class="form-control form-control-sm" list="metricasFonte" @bind="widgetSelecionado.MetricaCampo" />
+                                    <datalist id="metricasFonte">
+                                        @foreach (var metrica in FonteSelecionada?.Metricas ?? new List<string>())
+                                        {
+                                            <option value="@metrica"></option>
+                                        }
+                                    </datalist>
                                 </div>
                                 <div class="col-6">
                                     <label class="form-label small fw-bold text-muted mb-1">Dimensão (Eixo):</label>
-                                    <input type="text" class="form-control form-control-sm" @bind="widgetSelecionado.DimensaoCampo" />
+                                    <input type="text" class="form-control form-control-sm" list="dimensoesFonte" @bind="widgetSelecionado.DimensaoCampo" />
+                                    <datalist id="dimensoesFonte">
+                                        @foreach (var dimensao in FonteSelecionada?.Dimensoes ?? new List<string>())
+                                        {
+                                            <option value="@dimensao"></option>
+                                        }
+                                    </datalist>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold text-muted mb-1">Agregação:</label>
+                                    <select class="form-select form-select-sm" @bind="widgetSelecionado.Agregacao">
+                                        <option value="Soma">Soma</option>
+                                        <option value="Media">Média</option>
+                                        <option value="Contagem">Contagem</option>
+                                        <option value="Max">Máximo</option>
+                                        <option value="Min">Mínimo</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold text-muted mb-1">Coluna de Data:</label>
+                                    <input type="text" class="form-control form-control-sm" list="dimensoesFonte" @bind="widgetSelecionado.ColunaData" />
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="agruparMes" @bind="widgetSelecionado.AgruparPorMes" />
+                                        <label class="form-check-label small text-muted" for="agruparMes">Agrupar a dimensão por mês</label>
+                                    </div>
                                 </div>
 
                                 <div class="col-6">
@@ -307,7 +339,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        fontesDisponiveis = DataSourceService.ObterFontesDisponiveis();
+        fontesDisponiveis = await DataSourceService.ObterFontesDisponiveisAsync();
         datasetsDisponiveis = await DashboardService.ObterDatasetsAsync();
         dashboard = await DashboardService.ObterPorIdAsync(Id);
 
@@ -352,16 +384,18 @@ else
             }
         }
 
+        var fonteInicial = fontesDisponiveis.FirstOrDefault();
+
         var novo = new BIWidget
         {
             Id = Guid.NewGuid(),
             Titulo = tipo switch
             {
                 BIWidgetTipo.CardKpi => "Novo Indicador",
-                BIWidgetTipo.GraficoBarras => "Distribuição em Barras",
-                BIWidgetTipo.GraficoLinhas => "Tendência Histórica",
-                BIWidgetTipo.GraficoPizza => "Proporção de Participação",
-                BIWidgetTipo.Tabela => "Tabela Analítica",
+                BIWidgetTipo.GraficoBarras => "Distribui��ǜo em Barras",
+                BIWidgetTipo.GraficoLinhas => "TendǦncia Hist��rica",
+                BIWidgetTipo.GraficoPizza => "Propor��ǜo de Participa��ǜo",
+                BIWidgetTipo.Tabela => "Tabela Anal��tica",
                 _ => "Novo Widget"
             },
             Tipo = tipo,
@@ -371,9 +405,10 @@ else
             Altura = wHeight,
             CorTema = "primary",
             Icone = tipo == BIWidgetTipo.CardKpi ? "bi-graph-up" : "bi-bar-chart",
-            FonteDadosId = "financeiro",
-            MetricaCampo = "Faturamento",
-            DimensaoCampo = "Mes",
+            FonteDadosId = fonteInicial?.Id ?? "financeiro",
+            OrigemId = fonteInicial?.OrigemId,
+            MetricaCampo = fonteInicial?.Metricas.FirstOrDefault() ?? "Faturamento",
+            DimensaoCampo = fonteInicial?.Dimensoes.FirstOrDefault() ?? "Mes",
             FormatoValor = "Moeda"
         };
 
@@ -405,8 +440,11 @@ else
             CorTema = w.CorTema,
             Icone = w.Icone,
             FonteDadosId = w.FonteDadosId,
+            OrigemId = w.OrigemId,
             MetricaCampo = w.MetricaCampo,
             DimensaoCampo = w.DimensaoCampo,
+            ColunaData = w.ColunaData,
+            AgruparPorMes = w.AgruparPorMes,
             Agregacao = w.Agregacao,
             FormatoValor = w.FormatoValor,
             MetaValor = w.MetaValor
@@ -429,14 +467,24 @@ else
         widgetSelecionado.PosY = Math.Max(1, Math.Min(95 - widgetSelecionado.Altura, widgetSelecionado.PosY + dy));
     }
 
+    private FonteDadosInfo? FonteSelecionada
+        => fontesDisponiveis.FirstOrDefault(f => f.Id == widgetSelecionado?.FonteDadosId);
+
     private void AjustarFonteDados()
     {
         if (widgetSelecionado == null) return;
         var fonte = fontesDisponiveis.FirstOrDefault(f => f.Id == widgetSelecionado.FonteDadosId);
         if (fonte != null)
         {
+            widgetSelecionado.OrigemId = fonte.OrigemId;
             widgetSelecionado.MetricaCampo = fonte.Metricas.FirstOrDefault() ?? "Valor";
             widgetSelecionado.DimensaoCampo = fonte.Dimensoes.FirstOrDefault() ?? "Categoria";
+            widgetSelecionado.ColunaData = null;
+            widgetSelecionado.AgruparPorMes = false;
+        }
+        else
+        {
+            widgetSelecionado.OrigemId = null;
         }
     }
 
