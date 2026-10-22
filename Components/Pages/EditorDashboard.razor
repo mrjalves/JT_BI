@@ -1,4 +1,4 @@
-﻿@page "/dashboards/editor/{Id:guid}"
+@page "/dashboards/editor/{Id:guid}"
 @using JT_BI.Models
 @using JT_BI.Services
 @using JT_BI.Components.BI
@@ -17,10 +17,10 @@
 }
 else
 {
-    <div class="d-flex flex-column h-100" style="min-height: calc(100vh - 70px);">
+    <div class="d-flex flex-column h-100">
         <!-- Barra de Ferramentas Superior (Estilo JT_Food Construtor) -->
-        <div class="card border-0 shadow-sm mb-3 rounded-4 overflow-hidden">
-            <div class="card-body p-3 bg-white">
+        <div class="card card-modern border-0 mb-3 overflow-hidden">
+            <div class="card-body p-3">
                 <div class="row g-2 align-items-center justify-content-between">
                     <!-- Título & Navegação -->
                     <div class="col-12 col-md-4 d-flex align-items-center gap-2">
@@ -28,7 +28,7 @@ else
                             <i class="bi bi-arrow-left"></i>
                         </button>
                         <div class="flex-grow-1">
-                            <input type="text" class="form-control form-control-sm fw-bold border-0 bg-light rounded-3 px-2 py-1 text-dark"
+                            <input type="text" class="form-control form-control-sm fw-bold border-0 bg-body-secondary rounded-3 px-2 py-1 text-body"
                                    @bind="dashboard.Nome" placeholder="Nome do Dashboard..." style="font-size: 1.05rem;" />
                         </div>
                     </div>
@@ -80,8 +80,8 @@ else
         <div class="row g-3 flex-grow-1">
             <!-- Canvas Interativo Estilo Salao / Mesas -->
             <div class="col-12 @(widgetSelecionado != null ? "col-lg-9" : "col-12") transition-all">
-                <div class="card border-0 shadow-sm rounded-4 h-100 overflow-hidden bg-white">
-                    <div class="card-header bg-white py-2 px-3 border-bottom d-flex align-items-center justify-content-between">
+                <div class="card card-modern border-0 h-100 overflow-hidden">
+                    <div class="card-header bg-transparent py-2 px-3 border-bottom d-flex align-items-center justify-content-between">
                         <div class="d-flex align-items-center gap-2">
                             <span class="badge bg-primary-subtle text-primary fw-semibold">
                                 <i class="bi bi-grid-3x3 me-1"></i> Canvas Visual
@@ -95,19 +95,19 @@ else
                         </div>
                     </div>
 
-                    <div class="card-body p-2 position-relative bg-light" style="overflow: auto;">
+                    <div class="card-body p-2 position-relative bg-body-tertiary" style="overflow: auto;">
                         <div id="biCanvasContainer"
                              class="position-relative rounded-3 shadow-inner w-100"
-                             style="min-height: 650px; height: 740px; background-color: #f8fafc; background-image: radial-gradient(#94a3b8 1.5px, transparent 1.5px); background-size: 24px 24px; border: 2px dashed #cbd5e1; overflow: hidden;"
+                             style="min-height: 650px; height: 740px; background-color: var(--surface-bg, #f8fafc); background-image: radial-gradient(var(--border-color, #94a3b8) 1.5px, transparent 1.5px); background-size: 24px 24px; border: 2px dashed var(--border-color, #cbd5e1); overflow: hidden;"
                              @onclick="DeselecionarCanvas">
 
                             @if (dashboard.Widgets.Count == 0)
                             {
                                 <div class="position-absolute top-50 start-50 translate-middle text-center p-4">
-                                    <div class="p-3 bg-white rounded-circle shadow-sm d-inline-block mb-3">
+                                    <div class="p-3 card-modern rounded-circle shadow-sm d-inline-block mb-3">
                                         <i class="bi bi-layout-wtf text-primary" style="font-size: 2.5rem;"></i>
                                     </div>
-                                    <h5 class="fw-bold text-dark mb-1">Seu painel está pronto para receber dados!</h5>
+                                    <h5 class="fw-bold text-body mb-1">Seu painel está pronto para receber dados!</h5>
                                     <p class="text-muted small mb-3">Clique nos botões da barra superior (+ KPI, + Barras, + Linhas) para adicionar seus primeiros componentes ao canvas.</p>
                                     <button class="btn btn-sm btn-primary rounded-pill px-4" @onclick="() => AdicionarWidget(BIWidgetTipo.CardKpi)">
                                         <i class="bi bi-plus-lg me-1"></i> Adicionar Primeiro Widget
@@ -146,14 +146,14 @@ else
             @if (widgetSelecionado != null)
             {
                 <div class="col-12 col-lg-3">
-                    <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
-                        <div class="card-header bg-white py-3 px-3 border-bottom d-flex align-items-center justify-content-between">
+                    <div class="card card-modern border-0 h-100">
+                        <div class="card-header bg-transparent py-3 px-3 border-bottom d-flex align-items-center justify-content-between">
                             <div class="d-flex align-items-center gap-2">
                                 <span class="badge bg-primary text-white p-2 rounded-3">
-                                    <i class="bi bi-sliders"></i>
+                                     <i class="bi bi-sliders"></i>
                                 </span>
                                 <div>
-                                    <h6 class="mb-0 fw-bold text-dark">Propriedades</h6>
+                                    <h6 class="mb-0 fw-bold text-body">Propriedades</h6>
                                     <small class="text-muted">Ajuste em tempo real</small>
                                 </div>
                             </div>

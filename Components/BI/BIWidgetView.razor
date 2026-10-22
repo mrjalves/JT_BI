@@ -1,11 +1,15 @@
-﻿@using JT_BI.Models
+@using JT_BI.Models
 @using JT_BI.Services
 @inject IBIDataSourceService DataSourceService
 
-<div class="bi-widget-card h-100 w-100 d-flex flex-column rounded-3 shadow-sm border @(IsSelected ? "border-primary shadow-lg ring-2" : "border-slate-200") bg-white overflow-hidden position-relative">
+<div class="card card-modern h-100 w-100 d-flex flex-column rounded-4 shadow-sm @(IsSelected ? "ring-2 border-primary shadow" : "") overflow-hidden position-relative">
     <!-- Header do Widget -->
-    <div class="px-3 pt-3 pb-2 d-flex align-items-center justify-content-between border-bottom border-light bg-light bg-opacity-25">
+    <div class="card-header border-bottom py-2.5 px-3 d-flex align-items-center justify-content-between cursor-pointer" @onclick="() => OnEdit.InvokeAsync(Widget)">
         <div class="d-flex align-items-center gap-2 text-truncate me-2">
+            @if (IsEditor)
+            {
+                <i class="bi bi-grip-vertical text-muted cursor-grab" title="Arrastar"></i>
+            }
             @if (!string.IsNullOrEmpty(Widget.Icone))
             {
                 <div class="widget-icon-pill bg-@Widget.CorTema text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 26px; height: 26px; font-size: 0.85rem;">
@@ -13,7 +17,7 @@
                 </div>
             }
             <div class="text-truncate">
-                <h6 class="mb-0 fw-bold text-dark text-truncate" style="font-size: 0.92rem;" title="@Widget.Titulo">@Widget.Titulo</h6>
+                <h6 class="mb-0 fw-bold text-body text-truncate" style="font-size: 0.92rem;" title="@Widget.Titulo">@Widget.Titulo</h6>
                 @if (!string.IsNullOrEmpty(Widget.Subtitulo))
                 {
                     <small class="text-muted text-truncate d-block" style="font-size: 0.72rem;">@Widget.Subtitulo</small>
@@ -24,11 +28,11 @@
         @if (IsEditor)
         {
             <div class="d-flex align-items-center gap-1">
-                <button type="button" class="btn btn-xs btn-outline-secondary p-1 border-0" @onclick="() => OnEdit.InvokeAsync(Widget)" title="Configurar Propriedades">
-                    <i class="bi bi-gear text-secondary"></i>
+                <button type="button" class="btn btn-xs btn-outline-secondary p-1 border-0" @onclick="() => OnEdit.InvokeAsync(Widget)" @onclick:stopPropagation="true" title="Configurar Propriedades">
+                    <i class="bi bi-gear-fill"></i>
                 </button>
-                <button type="button" class="btn btn-xs btn-outline-danger p-1 border-0" @onclick="() => OnDelete.InvokeAsync(Widget)" title="Excluir Widget">
-                    <i class="bi bi-trash"></i>
+                <button type="button" class="btn btn-xs btn-outline-danger p-1 border-0" @onclick="() => OnDelete.InvokeAsync(Widget)" @onclick:stopPropagation="true" title="Excluir Widget">
+                    <i class="bi bi-x-circle-fill"></i>
                 </button>
             </div>
         }
@@ -46,7 +50,7 @@
         {
             <div class="d-flex flex-column justify-content-center h-100">
                 <div class="d-flex align-items-baseline justify-content-between">
-                    <div class="display-6 fw-bold text-dark mb-0" style="font-size: clamp(1.4rem, 2.5vw, 2.1rem); letter-spacing: -0.5px;">
+                    <div class="display-6 fw-bold text-body mb-0" style="font-size: clamp(1.4rem, 2.5vw, 2.1rem); letter-spacing: -0.5px;">
                         @FormatValue(kpiValor)
                     </div>
                     @if (kpiVariacao.HasValue)
@@ -165,7 +169,7 @@
                     var gradientStr = $"conic-gradient({string.Join(", ", conicStops)})";
 
                     <div class="rounded-circle shadow-inner position-relative d-flex align-items-center justify-content-center flex-shrink-0" style="width: 100px; height: 100px; background: @gradientStr;">
-                        <div class="rounded-circle bg-white d-flex align-items-center justify-content-center shadow-sm" style="width: 58px; height: 58px;">
+                        <div class="rounded-circle bg-body d-flex align-items-center justify-content-center shadow-sm" style="width: 58px; height: 58px;">
                             <i class="bi @Widget.Icone text-muted" style="font-size: 1.1rem;"></i>
                         </div>
                     </div>
