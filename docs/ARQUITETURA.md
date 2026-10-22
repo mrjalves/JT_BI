@@ -314,6 +314,16 @@ O catálogo é montado dinamicamente a partir de `OrigemDadosService.GetAll()`:
 
 A agregação é mapeada para `eTipoOperacaoIndicador` (`Soma`, `Media`, `Contagem`, `Maximo`, `Minimo`). Para séries temporais, `AgruparPorMes` (ou dimensão `Mes`/`Periodo` com `ColunaData` preenchida) delega ao agrupamento `YEAR`/`MONTH` do SQL. `ObterAmostraAsync(origemId, colunas, limite)` entrega as linhas usadas pelo laboratório de mineração.
 
+#### 5.2.1. Gestão de fontes no Studio
+
+O painel **Fontes Conectadas** do Studio lista dinamicamente o resultado de `ObterFontesDisponiveisAsync()`, com selo `EDW` para origens reais e `DEMO` para as demonstrativas. O botão **Gerenciar fontes** abre `BIFontesModal`, que concentra o fluxo operacional sem sair do dashboard:
+
+- **Criação rápida:** seleção da entidade do catálogo ER (`ObterModeloEntidadesAsync`), nome sugerido e toggle de relacionamentos. `BIOrigemFactory` monta `OrigemConfiguracao` com aliases únicos e pode criar a origem já executando a carga (`ExecutarCargaAsync`).
+- **Operações por origem:** executar carga, editar (preservando colunas customizadas e ajustando relacionamentos) e excluir com confirmação em dois cliques. A lista exibe última execução, linhas carregadas e a última mensagem de status.
+- **Gerenciador avançado:** link para `/gestao/edw`, onde é possível ajustar colunas individualmente.
+
+Após qualquer criação, edição, exclusão ou carga, o modal dispara `OnChanged`; o Studio recarrega o catálogo e revalida a origem usada pela mineração.
+
 ### 5.3. `BIImportService`
 
 O importador aceita dois formatos:
@@ -321,7 +331,13 @@ O importador aceita dois formatos:
 - **CSV:** detecta automaticamente o delimitador (`;`, `,` ou tabulação), lê o cabeçalho, converte as linhas e infere colunas numéricas quando mais de 70% de uma amostra de 20 registros é numérica.
 - **JSON:** espera um array de objetos e infere tipo por valor (`Number` ou texto).
 
-Após a importação, `GerarDashboardAutomatico` cria um painel com cinco widgets: três KPIs (total, média e contagem) e dois gráficos (barras e pizza), vinculados ao dataset pelo identificador `dataset_{Guid}`.
+A entrada pode vir de três origens no modal de importação:
+
+- **Arquivo:** `InputFile` com limite de 10 MB; o nome do arquivo sugere o nome do dataset.
+- **Link (URL):** download via `IHttpClientFactory`, restrito a HTTP/HTTPS e também limitado a 10 MB. Requisições externas não recebem o token JWT.
+- **Colar:** textarea para CSV/JSON, com detecção automática do formato.
+
+Após a importação, `GerarDashboardAutomatico` cria um painel com cinco widgets: três KPIs (total, média e contagem) e dois gráficos (barras e pizza), vinculados ao dataset pelo identificador `dataset_{Guid}`. O dataset e o dashboard são salvos com o `BIUsuarioContexto` do usuário atual, respeitando o ownership.
 
 ### 5.4. `BIDataMiningService`
 

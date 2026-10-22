@@ -1,9 +1,12 @@
+@using System.Text
 @using JT_BI.Models
 @using JT_BI.Services
 @using JT_Classes.Acessos
+@using Microsoft.AspNetCore.Components.Forms
 @inject IBIImportService ImportService
 @inject IBIDashboardService DashboardService
 @inject CurrentUserState UserState
+@inject IHttpClientFactory HttpClientFactory
 
 @if (IsOpen)
 {
@@ -17,7 +20,7 @@
                         </div>
                         <div>
                             <h5 class="modal-title fw-bold mb-0">Importar Dados Externos</h5>
-                            <small class="text-white-50">CSV, JSON ou colar tabela diretamente</small>
+                            <small class="text-white-50">Envie um arquivo, informe um link ou cole os dados</small>
                         </div>
                     </div>
                     <button type="button" class="btn-close btn-close-white" @onclick="Fechar"></button>
@@ -30,22 +33,96 @@
                             <input type="text" class="form-control form-control-sm" @bind="nomeDataset" placeholder="Ex: Vendas 2026, Clientes, Despesas Mensais..." />
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label fw-semibold small text-muted">Formato de Origem:</label>
+                            <label class="form-label fw-semibold small text-muted">Formato dos Dados:</label>
                             <select class="form-select form-select-sm" @bind="formato">
-                                <option value="CSV">CSV / TSV (Separado por ponto-e-vírgula ou vírgula)</option>
-                                <option value="JSON">JSON (Array de objetos [{...}])</option>
+                                <option value="CSV">CSV / TSV</option>
+                                <option value="JSON">JSON (array de objetos)</option>
                             </select>
                         </div>
 
                         <div class="col-12">
-                            <div class="d-flex align-items-center justify-content-between mb-1">
-                                <label class="form-label fw-semibold small text-muted mb-0">Cole os dados brutos ou faça upload:</label>
-                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" @onclick="CarregarExemplo">
-                                    <i class="bi bi-magic me-1"></i> Preencher Exemplo de Vendas
-                                </button>
-                            </div>
-                            <textarea class="form-control font-monospace" rows="7" @bind="conteudoBruto" placeholder="Cole aqui o conteúdo CSV ou JSON..." style="font-size: 0.82rem;"></textarea>
+                            <ul class="nav nav-pills nav-fill gap-1 bg-body-tertiary p-1 rounded-3 small">
+                                <li class="nav-item">
+                                    <button type="button" class="nav-link py-1 @(abaOrigem == "arquivo" ? "active" : "")" @onclick='() => abaOrigem = "arquivo"'>
+                                        <i class="bi bi-upload me-1"></i> Arquivo
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button type="button" class="nav-link py-1 @(abaOrigem == "link" ? "active" : "")" @onclick='() => abaOrigem = "link"'>
+                                        <i class="bi bi-link-45deg me-1"></i> Link (URL)
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button type="button" class="nav-link py-1 @(abaOrigem == "colar" ? "active" : "")" @onclick='() => abaOrigem = "colar"'>
+                                        <i class="bi bi-clipboard-data me-1"></i> Colar
+                                    </button>
+                                </li>
+                            </ul>
                         </div>
+
+                        @if (abaOrigem == "arquivo")
+                        {
+                            <div class="col-12">
+                                <label class="form-label fw-semibold small text-muted">Selecione um arquivo CSV ou JSON (até 10 MB):</label>
+                                <InputFile OnChange="AoSelecionarArquivo" accept=".csv,.tsv,.txt,.json,text/csv,application/json" class="form-control form-control-sm" disabled="@carregandoArquivo" />
+                                @if (carregandoArquivo)
+                                {
+                                    <div class="small text-muted mt-1">
+                                        <span class="spinner-border spinner-border-sm me-1" role="status"></span> Lendo arquivo...
+                                    </div>
+                                }
+                                else if (!string.IsNullOrWhiteSpace(arquivoNome))
+                                {
+                                    <div class="small text-success mt-1">
+                                        <i class="bi bi-check-circle-fill me-1"></i>@arquivoNome
+                                    </div>
+                                }
+                                <div class="small text-muted mt-1">
+                                    O formato é detectado automaticamente e o nome do arquivo sugere o nome do dataset.
+                                </div>
+                            </div>
+                        }
+                        else if (abaOrigem == "link")
+                        {
+                            <div class="col-12">
+                                <label class="form-label fw-semibold small text-muted">URL pública do CSV ou JSON:</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="url" class="form-control" @bind="urlOrigem" placeholder="https://exemplo.com/dados.csv" disabled="@baixandoUrl" />
+                                    <button type="button" class="btn btn-outline-primary" @onclick="BaixarUrlAsync" disabled="@(baixandoUrl || string.IsNullOrWhiteSpace(urlOrigem))">
+                                        @if (baixandoUrl)
+                                        {
+                                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-cloud-arrow-down me-1"></i>
+                                            <span>Baixar</span>
+                                        }
+                                    </button>
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    Aceita apenas HTTP/HTTPS. Limite de 10 MB. Links que exigem autenticação não são suportados.
+                                </div>
+                                @if (linkCarregado)
+                                {
+                                    <div class="small text-success mt-1">
+                                        <i class="bi bi-check-circle-fill me-1"></i>Conteúdo baixado de @urlOrigem
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="col-12">
+                                <div class="d-flex align-items-center justify-content-between mb-1">
+                                    <label class="form-label fw-semibold small text-muted mb-0">Cole os dados brutos:</label>
+                                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" @onclick="CarregarExemplo">
+                                        <i class="bi bi-magic me-1"></i> Preencher Exemplo de Vendas
+                                    </button>
+                                </div>
+                                <textarea class="form-control font-monospace" rows="7" @bind="conteudoBruto" @bind:after="DetectarFormato" placeholder="Cole aqui o conteúdo CSV ou JSON..." style="font-size: 0.82rem;"></textarea>
+                            </div>
+                        }
 
                         @if (datasetPreview != null && datasetPreview.Linhas.Count > 0)
                         {
@@ -86,7 +163,7 @@
                 <div class="modal-footer bg-light p-3 border-0 d-flex justify-content-between">
                     <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="Fechar">Cancelar</button>
                     <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="ProcessarPreview">
+                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="ProcessarPreview" disabled="@(string.IsNullOrWhiteSpace(conteudoBruto))">
                             <i class="bi bi-eye me-1"></i> Pré-visualizar
                         </button>
                         <button type="button" class="btn btn-sm btn-primary" @onclick="SalvarEGerarDashboardAsync" disabled="@(string.IsNullOrWhiteSpace(conteudoBruto))">
@@ -100,18 +177,27 @@
 }
 
 @code {
+    private const long LimiteBytes = 10 * 1024 * 1024;
+
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
     [Parameter] public EventCallback<BIDashboard> OnDashboardCriado { get; set; }
 
+    private string abaOrigem = "arquivo";
     private string nomeDataset = "Dataset Vendas 2026";
     private string formato = "CSV";
     private string conteudoBruto = "";
+    private string urlOrigem = "";
+    private string arquivoNome = "";
+    private bool linkCarregado;
+    private bool carregandoArquivo;
+    private bool baixandoUrl;
     private string? mensagemErro = null;
     private BIDataset? datasetPreview = null;
 
     private void CarregarExemplo()
     {
+        abaOrigem = "colar";
         nomeDataset = "Vendas Filiais 2026";
         formato = "CSV";
         conteudoBruto = "Mes;Canal;Faturamento;QtdVendas;TicketMedio\r\n" +
@@ -124,6 +210,140 @@
             "Abril;Loja Fisica;104500;1150;90.86\r\n" +
             "Abril;Ecommerce;81200;890;91.23";
         ProcessarPreview();
+    }
+
+    private void DetectarFormato()
+    {
+        if (string.IsNullOrWhiteSpace(conteudoBruto)) return;
+
+        var inicio = conteudoBruto.TrimStart();
+        formato = inicio.StartsWith("[") || inicio.StartsWith("{") ? "JSON" : "CSV";
+    }
+
+    private async Task AoSelecionarArquivo(InputFileChangeEventArgs e)
+    {
+        mensagemErro = null;
+        datasetPreview = null;
+        linkCarregado = false;
+        arquivoNome = "";
+
+        var arquivo = e.File;
+        if (arquivo == null) return;
+
+        if (arquivo.Size > LimiteBytes)
+        {
+            mensagemErro = "O arquivo excede o limite de 10 MB.";
+            return;
+        }
+
+        carregandoArquivo = true;
+        try
+        {
+            await using var stream = arquivo.OpenReadStream(LimiteBytes);
+            using var reader = new StreamReader(stream);
+            conteudoBruto = await reader.ReadToEndAsync();
+
+            arquivoNome = arquivo.Name;
+            if (string.IsNullOrWhiteSpace(nomeDataset) || nomeDataset.StartsWith("Dataset ", StringComparison.OrdinalIgnoreCase))
+            {
+                var baseNome = System.IO.Path.GetFileNameWithoutExtension(arquivo.Name);
+                if (!string.IsNullOrWhiteSpace(baseNome))
+                    nomeDataset = baseNome;
+            }
+
+            DetectarFormato();
+            ProcessarPreview();
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = $"Não foi possível ler o arquivo: {ex.Message}";
+        }
+        finally
+        {
+            carregandoArquivo = false;
+        }
+    }
+
+    private async Task BaixarUrlAsync()
+    {
+        mensagemErro = null;
+        datasetPreview = null;
+        linkCarregado = false;
+        urlOrigem = urlOrigem?.Trim() ?? string.Empty;
+
+        if (!Uri.TryCreate(urlOrigem, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            mensagemErro = "Informe uma URL válida começando com http:// ou https://.";
+            return;
+        }
+
+        baixandoUrl = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient();
+            using var resposta = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
+
+            if (!resposta.IsSuccessStatusCode)
+            {
+                mensagemErro = $"O servidor retornou {(int)resposta.StatusCode} ({resposta.ReasonPhrase}).";
+                return;
+            }
+
+            var tamanho = resposta.Content.Headers.ContentLength;
+            if (tamanho.HasValue && tamanho.Value > LimiteBytes)
+            {
+                mensagemErro = "O conteúdo do link excede o limite de 10 MB.";
+                return;
+            }
+
+            await using var stream = await resposta.Content.ReadAsStreamAsync();
+            conteudoBruto = await LerTextoLimitadoAsync(stream);
+
+            linkCarregado = true;
+            arquivoNome = "";
+
+            if (string.IsNullOrWhiteSpace(nomeDataset) || nomeDataset.StartsWith("Dataset ", StringComparison.OrdinalIgnoreCase))
+            {
+                var nomeArquivo = System.IO.Path.GetFileName(uri.LocalPath);
+                var baseNome = System.IO.Path.GetFileNameWithoutExtension(nomeArquivo);
+                if (!string.IsNullOrWhiteSpace(baseNome))
+                    nomeDataset = baseNome;
+            }
+
+            DetectarFormato();
+            ProcessarPreview();
+        }
+        catch (InvalidOperationException ex)
+        {
+            mensagemErro = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = $"Falha ao baixar o link: {ex.Message}";
+        }
+        finally
+        {
+            baixandoUrl = false;
+        }
+    }
+
+    private static async Task<string> LerTextoLimitadoAsync(Stream stream)
+    {
+        using var reader = new StreamReader(stream);
+        var buffer = new char[8192];
+        var builder = new StringBuilder();
+
+        int lidos;
+        while ((lidos = await reader.ReadAsync(buffer, 0, buffer.Length)) > 0)
+        {
+            if (builder.Length + lidos > LimiteBytes)
+                throw new InvalidOperationException("O conteúdo do link excede o limite de 10 MB.");
+
+            builder.Append(buffer, 0, lidos);
+        }
+
+        return builder.ToString();
     }
 
     private void ProcessarPreview()

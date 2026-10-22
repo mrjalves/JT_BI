@@ -262,27 +262,46 @@ else
                             <hr class="my-3 text-muted opacity-25" />
 
                             <div class="px-1" data-tutorial="bi-datasources">
-                                <span class="fw-bold small text-uppercase text-secondary d-block mb-2" style="font-size: 0.72rem;">
-                                    <i class="bi bi-database-check me-1 text-success"></i> Fontes Conectadas
-                                </span>
-                                <div class="d-flex flex-column gap-1 small">
-                                    <div class="d-flex justify-content-between align-items-center text-muted">
-                                        <span><i class="bi bi-cash-coin me-1 text-success"></i> Financeiro</span>
-                                        <span class="badge bg-success-subtle text-success">OK</span>
-                                    </div>
-                                    <div class="d-flex justify-content-between align-items-center text-muted">
-                                        <span><i class="bi bi-cup-straw me-1 text-warning"></i> Food</span>
-                                        <span class="badge bg-success-subtle text-success">OK</span>
-                                    </div>
-                                    <div class="d-flex justify-content-between align-items-center text-muted">
-                                        <span><i class="bi bi-box-seam me-1 text-info"></i> Estoque</span>
-                                        <span class="badge bg-success-subtle text-success">OK</span>
-                                    </div>
-                                    <div class="d-flex justify-content-between align-items-center text-muted">
-                                        <span><i class="bi bi-cart me-1 text-primary"></i> Vendas</span>
-                                        <span class="badge bg-success-subtle text-success">OK</span>
-                                    </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-bold small text-uppercase text-secondary" style="font-size: 0.72rem;">
+                                        <i class="bi bi-database-check me-1 text-success"></i> Fontes Conectadas
+                                    </span>
+                                    <span class="badge bg-body-secondary text-body-secondary border">@fontesMineracao.Count</span>
                                 </div>
+
+                                @if (fontesMineracao.Count == 0)
+                                {
+                                    <p class="text-muted small mb-2">
+                                        Nenhuma fonte disponível. Cadastre uma origem EDW para começar.
+                                    </p>
+                                }
+                                else
+                                {
+                                    <div class="d-flex flex-column gap-1 small">
+                                        @foreach (var fonte in fontesMineracao.Take(5))
+                                        {
+                                            <div class="d-flex justify-content-between align-items-center text-muted gap-2" title="@fonte.Descricao">
+                                                <span class="text-truncate">
+                                                    <i class="bi @fonte.Icone me-1 text-@fonte.Cor"></i> @fonte.Nome
+                                                </span>
+                                                <span class="badge flex-shrink-0 @(fonte.Demonstrativa ? "bg-warning-subtle text-warning" : "bg-success-subtle text-success")">
+                                                    @(fonte.Demonstrativa ? "DEMO" : "EDW")
+                                                </span>
+                                            </div>
+                                        }
+                                        @if (fontesMineracao.Count > 5)
+                                        {
+                                            <span class="text-muted" style="font-size: 0.72rem;">
+                                                + @(fontesMineracao.Count - 5) outra(s) fonte(s)
+                                            </span>
+                                        }
+                                    </div>
+                                }
+
+                                <button class="btn btn-sm btn-outline-primary w-100 mt-2 rounded-3"
+                                        @onclick="() => isFontesModalOpen = true">
+                                    <i class="bi bi-gear me-1"></i> Gerenciar fontes
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -707,8 +726,11 @@ else
             </div>
         }
 
-        <!-- Modal Importar CSV/JSON (Fase 3) -->
+        <!-- Modal Importar Dados (arquivo, link ou colar) -->
         <BIImportModal @bind-IsOpen="isImportModalOpen" OnDashboardCriado="TratarDashboardCriado" />
+
+        <!-- Modal Fontes de Dados (EDW) -->
+        <BIFontesModal @bind-IsOpen="isFontesModalOpen" OnChanged="RecarregarFontesAsync" />
 
         <!-- Modal Compartilhar Link Público (Fase 5) -->
         <BIShareModal @bind-IsOpen="isShareModalOpen" Dashboard="DashboardAtivo" />
@@ -737,6 +759,7 @@ else
     private bool isImportModalOpen = false;
     private bool isDataMiningModalOpen = false;
     private bool isShareModalOpen = false;
+    private bool isFontesModalOpen = false;
     private int kMeansK = 3;
     private List<FonteDadosInfo> fontesMineracao = new();
     private int origemMineracaoId;
@@ -847,6 +870,35 @@ else
         campoMineracaoValor1 = colunas.Count > 1 ? colunas[1] : colunas[0];
         campoMineracaoValor2 = colunas.Count > 2 ? colunas[2] : campoMineracaoValor1;
         campoMineracaoValorAbc = colunas.Count > 1 ? colunas[1] : colunas[0];
+    }
+
+    private async Task RecarregarFontesAsync()
+    {
+        try
+        {
+            fontesMineracao = await DataSourceService.ObterFontesDisponiveisAsync();
+
+            var fonteAtual = fontesMineracao.FirstOrDefault(f => f.OrigemId == origemMineracaoId);
+            if (fonteAtual == null)
+            {
+                var inicial = fontesMineracao.FirstOrDefault(f => f.OrigemId.HasValue);
+                if (inicial?.OrigemId is > 0)
+                {
+                    origemMineracaoId = inicial.OrigemId.Value;
+                    AjustarCamposMineracao();
+                }
+                else
+                {
+                    origemMineracaoId = 0;
+                }
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[JT_BI] Falha ao recarregar fontes: {ex.Message}");
+        }
     }
 
     private async Task CarregarAmbienteAsync()
