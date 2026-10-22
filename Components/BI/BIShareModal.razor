@@ -81,6 +81,13 @@
                             <i class="bi bi-check2-circle me-1"></i> @copiadoMsg
                         </div>
                     }
+
+                    @if (!string.IsNullOrEmpty(erroMsg))
+                    {
+                        <div class="alert alert-danger py-2 small mt-3 mb-0">
+                            <i class="bi bi-shield-exclamation me-1"></i> @erroMsg
+                        </div>
+                    }
                 </div>
 
                 <div class="modal-footer bg-light p-3 border-0 d-flex justify-content-between">
@@ -102,6 +109,7 @@
     [Inject] IBIDashboardService DashboardService { get; set; } = default!;
 
     private string? copiadoMsg = null;
+    private string? erroMsg = null;
 
     private async Task CopiarTexto(string texto)
     {
@@ -119,11 +127,22 @@
 
     private async Task SalvarConfiguracoesAsync()
     {
+        erroMsg = null;
+
         if (Dashboard != null)
         {
-            await DashboardService.SalvarAsync(Dashboard, BIUsuarioContexto.De(UserState));
-            await OnSaved.InvokeAsync();
+            try
+            {
+                await DashboardService.SalvarAsync(Dashboard, BIUsuarioContexto.De(UserState));
+                await OnSaved.InvokeAsync();
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                erroMsg = ex.Message;
+                return;
+            }
         }
+
         await Fechar();
     }
 

@@ -7,6 +7,12 @@ public class BIDataset
     public string Origem { get; set; } = "CSV";
     public DateTime DataImportacao { get; set; } = DateTime.Now;
     public int QtdLinhas { get; set; }
+
+    // Propriedade do dataset (datasets antigos sem dono permanecem compartilhados)
+    public int? UsuarioId { get; set; }
+    public string? UsuarioUid { get; set; }
+    public string? UsuarioNome { get; set; }
+
     public List<BIDatasetColuna> Colunas { get; set; } = new();
     public List<Dictionary<string, object>> Linhas { get; set; } = new();
 }

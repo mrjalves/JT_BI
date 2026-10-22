@@ -92,10 +92,7 @@ else if (dashboard != null)
 
         if (dashboard != null && dashboard.DatasetsVinculadosIds.Count > 0)
         {
-            var todos = await DashboardService.ObterDatasetsAsync();
-            datasetsDisponiveis = todos
-                .Where(d => dashboard.DatasetsVinculadosIds.Contains(d.Id))
-                .ToList();
+            datasetsDisponiveis = await DashboardService.ObterDatasetsPorIdsAsync(dashboard.DatasetsVinculadosIds);
         }
         else
         {

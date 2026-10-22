@@ -341,13 +341,25 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        var contexto = BIUsuarioContexto.De(UserState);
+
         fontesDisponiveis = await DataSourceService.ObterFontesDisponiveisAsync();
-        datasetsDisponiveis = await DashboardService.ObterDatasetsAsync();
-        dashboard = await DashboardService.ObterAcessivelAsync(Id, BIUsuarioContexto.De(UserState));
+        datasetsDisponiveis = await DashboardService.ObterDatasetsVisiveisAsync(contexto);
+        dashboard = await DashboardService.ObterAcessivelAsync(Id, contexto);
 
         if (dashboard == null)
         {
             Nav.NavigateTo("/dashboards");
+            return;
+        }
+
+        if (dashboard.DatasetsVinculadosIds.Count > 0)
+        {
+            var vinculados = await DashboardService.ObterDatasetsPorIdsAsync(dashboard.DatasetsVinculadosIds);
+            foreach (var dataset in vinculados.Where(d => datasetsDisponiveis.All(x => x.Id != d.Id)))
+            {
+                datasetsDisponiveis.Add(dataset);
+            }
         }
     }
 
@@ -521,10 +533,18 @@ else
     {
         if (dashboard != null)
         {
-            await DashboardService.SalvarAsync(dashboard, BIUsuarioContexto.De(UserState));
-            feedbackMsg = "Painel salvo com sucesso!";
-            feedbackClass = "alert-success";
-            _ = Task.Delay(3500).ContinueWith(_ => InvokeAsync(() => { feedbackMsg = null; StateHasChanged(); }));
+            try
+            {
+                await DashboardService.SalvarAsync(dashboard, BIUsuarioContexto.De(UserState));
+                feedbackMsg = "Painel salvo com sucesso!";
+                feedbackClass = "alert-success";
+                _ = Task.Delay(3500).ContinueWith(_ => InvokeAsync(() => { feedbackMsg = null; StateHasChanged(); }));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                feedbackMsg = ex.Message;
+                feedbackClass = "alert-danger";
+            }
         }
     }
 

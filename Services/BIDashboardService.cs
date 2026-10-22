@@ -18,7 +18,10 @@ public interface IBIDashboardService
     Task<BIDashboard> DuplicarAsync(Guid id);
     Task<BIDashboard> DuplicarAsync(Guid id, BIUsuarioContexto? usuario);
     Task<List<BIDataset>> ObterDatasetsAsync();
+    Task<List<BIDataset>> ObterDatasetsVisiveisAsync(BIUsuarioContexto? usuario);
+    Task<List<BIDataset>> ObterDatasetsPorIdsAsync(IEnumerable<Guid> ids);
     Task SalvarDatasetAsync(BIDataset dataset);
+    Task SalvarDatasetAsync(BIDataset dataset, BIUsuarioContexto? usuario);
 }
 
 public class BIDashboardService : IBIDashboardService
@@ -218,19 +221,8 @@ public class BIDashboardService : IBIDashboardService
         await _lock.WaitAsync();
         try
         {
-            if (_cacheDatasets == null)
-            {
-                if (File.Exists(_datasetsFilePath))
-                {
-                    var json = await File.ReadAllTextAsync(_datasetsFilePath);
-                    _cacheDatasets = JsonSerializer.Deserialize<List<BIDataset>>(json) ?? new();
-                }
-                else
-                {
-                    _cacheDatasets = new List<BIDataset>();
-                }
-            }
-            return _cacheDatasets;
+            await GarantirCacheDatasetsAsync();
+            return _cacheDatasets!;
         }
         finally
         {
@@ -238,27 +230,61 @@ public class BIDashboardService : IBIDashboardService
         }
     }
 
-    public async Task SalvarDatasetAsync(BIDataset dataset)
+    public async Task<List<BIDataset>> ObterDatasetsVisiveisAsync(BIUsuarioContexto? usuario)
     {
+        var todos = await ObterDatasetsAsync();
+        if (usuario == null)
+            return todos;
+
+        return todos.Where(d => PodeAcessar(d, usuario)).ToList();
+    }
+
+    public async Task<List<BIDataset>> ObterDatasetsPorIdsAsync(IEnumerable<Guid> ids)
+    {
+        var alvo = ids?.ToHashSet() ?? new HashSet<Guid>();
+        var todos = await ObterDatasetsAsync();
+        return todos.Where(d => alvo.Contains(d.Id)).ToList();
+    }
+
+    public Task SalvarDatasetAsync(BIDataset dataset)
+        => SalvarDatasetAsync(dataset, null);
+
+    public async Task SalvarDatasetAsync(BIDataset dataset, BIUsuarioContexto? usuario)
+    {
+        ArgumentNullException.ThrowIfNull(dataset);
+
         await _lock.WaitAsync();
         try
         {
-            _cacheDatasets ??= new List<BIDataset>();
-            var idx = _cacheDatasets.FindIndex(d => d.Id == dataset.Id);
-            if (idx >= 0)
-                _cacheDatasets[idx] = dataset;
-            else
-                _cacheDatasets.Add(dataset);
+            await GarantirCacheDatasetsAsync();
+            var lista = _cacheDatasets!;
+            var idx = lista.FindIndex(d => d.Id == dataset.Id);
 
-            try
+            if (idx >= 0)
             {
-                var json = JsonSerializer.Serialize(_cacheDatasets, new JsonSerializerOptions { WriteIndented = true });
-                await File.WriteAllTextAsync(_datasetsFilePath, json);
+                var existente = lista[idx];
+                if (!PodeAcessar(existente, usuario))
+                    throw new UnauthorizedAccessException("Você não tem permissão para alterar este dataset.");
+
+                // Preserva o dono original, impedindo troca de propriedade pela edição.
+                dataset.UsuarioId = existente.UsuarioId;
+                dataset.UsuarioUid = existente.UsuarioUid;
+                dataset.UsuarioNome = existente.UsuarioNome;
+                lista[idx] = dataset;
             }
-            catch (Exception ex)
+            else
             {
-                Console.WriteLine($"[BIDashboardService] Aviso ao gravar dataset no disco: {ex.Message}");
+                if (usuario is { } dono && dono.TemIdentidade)
+                {
+                    dataset.UsuarioId = dono.UsuarioId;
+                    dataset.UsuarioUid = dono.UsuarioUid;
+                    dataset.UsuarioNome = dono.UsuarioNome;
+                }
+
+                lista.Add(dataset);
             }
+
+            await SalvarDatasetsEmArquivoAsync();
         }
         finally
         {
@@ -286,23 +312,44 @@ public class BIDashboardService : IBIDashboardService
         }
     }
 
+    private async Task GarantirCacheDatasetsAsync()
+    {
+        if (_cacheDatasets != null) return;
+
+        if (File.Exists(_datasetsFilePath))
+        {
+            var json = await File.ReadAllTextAsync(_datasetsFilePath);
+            _cacheDatasets = JsonSerializer.Deserialize<List<BIDataset>>(json) ?? new();
+        }
+        else
+        {
+            _cacheDatasets = new List<BIDataset>();
+        }
+    }
+
     private static BIDashboard ClonarDashboard(BIDashboard dashboard)
         => JsonSerializer.Deserialize<BIDashboard>(JsonSerializer.Serialize(dashboard))!;
 
     private static bool PodeAcessar(BIDashboard dashboard, BIUsuarioContexto? usuario)
+        => Permitido(dashboard.UsuarioId, dashboard.UsuarioUid, usuario);
+
+    private static bool PodeAcessar(BIDataset dataset, BIUsuarioContexto? usuario)
+        => Permitido(dataset.UsuarioId, dataset.UsuarioUid, usuario);
+
+    private static bool Permitido(int? donoId, string? donoUid, BIUsuarioContexto? usuario)
     {
         if (usuario == null) return true;
         if (usuario.AcessoTotal) return true;
 
-        var semDono = dashboard.UsuarioId is null or <= 0 && string.IsNullOrWhiteSpace(dashboard.UsuarioUid);
+        var semDono = donoId is null or <= 0 && string.IsNullOrWhiteSpace(donoUid);
         if (semDono) return true;
 
-        if (dashboard.UsuarioId is > 0 && usuario.UsuarioId == dashboard.UsuarioId)
+        if (donoId is > 0 && usuario.UsuarioId == donoId)
             return true;
 
-        if (!string.IsNullOrWhiteSpace(dashboard.UsuarioUid) &&
+        if (!string.IsNullOrWhiteSpace(donoUid) &&
             !string.IsNullOrWhiteSpace(usuario.UsuarioUid) &&
-            string.Equals(dashboard.UsuarioUid, usuario.UsuarioUid, StringComparison.OrdinalIgnoreCase))
+            string.Equals(donoUid, usuario.UsuarioUid, StringComparison.OrdinalIgnoreCase))
             return true;
 
         return false;
@@ -321,6 +368,21 @@ public class BIDashboardService : IBIDashboardService
             {
                 Console.WriteLine($"[BIDashboardService] Aviso ao gravar dashboards no disco: {ex.Message}");
             }
+        }
+    }
+
+    private async Task SalvarDatasetsEmArquivoAsync()
+    {
+        if (_cacheDatasets == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(_cacheDatasets, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(_datasetsFilePath, json);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[BIDashboardService] Aviso ao gravar datasets no disco: {ex.Message}");
         }
     }
 

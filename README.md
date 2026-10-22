@@ -12,6 +12,7 @@ Módulo de Business Intelligence e Dashboards Gerenciais da plataforma **JT Sist
 - **Serviços:** `IBIDashboardService`, `IBIDataSourceService`, `IBIImportService`, `IBIDataMiningService`, `OrigemDadosService`, `DwConsultaService`, `IndicadorDashboardService`, `BIMenuProvider`, `BITutorialProvider`
 - **Dados:** origens reais do EDW (`Fato_{TabelaOrigem}`) via `DwConsultaService` (`/api/dw` ou SQL local), com fallback para fontes demonstrativas
 - **Persistência:** arquivos JSON em `Data/` (`dashboards.json` e `datasets.json`), com cache em memória e fallback para diretório temporário
+- **Ownership:** dashboards e datasets vinculados ao usuário (`CurrentUserState`), com visão total para Administrador/Supervisor e dashboards legados sem dono tratados como compartilhados
 - **Integração:** Dependência direta dos projetos de camada compartilhada `JT_ApplicationLayer` (`JT_Classes`, `JT_Servicos`, `JT_Aplicacao` e `JT_UserInterface.Shared`)
 
 ---

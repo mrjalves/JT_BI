@@ -267,6 +267,8 @@ A vinculação de dados é declarativa e resolvida em `BIDataSourceService`:
 
 Armazena dados tabulares importados de CSV ou JSON. As colunas carregam o tipo inferido (`Texto` ou `Numero`) e as linhas são dicionários dinâmicos, o que permite ao editor oferecer métricas e dimensões sem um schema fixo.
 
+Assim como os dashboards, datasets possuem `UsuarioId`, `UsuarioUid` e `UsuarioNome`. Datasets antigos sem dono permanecem compartilhados. A leitura por vínculo (`ObterDatasetsPorIdsAsync`) ignora o filtro de dono, permitindo que um painel público renderize apenas os datasets aos quais foi explicitamente associado.
+
 ---
 
 ## 5. Serviços e Responsabilidades
@@ -293,7 +295,7 @@ O serviço de dashboards é o núcleo de estado do módulo:
 - **Seed inicial:** quando `dashboards.json` não existe, dois painéis demonstrativos são criados (`Visão Executiva 360°` e `Performance Restaurante & Food`).
 - **Sanitização:** ao carregar, textos com problemas de encoding são normalizados e larguras de colunas incompatíveis são corrigidas conforme o tipo do widget.
 - **Resiliência:** falhas de escrita são registradas no console sem derrubar a aplicação, preservando o cache em memória.
-- **Ownership:** as operações recebem um `BIUsuarioContexto` (ID/UID/nome e flag de acesso total). A listagem retorna apenas painéis do próprio usuário ou sem dono; `Administrador` e `Supervisor` enxergam todos. Ao salvar, o dono original é preservado (impedindo troca de propriedade pela edição), e a duplicação atribui a cópia a quem duplicou.
+- **Ownership:** as operações recebem um `BIUsuarioContexto` (ID/UID/nome e flag de acesso total). As listagens retornam apenas dashboards/datasets do próprio usuário ou sem dono; `Administrador` e `Supervisor` enxergam todos. Ao salvar, o dono original é preservado (impedindo troca de propriedade pela edição), e a duplicação atribui a cópia a quem duplicou. A edição de dataset de outro dono lança `UnauthorizedAccessException`.
 - **Isolamento do cache:** leituras e gravações trabalham com cópias serializadas do dashboard, evitando que mutações da UI em um circuito alterem o cache global antes do salvamento.
 
 ### 5.2. `BIDataSourceService` e o Catálogo Analítico
@@ -447,7 +449,7 @@ O compartilhamento é baseado em **link opaco com token**, e não em autenticaç
 1. Cada dashboard nasce com `PublicToken`, mas `PermiteAcessoPublico = false`: o compartilhamento é **privado por padrão** e precisa ser habilitado explicitamente.
 2. O `BIShareModal` permite habilitar/revogar o acesso, copiar o link e definir o intervalo de auto-refresh.
 3. `ObterPorTokenPublicoAsync` só retorna o painel quando o token existe **e** o compartilhamento está habilitado.
-4. O `VisualizadorPublico` usa layout local próprio, oferece alternância claro/escuro e atualização automática por timer. Não há atalho de edição na visão pública, e somente os datasets vinculados ao painel (`DatasetsVinculadosIds`) são carregados.
+4. O `VisualizadorPublico` usa layout local próprio, oferece alternância claro/escuro e atualização automática por timer. Não há atalho de edição na visão pública, e somente os datasets vinculados ao painel (`DatasetsVinculadosIds`) são carregados, sem aplicar filtro de dono — o token público concede leitura exclusivamente desses vínculos.
 
 ```mermaid
 flowchart LR
@@ -480,11 +482,12 @@ O `Program.cs` não registra `UseAuthentication`/`UseAuthorization`; a proteçã
 
 A propriedade é aplicada pelo `BIDashboardService` por meio de `BIUsuarioContexto`, derivado de `CurrentUserState`:
 
-- `ObterVisiveisAsync` filtra a listagem; `ObterAcessivelAsync` e `PodeAcessarAsync` validam um painel específico antes de abrir o editor.
-- `SalvarAsync` lança `UnauthorizedAccessException` quando o usuário tenta alterar painel de outro dono; `ExcluirAsync` retorna `false` no mesmo cenário.
+- `ObterVisiveisAsync`/`ObterDatasetsVisiveisAsync` filtram as listagens; `ObterAcessivelAsync` e `PodeAcessarAsync` validam um painel específico antes de abrir o editor.
+- `SalvarAsync` e `SalvarDatasetAsync` lançam `UnauthorizedAccessException` quando o usuário tenta alterar item de outro dono; `ExcluirAsync` retorna `false` no mesmo cenário.
 - `DuplicarAsync` exige acesso ao original e define o dono da cópia como o usuário atual.
-- Painéis sem dono (seed inicial e arquivos legados) permanecem compartilhados; a primeira edição **não** assume a propriedade.
+- Painéis e datasets sem dono (seed inicial e arquivos legados) permanecem compartilhados; a primeira edição **não** assume a propriedade.
 - `Administrador` e `Supervisor` têm acesso total (leitura, edição, exclusão e duplicação).
+- A visão pública usa `ObterDatasetsPorIdsAsync`: valida o token do painel e retorna somente os datasets vinculados, independentemente do dono.
 
 ### 9.3. Tokens e Armazenamento
 
@@ -533,7 +536,7 @@ O pipeline de GitHub Actions publica em Release, envia os binários por `rsync` 
 
 A arquitetura atual prioriza autonomia e baixo acoplamento. Os principais pontos de evolução são:
 
-1. **Ownership de datasets e multi-tenant:** dashboards já possuem dono por usuário. A evolução prevista é aplicar o mesmo modelo a `BIDataset` e adicionar escopo por tenant/empresa, além de trilha de auditoria de compartilhamento.
+1. **Multi-tenant e auditoria:** dashboards e datasets já possuem dono por usuário. A evolução prevista é adicionar escopo por tenant/empresa e trilha de auditoria de acesso e compartilhamento.
 2. **Persistência plugável:** extrair uma abstração de repositório para dashboards/datasets e adicionar implementações SQL/NoSQL, preservando o serviço atual baseado em JSON como fallback local.
 3. **IA generativa:** trocar o motor local de palavras-chave por um provedor de LLM da plataforma, com contexto do dashboard e das fontes conectadas.
 4. **Autorização de borda:** complementar a validação por componente com políticas de autorização no pipeline, especialmente para as APIs de dados do EDW (`/api/dw`).

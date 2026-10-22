@@ -3,6 +3,7 @@
 @page "/bidashboard"
 @page "/home"
 @rendermode InteractiveServer
+@implements IDisposable
 
 @using JT_BI.Models
 @using JT_BI.Services
@@ -794,22 +795,40 @@ else
         }
     }
 
+    private Action? _stateChangedHandler;
+
     protected override async Task OnInitializedAsync()
     {
-        UserState.OnStateChanged += async () =>
+        _stateChangedHandler = () => _ = InvokeAsync(async () =>
         {
             await VerificarAcessoAsync();
-            if (TemAcesso && !ListaDashboards.Any())
+            if (TemAcesso)
             {
                 await CarregarAmbienteAsync();
             }
-            await InvokeAsync(StateHasChanged);
-        };
+            else
+            {
+                ListaDashboards.Clear();
+                DashboardAtivo = null;
+            }
+            StateHasChanged();
+        });
+
+        UserState.OnStateChanged += _stateChangedHandler;
 
         await VerificarAcessoAsync();
         if (TemAcesso)
         {
             await CarregarAmbienteAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_stateChangedHandler != null)
+        {
+            UserState.OnStateChanged -= _stateChangedHandler;
+            _stateChangedHandler = null;
         }
     }
 
