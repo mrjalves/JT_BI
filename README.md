@@ -9,8 +9,17 @@ Módulo de Business Intelligence e Dashboards Gerenciais da plataforma **JT Sist
 - **Framework:** .NET 10 (C# 13)
 - **UI & Interatividade:** Blazor Interactive Server Components
 - **Estilização:** CSS moderno com design tokens, suporte a Dark/Light Theme e layout responsivo
-- **Serviços:** `IBIDashboardService`, `IBIDataSourceService`, `IBIImportService`
-- **Integração:** Dependência direta dos projetos de camada compartilhada `JT_ApplicationLayer`
+- **Serviços:** `IBIDashboardService`, `IBIDataSourceService`, `IBIImportService`, `IBIDataMiningService`, `BIMenuProvider`, `BITutorialProvider`
+- **Persistência:** arquivos JSON em `Data/` (`dashboards.json` e `datasets.json`), com cache em memória e fallback para diretório temporário
+- **Integração:** Dependência direta dos projetos de camada compartilhada `JT_ApplicationLayer` (`JT_Classes`, `JT_Servicos`, `JT_Aplicacao` e `JT_UserInterface.Shared`)
+
+---
+
+## 🏛️ Arquitetura
+
+O JT_BI é um host único **Blazor Web App (Interactive Server)**, com separação interna entre apresentação, serviços de BI, modelo de domínio e persistência JSON. A documentação completa de camadas, fluxos, serviços, mineração de dados, compartilhamento público e segurança está em:
+
+👉 **[Documento de Arquitetura (docs/ARQUITETURA.md)](docs/ARQUITETURA.md)**
 
 ---
 
@@ -31,7 +40,7 @@ dotnet build
 # Executar com hot reload
 dotnet watch
 ```
-Acesse no navegador: `https://localhost:7083` (ou a porta informada no terminal).
+Acesse no navegador: `https://localhost:7256` ou `http://localhost:5148` (ou a porta informada no terminal).
 
 ---
 

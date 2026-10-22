@@ -32,7 +32,7 @@ Os seguintes arquivos de infraestrutura e automação foram preparados no reposi
 | [`deploy/publish.sh`](file:///c:/Users/sirja/source/repos/mrjalves/JT_BI/deploy/publish.sh) | Script Bash equivalente para Linux / macOS / WSL. |
 | [`Dockerfile`](file:///c:/Users/sirja/source/repos/mrjalves/JT_BI/Dockerfile) | Arquivo Docker multi-estágio para containerização da aplicação em .NET 10. |
 | [`.dockerignore`](file:///c:/Users/sirja/source/repos/mrjalves/JT_BI/.dockerignore) | Otimização do contexto de build do Docker. |
-| [`docker-compose.yml`](file:///c:/Users/sirja/source/repos/mrjalves/JT_BI/docker-compose.yml) | Composição para subir o serviço isolado em container na porta 5010. |
+| [`docker-compose.yml`](file:///c:/Users/sirja/source/repos/mrjalves/JT_BI/docker-compose.yml) | Composição para subir o serviço isolado em container na porta 5020. |
 
 ---
 
@@ -145,7 +145,7 @@ ssh deploy@<IP_VPS> "sudo cp -r /tmp/release_jt_bi/* /var/www/jt_bi/ && sudo sys
   ```
 - **Verificar porta em escuta:**
   ```bash
-  sudo ss -tulpn | grep 5010
+  sudo ss -tulpn | grep 5020
   ```
 - **Verificar logs do Nginx:**
   ```bash
