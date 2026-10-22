@@ -9,7 +9,8 @@ Módulo de Business Intelligence e Dashboards Gerenciais da plataforma **JT Sist
 - **Framework:** .NET 10 (C# 13)
 - **UI & Interatividade:** Blazor Interactive Server Components
 - **Estilização:** CSS moderno com design tokens, suporte a Dark/Light Theme e layout responsivo
-- **Serviços:** `IBIDashboardService`, `IBIDataSourceService`, `IBIImportService`, `IBIDataMiningService`, `BIMenuProvider`, `BITutorialProvider`
+- **Serviços:** `IBIDashboardService`, `IBIDataSourceService`, `IBIImportService`, `IBIDataMiningService`, `OrigemDadosService`, `DwConsultaService`, `IndicadorDashboardService`, `BIMenuProvider`, `BITutorialProvider`
+- **Dados:** origens reais do EDW (`Fato_{TabelaOrigem}`) via `DwConsultaService` (`/api/dw` ou SQL local), com fallback para fontes demonstrativas
 - **Persistência:** arquivos JSON em `Data/` (`dashboards.json` e `datasets.json`), com cache em memória e fallback para diretório temporário
 - **Integração:** Dependência direta dos projetos de camada compartilhada `JT_ApplicationLayer` (`JT_Classes`, `JT_Servicos`, `JT_Aplicacao` e `JT_UserInterface.Shared`)
 
@@ -20,6 +21,10 @@ Módulo de Business Intelligence e Dashboards Gerenciais da plataforma **JT Sist
 O JT_BI é um host único **Blazor Web App (Interactive Server)**, com separação interna entre apresentação, serviços de BI, modelo de domínio e persistência JSON. A documentação completa de camadas, fluxos, serviços, mineração de dados, compartilhamento público e segurança está em:
 
 👉 **[Documento de Arquitetura (docs/ARQUITETURA.md)](docs/ARQUITETURA.md)**
+
+Detalhes dos algoritmos de clusterização, Curva ABC, score de risco e testes estão em:
+
+👉 **[Mineração de Dados (docs/MINERACAO_DE_DADOS.md)](docs/MINERACAO_DE_DADOS.md)**
 
 ---
 

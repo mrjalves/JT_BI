@@ -2,7 +2,9 @@
 @using JT_BI.Models
 @using JT_BI.Services
 @using JT_BI.Components.BI
+@using JT_Classes.Acessos
 @inject IBIDashboardService DashboardService
+@inject CurrentUserState UserState
 @inject NavigationManager Nav
 
 <PageTitle>Hub de Dashboards - JT_BI</PageTitle>
@@ -137,7 +139,11 @@
                             </div>
 
                             <h5 class="fw-bold text-body mb-1">@dash.Nome</h5>
-                            <p class="text-muted small mb-3 text-truncate-2" style="min-height: 40px;">@dash.Descricao</p>
+                            <p class="text-muted small mb-2 text-truncate-2" style="min-height: 40px;">@dash.Descricao</p>
+                            <div class="small text-muted mb-2">
+                                <i class="bi bi-person-circle me-1"></i>
+                                @(string.IsNullOrWhiteSpace(dash.UsuarioNome) ? "Compartilhado" : dash.UsuarioNome)
+                            </div>
 
                             <div class="d-flex align-items-center justify-content-between text-muted small pt-2 border-top">
                                 <span><i class="bi bi-layers me-1"></i> @dash.Widgets.Count indicadores</span>
@@ -191,7 +197,7 @@
     private async Task CarregarDashboardsAsync()
     {
         isLoading = true;
-        dashboards = await DashboardService.ObterTodosAsync();
+        dashboards = await DashboardService.ObterVisiveisAsync(BIUsuarioContexto.De(UserState));
         var dss = await DashboardService.ObterDatasetsAsync();
         datasetsCount = dss.Count;
         isLoading = false;
@@ -206,7 +212,7 @@
             Categoria = "Personalizado",
             Icone = "bi-speedometer2"
         };
-        await DashboardService.SalvarAsync(novo);
+        await DashboardService.SalvarAsync(novo, BIUsuarioContexto.De(UserState));
         Nav.NavigateTo($"/dashboards/editor/{novo.Id}");
     }
 
@@ -223,13 +229,13 @@
 
     private async Task DuplicarAsync(Guid id)
     {
-        var copia = await DashboardService.DuplicarAsync(id);
+        var copia = await DashboardService.DuplicarAsync(id, BIUsuarioContexto.De(UserState));
         await CarregarDashboardsAsync();
     }
 
     private async Task ExcluirAsync(Guid id)
     {
-        await DashboardService.ExcluirAsync(id);
+        await DashboardService.ExcluirAsync(id, BIUsuarioContexto.De(UserState));
         await CarregarDashboardsAsync();
     }
 

@@ -21,18 +21,21 @@ flowchart TD
         Components["Components/BI<br/>• BIWidgetView<br/>• BIImportModal<br/>• BIShareModal"]
     end
 
-    subgraph ServicosBI ["Serviços de BI (Singletons)"]
-        DashboardSvc["BIDashboardService<br/>CRUD, cache e compartilhamento"]
-        DataSourceSvc["BIDataSourceService<br/>Catálogo de fontes e agregações"]
-        ImportSvc["BIImportService<br/>CSV / JSON e dashboard automático"]
-        MiningSvc["BIDataMiningService<br/>K-Means, Curva ABC e Churn"]
+    subgraph ServicosBI ["Serviços de BI"]
+        DashboardSvc["BIDashboardService (Singleton)<br/>CRUD, cache e compartilhamento"]
+        DataSourceSvc["BIDataSourceService (Scoped)<br/>Catálogo de fontes e agregações"]
+        ImportSvc["BIImportService (Singleton)<br/>CSV / JSON e dashboard automático"]
+        MiningSvc["BIDataMiningService (Singleton)<br/>K-Means, Curva ABC e Churn"]
+        EdwSvc["DwConsultaService (Scoped)<br/>Consultas e amostras do EDW"]
+        OrigemSvc["OrigemDadosService (Scoped)<br/>Catálogo de origens e cargas"]
     end
 
     subgraph Ecossistema ["Ecossistema Compartilhado JT_ApplicationLayer"]
         UIShared["JT_UserInterface.Shared<br/>Layout, componentes, tutoriais e JWT"]
-        Servicos["JT_Servicos<br/>Acessos e Gestão"]
-        Classes["JT_Classes<br/>Entidades e modelos de acesso"]
+        Servicos["JT_Servicos<br/>Acessos, Gestão e serviços DW"]
+        Classes["JT_Classes<br/>Entidades, modelos e DTOs de consulta"]
         Aplicacao["JT_Aplicacao<br/>Config, FirebaseConfig e enums"]
+        Infra["JT_Infra_Data<br/>EdwEngine, migrações e catálogo ER"]
     end
 
     subgraph Persistencia ["Persistência Analítica"]
@@ -56,6 +59,10 @@ flowchart TD
     DashboardSvc --> JsonData
     DashboardSvc -.->|"sem permissão de escrita"| Temp
     ImportSvc --> DataSourceSvc
+    DataSourceSvc --> OrigemSvc
+    DataSourceSvc --> EdwSvc
+    OrigemSvc --> Infra
+    EdwSvc --> Infra
     MiningSvc -.->|"gera widgets para o canvas"| Pages
 ```
 
@@ -64,7 +71,7 @@ flowchart TD
 1. **Interactive Server como padrão:** toda a interatividade (drag-and-drop, canvas, inspector, mineração e chat consultivo) executa no servidor e trafega por SignalR. Não há projeto WebAssembly no JT_BI.
 2. **Baixo acoplamento com a plataforma:** autenticação, permissões, menus e tutoriais são obtidos por interfaces de `JT_UserInterface.Shared` e `JT_Servicos`, permitindo que o módulo seja embarcado no ecossistema JT.
 3. **Persistência simples e portátil:** dashboards e datasets são persistidos em arquivos JSON no diretório de conteúdo da aplicação, sem dependência de ORM ou schema de banco para o funcionamento do BI.
-4. **Extensibilidade por catálogo:** as fontes de dados são descritas por metadados (`FonteDadosInfo`) e resolvidas por contrato (`IBIDataSourceService`), permitindo substituir os dados demonstrativos por consultas reais sem alterar o editor visual.
+4. **Extensibilidade por catálogo:** as fontes de dados são descritas por metadados (`FonteDadosInfo`) e resolvidas por contrato (`IBIDataSourceService`), permitindo alternar entre origens reais do EDW e fontes demonstrativas sem alterar o editor visual.
 
 ---
 
@@ -81,6 +88,7 @@ flowchart TD
 | `Services/` | Serviços de aplicação do BI, provedores de menu/tutorial e armazenamento seguro web. |
 | `Models/` | Modelo de domínio analítico: dashboards, widgets, datasets e pontos de dados. |
 | `Data/` | Diretório de persistência dos arquivos `dashboards.json` e `datasets.json` (criado em tempo de execução). |
+| `tests/JT_BI.Tests/` | Projeto NUnit com testes unitários dos algoritmos de mineração (`dotnet test`), excluído do build e do publish do host. |
 | `deploy/` | Unit file do Systemd, configuração Nginx com WebSockets e scripts de publicação. |
 | `Dockerfile` / `docker-compose.yml` | Empacotamento multi-estágio da aplicação e execução em container. |
 
@@ -119,14 +127,19 @@ builder.Services.AddScoped<IModuloMenuProvider, BIMenuProvider>();
 builder.Services.AddScoped<ITutorialProvider, BITutorialProvider>();
 
 builder.Services.AddSingleton<IBIDashboardService, BIDashboardService>();
-builder.Services.AddSingleton<IBIDataSourceService, BIDataSourceService>();
+builder.Services.AddScoped<IBIDataSourceService, BIDataSourceService>();
 builder.Services.AddSingleton<IBIImportService, BIImportService>();
 builder.Services.AddSingleton<IBIDataMiningService, BIDataMiningService>();
+
+builder.Services.AddScoped<JT_Servicos.DW.OrigemDadosService>();
+builder.Services.AddScoped<JT_Servicos.DW.DwConsultaService>();
+builder.Services.AddScoped<JT_Servicos.DW.IndicadorDashboardService>();
 ```
 
 ### Decisões de Ciclo de Vida
 
-- **Serviços de BI como `Singleton`:** o estado analítico (cache de dashboards/datasets e o semáforo de escrita) é compartilhado por todo o processo. Isso evita leituras concorrentes inconsistentes do arquivo JSON e mantém o comportamento do Studio estável entre circuitos Blazor.
+- **Estado analítico como `Singleton`:** `BIDashboardService`, `BIImportService` e `BIDataMiningService` concentram cache de dashboards/datasets e algoritmos sem estado por usuário. O semáforo de escrita do serviço de dashboards evita leituras concorrentes inconsistentes do arquivo JSON e mantém o Studio estável entre circuitos Blazor.
+- **Acesso a dados como `Scoped`:** `BIDataSourceService` depende de `OrigemDadosService` e `DwConsultaService`, que usam `HttpClient` por circuito (modo API) e a conexão multi-tenant resolvida por request (`BaseRepository.StringConexaoProvider`) no modo local. Por isso os três são registrados como `Scoped`.
 - **Serviços de plataforma como `Scoped`:** menu, tutorial, armazenamento seguro e token JWT acompanham o escopo do circuito do usuário.
 - **Configurações estáticas:** `Config` e `FirebaseConfig` são inicializadas no host e expostas como instâncias únicas para os serviços compartilhados.
 
@@ -175,9 +188,13 @@ classDiagram
         +decimal? ValorAtual
         +decimal? VariacaoPercentual
         +string FonteDadosId
+        +int? OrigemId
         +string MetricaCampo
         +string DimensaoCampo
+        +string ColunaData
+        +bool AgruparPorMes
         +string Agregacao
+        +List~BIDataPoint~ DadosEstaticos
     }
 
     class BIDataset {
@@ -230,6 +247,7 @@ Representa um painel analítico completo. Além dos metadados visuais (nome, des
 - `AutoRefreshSegundos`: intervalo de atualização automática no modo apresentação (`0` desliga).
 - `Widgets`: coleção ordenada de componentes analíticos.
 - `DatasetsVinculadosIds`: datasets importados associados ao painel.
+- `UsuarioId`, `UsuarioUid` e `UsuarioNome`: dono do painel. Dashboards antigos sem dono são tratados como **compartilhados** e continuam visíveis para todos os usuários autenticados.
 
 ### 4.2. `BIWidget`
 
@@ -238,7 +256,12 @@ Representa um painel analítico completo. Além dos metadados visuais (nome, des
 1. **Posicionamento absoluto percentual** (`PosX`, `PosY`, `Largura`, `Altura`) para o canvas livre do editor.
 2. **Largura em colunas** (`LarguraColunas`) para a grade responsiva do visualizador público.
 
-A vinculação de dados é declarativa: `FonteDadosId` aponta para uma fonte de catálogo (`financeiro`, `food`, `vendas`, `estoque`) ou para um dataset importado no formato `dataset_{Guid}`. A combinação `MetricaCampo` + `DimensaoCampo` + `Agregacao` determina como o valor será calculado.
+A vinculação de dados é declarativa e resolvida em `BIDataSourceService`:
+
+- `origem_{id}` (ou `OrigemId`) aponta para uma origem carregada no EDW; `MetricaCampo`, `ColunaData`, `AgruparPorMes` e `Agregacao` montam a consulta.
+- `dataset_{Guid}` aponta para um dataset importado por CSV/JSON.
+- `mineracao` usa `DadosEstaticos` materializados pelos algoritmos de mineração.
+- Os identificadores `financeiro`, `food`, `vendas` e `estoque` permanecem como **fontes demonstrativas** quando nenhuma origem EDW está configurada.
 
 ### 4.3. `BIDataset`
 
@@ -251,9 +274,12 @@ Armazena dados tabulares importados de CSV ou JSON. As colunas carregam o tipo i
 | Contrato | Implementação | Ciclo de Vida | Responsabilidade |
 | :--- | :--- | :--- | :--- |
 | `IBIDashboardService` | `BIDashboardService` | Singleton | CRUD de dashboards/datasets, cache em memória, persistência JSON, duplicação, token público e sanitização. |
-| `IBIDataSourceService` | `BIDataSourceService` | Singleton | Catálogo de fontes, resolução de KPIs e séries de dados, agregações e leitura de datasets importados. |
+| `IBIDataSourceService` | `BIDataSourceService` | Scoped | Catálogo de origens EDW, resolução de KPIs e séries, agregações, leitura de datasets e amostras para mineração. |
 | `IBIImportService` | `BIImportService` | Singleton | Importação de CSV/JSON, inferência de tipos e geração automática de dashboard. |
 | `IBIDataMiningService` | `BIDataMiningService` | Singleton | K-Means bidimensional, Curva ABC, score de risco/churn e geração de widgets analíticos. |
+| `OrigemDadosService` | `OrigemDadosService` | Scoped | Catálogo de origens, modelo de entidades e execução de cargas no EDW (API ou SQL local). |
+| `DwConsultaService` | `DwConsultaService` | Scoped | Consultas agregadas e amostras somente leitura sobre `Fato_{TabelaOrigem}`. |
+| `IndicadorDashboardService` | `IndicadorDashboardService` | Scoped | Cálculo de indicadores, painéis e séries a partir das origens EDW. |
 | `IMenuProvider` / `IModuloMenuProvider` | `BIMenuProvider` | Scoped | Itens do menu lateral integrados ao layout compartilhado. |
 | `ITutorialProvider` | `BITutorialProvider` | Scoped | Definição dos tours guiados do Studio e do Hub. |
 | `ISecureStorageService` | `WebSecureStorageService` | Scoped | Persistência de tokens no `localStorage` com tratamento de prerendering e desconexão. |
@@ -267,19 +293,24 @@ O serviço de dashboards é o núcleo de estado do módulo:
 - **Seed inicial:** quando `dashboards.json` não existe, dois painéis demonstrativos são criados (`Visão Executiva 360°` e `Performance Restaurante & Food`).
 - **Sanitização:** ao carregar, textos com problemas de encoding são normalizados e larguras de colunas incompatíveis são corrigidas conforme o tipo do widget.
 - **Resiliência:** falhas de escrita são registradas no console sem derrubar a aplicação, preservando o cache em memória.
+- **Ownership:** as operações recebem um `BIUsuarioContexto` (ID/UID/nome e flag de acesso total). A listagem retorna apenas painéis do próprio usuário ou sem dono; `Administrador` e `Supervisor` enxergam todos. Ao salvar, o dono original é preservado (impedindo troca de propriedade pela edição), e a duplicação atribui a cópia a quem duplicou.
+- **Isolamento do cache:** leituras e gravações trabalham com cópias serializadas do dashboard, evitando que mutações da UI em um circuito alterem o cache global antes do salvamento.
 
 ### 5.2. `BIDataSourceService` e o Catálogo Analítico
 
-O serviço expõe quatro fontes de dados prontas:
+O catálogo é montado dinamicamente a partir de `OrigemDadosService.GetAll()`:
 
-| Fonte | Métricas | Dimensões |
-| :--- | :--- | :--- |
-| `financeiro` | Faturamento, Despesas, Lucro Líquido, Inadimplência, Saldo Caixa | Mês, Centro de Custo, Forma Pagamento, Conta Bancária |
-| `food` | Faturamento Restaurante, Ticket Médio, Qtd Pedidos, Giro Mesas, Tempo Médio | Categoria Cardápio, Ambiente Salão, Turno, Garçom |
-| `vendas` | Novos Leads, Taxa Conversão, Vendas Fechadas, Valor Pipeline | Canal Aquisição, Vendedor, Status Negócio, Segmento |
-| `estoque` | Valor Total Estoque, Itens Críticos, Giro Estoque, Perdas/Descarte | Grupo Produto, Fornecedor, Local Armazenagem |
+- Cada origem cadastrada gera uma `FonteDadosInfo` com `Id = origem_{id}`, `OrigemId`, nome, descrição e a lista de colunas disponíveis (campos base + `alias_coluna` dos relacionamentos), usada tanto como métrica quanto como dimensão.
+- Quando não há nenhuma origem cadastrada, o serviço retorna quatro fontes **demonstrativas** (`financeiro`, `food`, `vendas`, `estoque`), sinalizadas com `Demonstrativa = true`, permitindo navegar pelo editor antes da configuração do EDW.
 
-Para a fonte `dataset_{id}`, o serviço agrupa as linhas pela dimensão escolhida e aplica a agregação configurada (`Soma`, `Media`, `Contagem`). Para as fontes de catálogo, os valores são demonstrativos e servem como contrato de integração para futuras consultas reais (SQL ou API).
+| `FonteDadosId` | Comportamento |
+| :--- | :--- |
+| `origem_{id}` / `OrigemId` | Consulta o EDW via `DwConsultaService` (`ConsultaDwRequest`) com coluna de valor, dimensão, data, período, agrupamento mensal e agregação. |
+| `dataset_{id}` | Agrupa as linhas importadas pela dimensão e aplica `Soma`, `Media` ou `Contagem`. |
+| `mineracao` | Retorna os `DadosEstaticos` materializados pelos algoritmos. |
+| `financeiro`, `food`, `vendas`, `estoque` | Valores demonstrativos (fallback). |
+
+A agregação é mapeada para `eTipoOperacaoIndicador` (`Soma`, `Media`, `Contagem`, `Maximo`, `Minimo`). Para séries temporais, `AgruparPorMes` (ou dimensão `Mes`/`Periodo` com `ColunaData` preenchida) delega ao agrupamento `YEAR`/`MONTH` do SQL. `ObterAmostraAsync(origemId, colunas, limite)` entrega as linhas usadas pelo laboratório de mineração.
 
 ### 5.3. `BIImportService`
 
@@ -292,12 +323,43 @@ Após a importação, `GerarDashboardAutomatico` cria um painel com cinco widget
 
 ### 5.4. `BIDataMiningService`
 
-O laboratório de mineração implementa algoritmos diretamente em C#, sem dependências externas:
+O laboratório de mineração implementa algoritmos diretamente em C#, sem dependências externas e alimentado por amostras reais do EDW:
 
-- **K-Means:** clusterização em duas dimensões numéricas, com `k` limitado entre 2 e 5, inicialização determinística (`Random(42)`) e no máximo 50 iterações.
-- **Curva ABC:** ordenação decrescente por valor e classificação acumulada em A (até 80%), B (até 95%) e C (restante).
-- **Score de Risco/Churn:** combina dias sem comprar (peso maior, limitado a 60 pontos) e quantidade de cancelamentos (até 40 pontos), resultando em categorias `Baixo`, `Médio` ou `Crítico`.
-- **Geração de widgets:** converte resultados de clusterização e Curva ABC em KPIs, gráficos e tabelas injetados diretamente no canvas.
+- **Entrada:** o Studio carrega até 5.000 linhas via `IBIDataSourceService.ObterAmostraAsync`, a partir da origem e das colunas escolhidas no modal de mineração.
+- **K-Means:** clusterização em duas dimensões numéricas normalizadas por z-score; `k` limitado entre 2 e 5 (e ao tamanho da amostra), sementes determinísticas (`Random(42)`) e no máximo 50 iterações. Os grupos são renomeados por valor médio conforme `k` (por exemplo, `Alto Valor / VIP`, `Médio Potencial`, `Baixo Valor / Risco`).
+- **Curva ABC:** ordenação decrescente por valor e classificação acumulada em A (até 80%), B (até 95%) e C (restante). O item que cruza uma faixa pertence à classe que ele completou.
+- **Score de Risco/Churn:** combina dias sem comprar (`dias × 0,8`, limitado a 60 pontos) e quantidade de cancelamentos (`× 20`, até 40 pontos), resultando em categorias `Baixo`, `Médio` ou `Crítico`.
+- **Geração de widgets:** converte os resultados em KPIs, pizza, barras e tabela, gravando `FonteDadosId = "mineracao"` e `DadosEstaticos` no widget, sem persistir os dados de origem.
+
+O detalhamento dos algoritmos, limites e casos de teste está em [MINERACAO_DE_DADOS.md](MINERACAO_DE_DADOS.md).
+
+### 5.5. `DwConsultaService` e os Endpoints `/api/dw`
+
+`DwConsultaService` (em `JT_Servicos.DW`) é o ponto único de leitura analítica do EDW e é consumido tanto pelo Studio quanto pela API:
+
+- **Modo API:** chama `POST /api/dw/consultar` e `POST /api/dw/amostra` pelo `HttpClient` do circuito, usando `BuildAbsoluteUrl`.
+- **Modo local:** executa SQL parametrizado em `Fato_{TabelaOrigem}`, com a conexão EDW derivada por `EdwEngine.DerivarConexaoEdw(BaseRepository.StringConexaoProvider())`.
+- **Snapshot:** toda consulta considera apenas o último `DataCarregamento` da tabela Fato.
+- **Validação:** verifica existência da tabela e das colunas, exige `ColunaData` para filtro de período/agrupamento mensal e `ColunaValor` para `SUM`/`AVG`/`MIN`/`MAX`.
+- **Limites:** consulta agregada com `Limite` entre 1 e 1.000 (padrão 20); amostra entre 1 e 5.000 linhas (padrão 1.000) e no máximo 50 colunas.
+
+| Endpoint | Corpo | Retorno |
+| :--- | :--- | :--- |
+| `POST /api/dw/consultar` | `ConsultaDwRequest` (origem, valor, dimensão, data, período, agrupamento e agregação) | `ConsultaDwResultado` com `Pontos`, `Total` e `Sucesso` |
+| `POST /api/dw/amostra` | `DwAmostraRequest` (origem, colunas e limite) | `DwAmostraResultado` com `Linhas` e `Sucesso` |
+
+Rotas correlatas do grupo DW, usadas pelo catálogo de origens e pelos indicadores:
+
+| Endpoint | Uso |
+| :--- | :--- |
+| `GET /api/origemdados/modelo` | Catálogo de entidades (ER) para montar uma origem. |
+| `GET /api/origemdados/modelo/{classe}` | Modelo de uma entidade específica. |
+| `POST /api/origemdados/executar/{id}` | Executa a carga ETL da origem no EDW. |
+| `GET /api/indicadores-dashboard/painel?de=&ate=` | Indicadores resolvidos do painel. |
+| `POST /api/indicadores-dashboard/calcular/{id}` | Recalcula um indicador no período informado. |
+| `POST /api/indicadores-dashboard/serie/{id}` | Série mensal para gráficos. |
+
+Os endpoints são mapeados em `DwConsultaEndpoints` e registrados por `MapDWEndpoints` em `JT_API/Endpoints/ModuloEndpointsExtensions.cs`. Eles não declaram política de autorização própria e ficam sujeitos à política global da API.
 
 ---
 
@@ -345,6 +407,10 @@ O consultor do Studio é um **motor local de intenção baseado em palavras-chav
 
 O botão **Exportar** serializa o dashboard ativo em JSON indentado e copia o conteúdo para a área de transferência, permitindo versionar ou transportar a definição do painel.
 
+### 6.5. Vinculação de Dados no Editor
+
+No inspector do editor dedicado, a escolha da fonte define `OrigemId` e libera as colunas reais da origem como métrica e dimensão. O usuário seleciona a `Agregacao` (`Soma`, `Media`, `Contagem`, `Maximo`, `Minimo`), informa a `ColunaData` e pode marcar **Agrupar por mês** para séries temporais. Os campos usam `datalist` com as colunas da origem, mas continuam aceitando texto livre para relacionamentos e campos calculados.
+
 ---
 
 ## 7. Renderização de Widgets e Fluxo de Dados
@@ -378,10 +444,10 @@ sequenceDiagram
 
 O compartilhamento é baseado em **link opaco com token**, e não em autenticação do visitante:
 
-1. Cada dashboard nasce com `PublicToken` e `PermiteAcessoPublico = true`.
-2. O `BIShareModal` permite revogar o acesso, copiar o link e definir o intervalo de auto-refresh.
+1. Cada dashboard nasce com `PublicToken`, mas `PermiteAcessoPublico = false`: o compartilhamento é **privado por padrão** e precisa ser habilitado explicitamente.
+2. O `BIShareModal` permite habilitar/revogar o acesso, copiar o link e definir o intervalo de auto-refresh.
 3. `ObterPorTokenPublicoAsync` só retorna o painel quando o token existe **e** o compartilhamento está habilitado.
-4. O `VisualizadorPublico` usa layout local próprio, oferece alternância claro/escuro, atualização automática por timer e um atalho para abrir o dashboard no construtor.
+4. O `VisualizadorPublico` usa layout local próprio, oferece alternância claro/escuro e atualização automática por timer. Não há atalho de edição na visão pública, e somente os datasets vinculados ao painel (`DatasetsVinculadosIds`) são carregados.
 
 ```mermaid
 flowchart LR
@@ -393,7 +459,7 @@ flowchart LR
 ```
 
 > [!IMPORTANT]
-> O link público concede leitura do painel a qualquer pessoa que possua o token. Não há escopo por usuário, expiração automática ou auditoria de acesso no modelo atual.
+> O link público concede leitura do painel a qualquer pessoa que possua o token, **independentemente do dono** do dashboard. Não há expiração automática ou auditoria de acesso no modelo atual. Desativar `PermiteAcessoPublico` revoga o link imediatamente.
 
 ---
 
@@ -410,7 +476,17 @@ O acesso ao painel principal é validado no componente `BIDashboardPage`:
 
 O `Program.cs` não registra `UseAuthentication`/`UseAuthorization`; a proteção é aplicada na camada de componente. O visualizador público é deliberadamente anônimo.
 
-### 9.2. Tokens e Armazenamento
+### 9.2. Ownership dos Dashboards
+
+A propriedade é aplicada pelo `BIDashboardService` por meio de `BIUsuarioContexto`, derivado de `CurrentUserState`:
+
+- `ObterVisiveisAsync` filtra a listagem; `ObterAcessivelAsync` e `PodeAcessarAsync` validam um painel específico antes de abrir o editor.
+- `SalvarAsync` lança `UnauthorizedAccessException` quando o usuário tenta alterar painel de outro dono; `ExcluirAsync` retorna `false` no mesmo cenário.
+- `DuplicarAsync` exige acesso ao original e define o dono da cópia como o usuário atual.
+- Painéis sem dono (seed inicial e arquivos legados) permanecem compartilhados; a primeira edição **não** assume a propriedade.
+- `Administrador` e `Supervisor` têm acesso total (leitura, edição, exclusão e duplicação).
+
+### 9.3. Tokens e Armazenamento
 
 O host registra `ISecureStorageService` com `WebSecureStorageService`, que persiste valores no `localStorage` via JS Interop e trata dois cenários críticos do Blazor Server:
 
@@ -419,11 +495,11 @@ O host registra `ISecureStorageService` com `WebSecureStorageService`, que persi
 
 O `JwtTokenService` e o `HttpClient` com `JwtAuthorizationHandler` são fornecidos pela camada compartilhada `JT_UserInterface.Shared`.
 
-### 9.3. Borda e Proxy Reverso
+### 9.4. Borda e Proxy Reverso
 
 O host habilita `ForwardedHeaders` (`X-Forwarded-For` e `X-Forwarded-Proto`) para preservar scheme e IP do cliente atrás do Nginx. Em produção, a aplicação escuta apenas em `127.0.0.1:5020`, e o Nginx expõe o domínio público com suporte a WebSockets e timeouts longos para o SignalR.
 
-### 9.4. Configuração e Segredos
+### 9.5. Configuração e Segredos
 
 `Config` e `FirebaseConfig` são carregados de `appsettings.json` e mantidos como instâncias estáticas. Em produção, valores sensíveis devem ser sobrescritos por variáveis de ambiente, `appsettings.Production.json` (ignorado pelo Git) ou cofre de segredos, seguindo a governança descrita em [DEPLOY.md](../DEPLOY.md).
 
@@ -457,17 +533,19 @@ O pipeline de GitHub Actions publica em Release, envia os binários por `rsync` 
 
 A arquitetura atual prioriza autonomia e baixo acoplamento. Os principais pontos de evolução são:
 
-1. **Fonte de dados real por tenant:** substituir os valores demonstrativos de `BIDataSourceService` por implementações que consultem `JT_Servicos`, a API JTech ou o banco do cliente, mantendo o contrato `IBIDataSourceService`.
+1. **Ownership de datasets e multi-tenant:** dashboards já possuem dono por usuário. A evolução prevista é aplicar o mesmo modelo a `BIDataset` e adicionar escopo por tenant/empresa, além de trilha de auditoria de compartilhamento.
 2. **Persistência plugável:** extrair uma abstração de repositório para dashboards/datasets e adicionar implementações SQL/NoSQL, preservando o serviço atual baseado em JSON como fallback local.
 3. **IA generativa:** trocar o motor local de palavras-chave por um provedor de LLM da plataforma, com contexto do dashboard e das fontes conectadas.
-4. **Autorização de borda:** complementar a validação por componente com políticas de autorização no pipeline, especialmente para futuras APIs de dados.
-5. **Observabilidade:** instrumentar métricas de uso do Studio, tempo de resolução de widgets e falhas de persistência para diagnóstico em produção.
+4. **Autorização de borda:** complementar a validação por componente com políticas de autorização no pipeline, especialmente para as APIs de dados do EDW (`/api/dw`).
+5. **Observabilidade:** instrumentar métricas de uso do Studio, tempo de resolução de widgets, falhas de persistência e latência das consultas ao EDW.
+6. **Evolução da mineração:** incorporar RFM completo, séries temporais e projeções, mantendo os algoritmos atuais como base determinística e testável.
 
 ---
 
 ## 12. Referências
 
 - [README do projeto](../README.md)
+- [Mineração de Dados](MINERACAO_DE_DADOS.md)
 - [Guia de Deploy e Governança](../DEPLOY.md)
 - [Arquitetura da camada compartilhada](../../JT_ApplicationLayer/docs/ARQUITETURA.md)
 - [Solução JT_Finance (padrão de UI compartilhada e multi-tenant)](../../JT_Finance/docs/ARQUITETURA.md)

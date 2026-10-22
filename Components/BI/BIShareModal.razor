@@ -1,7 +1,9 @@
 @using JT_BI.Models
 @using JT_BI.Services
+@using JT_Classes.Acessos
 @inject IJSRuntime JSRuntime
 @inject NavigationManager Nav
+@inject CurrentUserState UserState
 
 @if (IsOpen && Dashboard != null)
 {
@@ -119,7 +121,7 @@
     {
         if (Dashboard != null)
         {
-            await DashboardService.SalvarAsync(Dashboard);
+            await DashboardService.SalvarAsync(Dashboard, BIUsuarioContexto.De(UserState));
             await OnSaved.InvokeAsync();
         }
         await Fechar();

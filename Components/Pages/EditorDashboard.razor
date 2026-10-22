@@ -2,8 +2,10 @@
 @using JT_BI.Models
 @using JT_BI.Services
 @using JT_BI.Components.BI
+@using JT_Classes.Acessos
 @inject IBIDashboardService DashboardService
 @inject IBIDataSourceService DataSourceService
+@inject CurrentUserState UserState
 @inject NavigationManager Nav
 
 <PageTitle>@(dashboard?.Nome ?? "Editor de Dashboard") - JT_BI</PageTitle>
@@ -341,7 +343,7 @@ else
     {
         fontesDisponiveis = await DataSourceService.ObterFontesDisponiveisAsync();
         datasetsDisponiveis = await DashboardService.ObterDatasetsAsync();
-        dashboard = await DashboardService.ObterPorIdAsync(Id);
+        dashboard = await DashboardService.ObterAcessivelAsync(Id, BIUsuarioContexto.De(UserState));
 
         if (dashboard == null)
         {
@@ -519,7 +521,7 @@ else
     {
         if (dashboard != null)
         {
-            await DashboardService.SalvarAsync(dashboard);
+            await DashboardService.SalvarAsync(dashboard, BIUsuarioContexto.De(UserState));
             feedbackMsg = "Painel salvo com sucesso!";
             feedbackClass = "alert-success";
             _ = Task.Delay(3500).ContinueWith(_ => InvokeAsync(() => { feedbackMsg = null; StateHasChanged(); }));

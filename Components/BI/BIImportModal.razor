@@ -1,7 +1,9 @@
 @using JT_BI.Models
 @using JT_BI.Services
+@using JT_Classes.Acessos
 @inject IBIImportService ImportService
 @inject IBIDashboardService DashboardService
+@inject CurrentUserState UserState
 
 @if (IsOpen)
 {
@@ -158,7 +160,7 @@
         {
             await DashboardService.SalvarDatasetAsync(datasetPreview);
             var dash = ImportService.GerarDashboardAutomatico(datasetPreview);
-            await DashboardService.SalvarAsync(dash);
+            await DashboardService.SalvarAsync(dash, BIUsuarioContexto.De(UserState));
             await Fechar();
             await OnDashboardCriado.InvokeAsync(dash);
         }

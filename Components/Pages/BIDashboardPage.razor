@@ -771,9 +771,7 @@ else
             if (UserState.Autenticado)
             {
                 // Administrador ou Supervisor tem acesso pleno garantido ao JT_BI Studio
-                if (string.Equals(UserState.Role, "Administrador", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(UserState.Role, "Supervisor", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(UserState.UsuarioName, "supervisor", StringComparison.OrdinalIgnoreCase))
+                if (BIUsuarioContexto.De(UserState).AcessoTotal)
                 {
                     TemAcesso = true;
                     return;
@@ -854,7 +852,8 @@ else
                 AjustarCamposMineracao();
             }
 
-            ListaDashboards = await DashboardService.ObterTodosAsync();
+            var contexto = BIUsuarioContexto.De(UserState);
+            ListaDashboards = await DashboardService.ObterVisiveisAsync(contexto);
             if (ListaDashboards.Any())
             {
                 DashboardAtivo = ListaDashboards.First();
@@ -868,7 +867,7 @@ else
                     Categoria = "Geral",
                     Icone = "bi-speedometer2"
                 };
-                await DashboardService.SalvarAsync(DashboardAtivo);
+                await DashboardService.SalvarAsync(DashboardAtivo, contexto);
                 ListaDashboards.Add(DashboardAtivo);
             }
         }
@@ -1305,7 +1304,7 @@ else
     {
         if (Guid.TryParse(e.Value?.ToString(), out var id))
         {
-            var encontrado = await DashboardService.ObterPorIdAsync(id);
+            var encontrado = await DashboardService.ObterAcessivelAsync(id, BIUsuarioContexto.De(UserState));
             if (encontrado != null)
             {
                 DashboardAtivo = encontrado;
@@ -1323,7 +1322,7 @@ else
             Categoria = "Personalizado",
             Icone = "bi-bar-chart-fill"
         };
-        await DashboardService.SalvarAsync(novo);
+        await DashboardService.SalvarAsync(novo, BIUsuarioContexto.De(UserState));
         ListaDashboards.Insert(0, novo);
         DashboardAtivo = novo;
         WidgetSelecionado = null;
@@ -1336,7 +1335,7 @@ else
         IsSalvando = true;
         try
         {
-            await DashboardService.SalvarAsync(DashboardAtivo);
+            await DashboardService.SalvarAsync(DashboardAtivo, BIUsuarioContexto.De(UserState));
             ExibirFeedback("Dashboard e configurações salvas com sucesso!", "alert-success");
         }
         catch (Exception ex)

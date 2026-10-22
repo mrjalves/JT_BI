@@ -12,6 +12,11 @@ public class BIDashboard
     public DateTime DataCriacao { get; set; } = DateTime.Now;
     public DateTime DataAtualizacao { get; set; } = DateTime.Now;
 
+    // Propriedade do painel (dashboards antigos sem dono permanecem compartilhados)
+    public int? UsuarioId { get; set; }
+    public string? UsuarioUid { get; set; }
+    public string? UsuarioNome { get; set; }
+
     // Compartilhamento e Acesso Publico (Sem necessidade de login ativo)
     public bool PermiteAcessoPublico { get; set; } = false;
     public string PublicToken { get; set; } = Guid.NewGuid().ToString("N");

@@ -6,11 +6,17 @@ namespace JT_BI.Services;
 public interface IBIDashboardService
 {
     Task<List<BIDashboard>> ObterTodosAsync();
+    Task<List<BIDashboard>> ObterVisiveisAsync(BIUsuarioContexto? usuario);
     Task<BIDashboard?> ObterPorIdAsync(Guid id);
+    Task<BIDashboard?> ObterAcessivelAsync(Guid id, BIUsuarioContexto? usuario);
+    Task<bool> PodeAcessarAsync(Guid id, BIUsuarioContexto? usuario);
     Task<BIDashboard?> ObterPorTokenPublicoAsync(string token);
     Task SalvarAsync(BIDashboard dashboard);
+    Task SalvarAsync(BIDashboard dashboard, BIUsuarioContexto? usuario);
     Task ExcluirAsync(Guid id);
+    Task<bool> ExcluirAsync(Guid id, BIUsuarioContexto? usuario);
     Task<BIDashboard> DuplicarAsync(Guid id);
+    Task<BIDashboard> DuplicarAsync(Guid id, BIUsuarioContexto? usuario);
     Task<List<BIDataset>> ObterDatasetsAsync();
     Task SalvarDatasetAsync(BIDataset dataset);
 }
@@ -53,29 +59,25 @@ public class BIDashboardService : IBIDashboardService
         await _lock.WaitAsync();
         try
         {
-            if (_cacheDashboards == null)
-            {
-                if (File.Exists(_dashboardsFilePath))
-                {
-                    var json = await File.ReadAllTextAsync(_dashboardsFilePath);
-                    _cacheDashboards = JsonSerializer.Deserialize<List<BIDashboard>>(json) ?? new();
-                    foreach (var d in _cacheDashboards)
-                    {
-                        SanitizarDashboard(d);
-                    }
-                }
-                else
-                {
-                    _cacheDashboards = CriarDashboardsIniciais();
-                    await SalvarEmArquivoAsync();
-                }
-            }
-            return _cacheDashboards.OrderByDescending(d => d.DataAtualizacao).ToList();
+            await GarantirCacheDashboardsAsync();
+            return _cacheDashboards!
+                .OrderByDescending(d => d.DataAtualizacao)
+                .Select(ClonarDashboard)
+                .ToList();
         }
         finally
         {
             _lock.Release();
         }
+    }
+
+    public async Task<List<BIDashboard>> ObterVisiveisAsync(BIUsuarioContexto? usuario)
+    {
+        var todos = await ObterTodosAsync();
+        if (usuario == null)
+            return todos;
+
+        return todos.Where(d => PodeAcessar(d, usuario)).ToList();
     }
 
     public async Task<BIDashboard?> ObterPorIdAsync(Guid id)
@@ -84,28 +86,66 @@ public class BIDashboardService : IBIDashboardService
         return todos.FirstOrDefault(d => d.Id == id);
     }
 
+    public async Task<BIDashboard?> ObterAcessivelAsync(Guid id, BIUsuarioContexto? usuario)
+    {
+        var dashboard = await ObterPorIdAsync(id);
+        return dashboard != null && PodeAcessar(dashboard, usuario) ? dashboard : null;
+    }
+
+    public async Task<bool> PodeAcessarAsync(Guid id, BIUsuarioContexto? usuario)
+    {
+        var dashboard = await ObterPorIdAsync(id);
+        return dashboard != null && PodeAcessar(dashboard, usuario);
+    }
+
     public async Task<BIDashboard?> ObterPorTokenPublicoAsync(string token)
     {
         var todos = await ObterTodosAsync();
         return todos.FirstOrDefault(d => d.PublicToken.Equals(token, StringComparison.OrdinalIgnoreCase) && d.PermiteAcessoPublico);
     }
 
-    public async Task SalvarAsync(BIDashboard dashboard)
+    public Task SalvarAsync(BIDashboard dashboard)
+        => SalvarAsync(dashboard, null);
+
+    public async Task SalvarAsync(BIDashboard dashboard, BIUsuarioContexto? usuario)
     {
+        ArgumentNullException.ThrowIfNull(dashboard);
+
         await _lock.WaitAsync();
         try
         {
+            await GarantirCacheDashboardsAsync();
+            var lista = _cacheDashboards!;
+            var index = lista.FindIndex(d => d.Id == dashboard.Id);
+
+            if (index >= 0)
+            {
+                var existente = lista[index];
+                if (!PodeAcessar(existente, usuario))
+                    throw new UnauthorizedAccessException("Você não tem permissão para alterar este dashboard.");
+
+                // Preserva o dono original, impedindo troca de propriedade pela edição.
+                dashboard.UsuarioId = existente.UsuarioId;
+                dashboard.UsuarioUid = existente.UsuarioUid;
+                dashboard.UsuarioNome = existente.UsuarioNome;
+
+                if (dashboard.DataCriacao == default)
+                    dashboard.DataCriacao = existente.DataCriacao;
+            }
+            else if (usuario is { } dono && dono.TemIdentidade)
+            {
+                dashboard.UsuarioId = dono.UsuarioId;
+                dashboard.UsuarioUid = dono.UsuarioUid;
+                dashboard.UsuarioNome = dono.UsuarioNome;
+            }
+
             dashboard.DataAtualizacao = DateTime.Now;
-            var index = _cacheDashboards?.FindIndex(d => d.Id == dashboard.Id) ?? -1;
-            if (index >= 0 && _cacheDashboards != null)
-            {
-                _cacheDashboards[index] = dashboard;
-            }
+            var snapshot = ClonarDashboard(dashboard);
+            if (index >= 0)
+                lista[index] = snapshot;
             else
-            {
-                _cacheDashboards ??= new List<BIDashboard>();
-                _cacheDashboards.Add(dashboard);
-            }
+                lista.Add(snapshot);
+
             await SalvarEmArquivoAsync();
         }
         finally
@@ -114,16 +154,23 @@ public class BIDashboardService : IBIDashboardService
         }
     }
 
-    public async Task ExcluirAsync(Guid id)
+    public Task ExcluirAsync(Guid id)
+        => ExcluirAsync(id, null);
+
+    public async Task<bool> ExcluirAsync(Guid id, BIUsuarioContexto? usuario)
     {
         await _lock.WaitAsync();
         try
         {
-            if (_cacheDashboards != null)
-            {
-                _cacheDashboards.RemoveAll(d => d.Id == id);
-                await SalvarEmArquivoAsync();
-            }
+            await GarantirCacheDashboardsAsync();
+            var lista = _cacheDashboards!;
+            var alvo = lista.FirstOrDefault(d => d.Id == id);
+            if (alvo == null || !PodeAcessar(alvo, usuario))
+                return false;
+
+            lista.Remove(alvo);
+            await SalvarEmArquivoAsync();
+            return true;
         }
         finally
         {
@@ -131,11 +178,14 @@ public class BIDashboardService : IBIDashboardService
         }
     }
 
-    public async Task<BIDashboard> DuplicarAsync(Guid id)
+    public Task<BIDashboard> DuplicarAsync(Guid id)
+        => DuplicarAsync(id, null);
+
+    public async Task<BIDashboard> DuplicarAsync(Guid id, BIUsuarioContexto? usuario)
     {
-        var original = await ObterPorIdAsync(id);
+        var original = await ObterAcessivelAsync(id, usuario);
         if (original == null)
-            throw new Exception("Dashboard não encontrado.");
+            throw new InvalidOperationException("Dashboard não encontrado ou sem permissão de acesso.");
 
         var json = JsonSerializer.Serialize(original);
         var copia = JsonSerializer.Deserialize<BIDashboard>(json)!;
@@ -144,13 +194,22 @@ public class BIDashboardService : IBIDashboardService
         copia.Nome = $"{original.Nome} (Cópia)";
         copia.DataCriacao = DateTime.Now;
         copia.DataAtualizacao = DateTime.Now;
+        copia.PermiteAcessoPublico = false;
+
+        // A cópia pertence a quem duplicou; sem identidade, herda o dono do original.
+        if (usuario is { } dono && dono.TemIdentidade)
+        {
+            copia.UsuarioId = dono.UsuarioId;
+            copia.UsuarioUid = dono.UsuarioUid;
+            copia.UsuarioNome = dono.UsuarioNome;
+        }
 
         foreach (var w in copia.Widgets)
         {
             w.Id = Guid.NewGuid();
         }
 
-        await SalvarAsync(copia);
+        await SalvarAsync(copia, usuario);
         return copia;
     }
 
@@ -205,6 +264,48 @@ public class BIDashboardService : IBIDashboardService
         {
             _lock.Release();
         }
+    }
+
+    private async Task GarantirCacheDashboardsAsync()
+    {
+        if (_cacheDashboards != null) return;
+
+        if (File.Exists(_dashboardsFilePath))
+        {
+            var json = await File.ReadAllTextAsync(_dashboardsFilePath);
+            _cacheDashboards = JsonSerializer.Deserialize<List<BIDashboard>>(json) ?? new();
+            foreach (var d in _cacheDashboards)
+            {
+                SanitizarDashboard(d);
+            }
+        }
+        else
+        {
+            _cacheDashboards = CriarDashboardsIniciais();
+            await SalvarEmArquivoAsync();
+        }
+    }
+
+    private static BIDashboard ClonarDashboard(BIDashboard dashboard)
+        => JsonSerializer.Deserialize<BIDashboard>(JsonSerializer.Serialize(dashboard))!;
+
+    private static bool PodeAcessar(BIDashboard dashboard, BIUsuarioContexto? usuario)
+    {
+        if (usuario == null) return true;
+        if (usuario.AcessoTotal) return true;
+
+        var semDono = dashboard.UsuarioId is null or <= 0 && string.IsNullOrWhiteSpace(dashboard.UsuarioUid);
+        if (semDono) return true;
+
+        if (dashboard.UsuarioId is > 0 && usuario.UsuarioId == dashboard.UsuarioId)
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(dashboard.UsuarioUid) &&
+            !string.IsNullOrWhiteSpace(usuario.UsuarioUid) &&
+            string.Equals(dashboard.UsuarioUid, usuario.UsuarioUid, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
     }
 
     private async Task SalvarEmArquivoAsync()
