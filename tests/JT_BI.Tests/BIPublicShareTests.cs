@@ -157,4 +157,14 @@ public class BIPublicShareTests
         state.AlternarTema();
         Assert.That(state.IsModoEscuro, Is.False);
     }
+
+    private sealed class AmbienteFake : IWebHostEnvironment
+    {
+        public string ApplicationName { get; set; } = "JT_BI.Tests";
+        public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
+        public string WebRootPath { get; set; } = string.Empty;
+        public string EnvironmentName { get; set; } = "Development";
+        public string ContentRootPath { get; set; } = string.Empty;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
 }
