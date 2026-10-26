@@ -99,7 +99,7 @@ flowchart TD
 | `/`, `/bi`, `/bidashboard`, `/home` | `BIDashboardPage.razor` | Studio BI (SPA analítica) com canvas, toolbox, inspector, mineração e consultor de IA. |
 | `/dashboards` | `DashboardsHub.razor` | Hub com indicadores gerais e gestão de todos os painéis. |
 | `/dashboards/editor/{Id:guid}` | `EditorDashboard.razor` | Construtor visual dedicado, com movimentação, redimensionamento e reorganização automática. |
-| `/compartilhado/{Token}` | `VisualizadorPublico.razor` | Modo apresentação público, sem exigência de login, com tema claro/escuro e auto-refresh. |
+| `/compartilhado/{Token}` | `VisualizadorPublico.razor` | Modo apresentação público sem login obrigatório, com tema claro/escuro, auto-refresh, layout padrão da User Interface JT com botão Entrar e menu lateral condicional ao painel. |
 | `/Error`, `/not-found` | `Error.razor`, `NotFound.razor` | Tratamento de exceções e rotas inexistentes. |
 | `/counter`, `/weather` | `Counter.razor`, `Weather.razor` | Páginas de exemplo herdadas do template Blazor, sem papel no domínio de BI. |
 

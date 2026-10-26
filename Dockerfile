@@ -41,6 +41,10 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 
+# Preparar diretórios de persistência com permissões adequadas
+USER root
+RUN mkdir -p /app/Data /app/logs && chown -R app:app /app/Data /app/logs
+
 # Usuário não-root para segurança
 USER app
 

@@ -14,5 +14,5 @@ services:
       - Logging__LogLevel__Default=Information
       - Logging__LogLevel__Microsoft.AspNetCore=Warning
     volumes:
-      # Mapear pasta de logs ou uploads caso necessário
       - ./logs:/app/logs
+      - ./data:/app/Data

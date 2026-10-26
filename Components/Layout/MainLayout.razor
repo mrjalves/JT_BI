@@ -1,4 +1,4 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
 <div class="page">
     <div class="sidebar">
@@ -6,8 +6,11 @@
     </div>
 
     <main>
-        <div class="top-row px-4">
-            <a href="/login">Login</a>
+        <div class="top-row px-4 d-flex justify-content-end align-items-center">
+            <a href="/login" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm d-inline-flex align-items-center gap-1 text-decoration-none">
+                <i class="bi bi-box-arrow-in-right"></i>
+                <span class="fw-semibold">Entrar</span>
+            </a>
         </div>
 
         <article class="content px-4">

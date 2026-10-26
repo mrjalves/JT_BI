@@ -107,7 +107,7 @@ No GitHub, acesse **Settings > Secrets and variables > Actions** e cadastre:
 ### 4.2. Estratégia de Deploy Seguro e Rollback
 O script de deploy:
 1. Cria backup da versão atual em `/home/deploy/backups/jt_bi`.
-2. Sincroniza os novos binários via `rsync`, ignorando e preservando arquivos locais (`appsettings.Production.json`, uploads e logs).
+2. Sincroniza os novos binários via `rsync`, ignorando e preservando arquivos locais (`appsettings.Production.json`, pasta de dados `Data/`, uploads e logs).
 3. Reinicia o serviço `jt_bi`.
 4. Aguarda 5 segundos e valida se o processo está ativo (`systemctl is-active`).
 5. Caso o serviço falhe ao iniciar (crash por DLL ausente ou erro fatal), restaura o backup imediatamente e aborta o workflow com status de erro.

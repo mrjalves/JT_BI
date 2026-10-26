@@ -1,77 +1,120 @@
-﻿@page "/compartilhado/{Token}"
+@page "/compartilhado/{Token}"
 @layout JT_BI.Components.Layout.PublicLayout
 @using JT_BI.Models
 @using JT_BI.Services
 @using JT_BI.Components.BI
+@using JT_Classes.Acessos
 @inject IBIDashboardService DashboardService
+@inject PublicViewState ViewState
+@inject CurrentUserState CurrentUserState
 @inject NavigationManager Nav
 @implements IDisposable
 
 <PageTitle>@(dashboard?.Nome ?? "Visualização do Painel") - JT_BI</PageTitle>
 
-@if (dashboard == null && !carregando)
+@if (carregando)
 {
-    <div class="container py-5 text-center">
-        <div class="card border-0 shadow-sm rounded-4 p-5 max-w-md mx-auto">
-            <i class="bi bi-shield-x text-danger" style="font-size: 3.5rem;"></i>
-            <h4 class="fw-bold text-dark mt-3">Painel não encontrado ou privado</h4>
-            <p class="text-muted small">Este painel pode ter sido desativado pelo proprietário ou o token informado é inválido.</p>
-            <a href="/" class="btn btn-sm btn-primary rounded-pill px-4 mx-auto">
-                <i class="bi bi-house me-1"></i> Ir para a Central
-            </a>
+    <div class="d-flex align-items-center justify-content-center min-vh-50 py-5">
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Carregando painel...</span>
+            </div>
+            <p class="text-muted mt-3 small">Carregando dados do painel analítico...</p>
         </div>
     </div>
 }
-else if (dashboard != null)
+else if (statusAcesso == BIStatusAcessoPublico.DesativadoPeloProprietario)
 {
-    <div class="min-vh-100 @(isDarkMode ? "bg-dark text-white" : "bg-slate-50 text-dark") p-3 p-md-4 transition-all">
-        <!-- Topo da Apresentação -->
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 pb-3 border-bottom @(isDarkMode ? "border-secondary" : "border-light")">
-            <div class="d-flex align-items-center gap-3">
-                <div class="p-3 bg-@dashboard.CorDestaque text-white rounded-4 shadow-sm">
-                    <i class="bi @dashboard.Icone fs-4"></i>
-                </div>
-                <div>
-                    <h4 class="fw-bold mb-0">@dashboard.Nome</h4>
-                    <small class="@(isDarkMode ? "text-light opacity-75" : "text-muted")">@dashboard.Descricao</small>
-                </div>
+    <div class="container py-5 text-center">
+        <div class="card border-0 shadow-sm rounded-4 p-5 max-w-md mx-auto" style="max-width: 520px;">
+            <div class="mx-auto mb-3 p-3 rounded-circle bg-warning-subtle text-warning d-inline-flex align-items-center justify-content-center" style="width: 72px; height: 72px;">
+                <i class="bi bi-lock-fill" style="font-size: 2.2rem;"></i>
             </div>
-
-            <!-- Controles do Modo Apresentação -->
-            <div class="d-flex align-items-center gap-2">
-                @if (dashboard.AutoRefreshSegundos > 0)
-                {
-                    <span class="badge @(isDarkMode ? "bg-secondary" : "bg-light text-dark border") px-3 py-2 rounded-pill small">
-                        <i class="bi bi-arrow-repeat me-1 spin"></i> Atualiza em @contadorRefresh s
-                    </span>
-                }
-                <button type="button" class="btn btn-sm @(isDarkMode ? "btn-outline-light" : "btn-outline-dark") rounded-3" @onclick="AlternarTema" title="Alternar Modo Escuro / Claro">
-                    <i class="bi @(isDarkMode ? "bi-sun-fill text-warning" : "bi-moon-stars-fill")"></i>
-                </button>
+            <h4 class="fw-bold text-body mt-2">Compartilhamento Desativado</h4>
+            <p class="text-muted small">O proprietário deste painel desativou o link de acesso público direto.</p>
+            
+            <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
+                <a href="@ObterUrlLogin()" class="btn btn-primary rounded-pill px-4">
+                    <i class="bi bi-box-arrow-in-right me-1"></i> Fazer Login
+                </a>
+                <a href="/" class="btn btn-outline-secondary rounded-pill px-4">
+                    <i class="bi bi-house me-1"></i> Início
+                </a>
             </div>
         </div>
+    </div>
+}
+else if (dashboard == null || statusAcesso == BIStatusAcessoPublico.NaoEncontrado)
+{
+    <div class="container py-5 text-center">
+        <div class="card border-0 shadow-sm rounded-4 p-5 max-w-md mx-auto" style="max-width: 520px;">
+            <div class="mx-auto mb-3 p-3 rounded-circle bg-danger-subtle text-danger d-inline-flex align-items-center justify-content-center" style="width: 72px; height: 72px;">
+                <i class="bi bi-shield-x" style="font-size: 2.2rem;"></i>
+            </div>
+            <h4 class="fw-bold text-body mt-2">Painel não encontrado</h4>
+            <p class="text-muted small">O token de compartilhamento informado não é válido, expirou ou o painel foi removido.</p>
+            
+            <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
+                <a href="@ObterUrlLogin()" class="btn btn-primary rounded-pill px-4">
+                    <i class="bi bi-box-arrow-in-right me-1"></i> Entrar no Sistema
+                </a>
+                <a href="/" class="btn btn-outline-secondary rounded-pill px-4">
+                    <i class="bi bi-house me-1"></i> Início
+                </a>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="p-3 p-md-4 transition-all">
+        <!-- Barra de Informações do Painel -->
+        @if (!string.IsNullOrWhiteSpace(dashboard.Descricao))
+        {
+            <div class="mb-4 pb-2 border-bottom @(ViewState.IsModoEscuro ? "border-secondary" : "border-light-subtle")">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <p class="mb-0 small @(ViewState.IsModoEscuro ? "text-light opacity-75" : "text-muted")">
+                        <i class="bi bi-info-circle me-1"></i> @dashboard.Descricao
+                    </p>
+                    <span class="badge @(ViewState.IsModoEscuro ? "bg-dark border border-secondary text-light" : "bg-light text-muted border") rounded-pill small px-2 py-1">
+                        @dashboard.Widgets.Count @(dashboard.Widgets.Count == 1 ? "widget" : "widgets")
+                    </span>
+                </div>
+            </div>
+        }
 
         <!-- Grade Dinâmica de Widgets -->
-        <div class="row g-3">
-            @foreach (var w in dashboard.Widgets)
-            {
-                // Mapear largura em classes responsivas Bootstrap
-                string colClass = w.Largura switch
+        @if (dashboard.Widgets.Count == 0)
+        {
+            <div class="text-center py-5 border rounded-4 bg-body-tertiary">
+                <i class="bi bi-layout-wtf text-muted fs-1"></i>
+                <h6 class="fw-bold mt-2 text-body">Nenhum widget configurado neste painel</h6>
+                <p class="text-muted small mb-0">O proprietário ainda não adicionou indicadores a esta visualização.</p>
+            </div>
+        }
+        else
+        {
+            <div class="row g-3">
+                @foreach (var w in dashboard.Widgets)
                 {
-                    <= 25 => "col-12 col-sm-6 col-lg-3",
-                    <= 35 => "col-12 col-md-4",
-                    <= 55 => "col-12 col-lg-6",
-                    <= 70 => "col-12 col-lg-8",
-                    _ => "col-12"
-                };
+                    // Mapear largura em classes responsivas Bootstrap
+                    string colClass = w.Largura switch
+                    {
+                        <= 25 => "col-12 col-sm-6 col-lg-3",
+                        <= 35 => "col-12 col-md-4",
+                        <= 55 => "col-12 col-lg-6",
+                        <= 70 => "col-12 col-lg-8",
+                        _ => "col-12"
+                    };
 
-                <div class="@colClass">
-                    <div class="rounded-4 overflow-hidden h-100 shadow-sm" style="min-height: 180px;">
-                        <BIWidgetView Widget="w" IsEditor="false" Datasets="datasetsDisponiveis" />
+                    <div class="@colClass">
+                        <div class="rounded-4 overflow-hidden h-100 shadow-sm" style="min-height: 180px;">
+                            <BIWidgetView Widget="w" IsEditor="false" Datasets="datasetsDisponiveis" />
+                        </div>
                     </div>
-                </div>
-            }
-        </div>
+                }
+            </div>
+        }
     </div>
 }
 
@@ -79,16 +122,20 @@ else if (dashboard != null)
     [Parameter] public string Token { get; set; } = string.Empty;
 
     private BIDashboard? dashboard;
+    private BIStatusAcessoPublico statusAcesso = BIStatusAcessoPublico.NaoEncontrado;
     private List<BIDataset> datasetsDisponiveis = new();
     private bool carregando = true;
-    private bool isDarkMode = false;
     private int contadorRefresh = 0;
     private System.Threading.Timer? refreshTimer;
 
     protected override async Task OnParametersSetAsync()
     {
         carregando = true;
-        dashboard = await DashboardService.ObterPorTokenPublicoAsync(Token);
+        var resp = await DashboardService.ObterStatusPorTokenPublicoAsync(Token);
+        statusAcesso = resp.Status;
+        dashboard = resp.Dashboard;
+
+        ViewState.Configurar(dashboard);
 
         if (dashboard != null && dashboard.DatasetsVinculadosIds.Count > 0)
         {
@@ -110,25 +157,30 @@ else if (dashboard != null)
         if (dashboard?.AutoRefreshSegundos > 0)
         {
             contadorRefresh = dashboard.AutoRefreshSegundos;
+            ViewState.AtualizarContador(contadorRefresh);
+
             refreshTimer = new System.Threading.Timer(async _ =>
             {
                 if (contadorRefresh > 1)
                 {
                     contadorRefresh--;
+                    ViewState.AtualizarContador(contadorRefresh);
                     await InvokeAsync(StateHasChanged);
                 }
                 else
                 {
                     contadorRefresh = dashboard.AutoRefreshSegundos;
+                    ViewState.AtualizarContador(contadorRefresh);
                     await InvokeAsync(StateHasChanged);
                 }
             }, null, 1000, 1000);
         }
     }
 
-    private void AlternarTema()
+    private string ObterUrlLogin()
     {
-        isDarkMode = !isDarkMode;
+        var relative = Nav.ToBaseRelativePath(Nav.Uri);
+        return $"/login?returnUrl={Uri.EscapeDataString("/" + relative)}";
     }
 
     public void Dispose()

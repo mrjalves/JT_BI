@@ -31,7 +31,7 @@
                             <small class="text-muted">Qualquer pessoa com o link pode visualizar sem credenciais de login</small>
                         </div>
                         <div class="form-check form-switch fs-4 mb-0">
-                            <input class="form-check-input" type="checkbox" @bind="Dashboard.PermiteAcessoPublico" />
+                            <input class="form-check-input" type="checkbox" @bind="Dashboard.PermiteAcessoPublico" @bind:after="OnAlterarConfiguracaoImediata" />
                         </div>
                     </div>
 
@@ -46,15 +46,26 @@
                                 <button class="btn btn-sm btn-primary" @onclick="() => CopiarTexto(linkCompleto)">
                                     <i class="bi bi-clipboard me-1"></i> Copiar
                                 </button>
-                                <a href="@linkCompleto" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                <a href="@linkCompleto" target="_blank" class="btn btn-sm btn-outline-secondary" @onclick="GarantirSalvoAntesDeNavegar">
                                     <i class="bi bi-box-arrow-up-right"></i>
                                 </a>
                             </div>
                         </div>
 
+                        <!-- Switch de Exibição de Menu na Página Compartilhada -->
+                        <div class="d-flex align-items-center justify-content-between p-3 rounded-3 bg-light mb-3 border">
+                            <div>
+                                <span class="fw-bold d-block text-dark">Exibir Menu de Navegação</span>
+                                <small class="text-muted">Exibe a barra lateral de painéis e módulos na página compartilhada</small>
+                            </div>
+                            <div class="form-check form-switch fs-4 mb-0">
+                                <input class="form-check-input" type="checkbox" @bind="Dashboard.ExibirMenuPublico" @bind:after="OnAlterarConfiguracaoImediata" />
+                            </div>
+                        </div>
+
                         <div class="mb-3">
                             <label class="form-label fw-semibold small text-muted">Atualização Automática (Segundos):</label>
-                            <select class="form-select form-select-sm" @bind="Dashboard.AutoRefreshSegundos">
+                            <select class="form-select form-select-sm" @bind="Dashboard.AutoRefreshSegundos" @bind:after="OnAlterarConfiguracaoImediata">
                                 <option value="0">Desativado (Estático)</option>
                                 <option value="15">A cada 15 segundos (Tempo Real)</option>
                                 <option value="30">A cada 30 segundos</option>
@@ -111,8 +122,19 @@
     private string? copiadoMsg = null;
     private string? erroMsg = null;
 
+    private async Task OnAlterarConfiguracaoImediata()
+    {
+        await SalvarInternoAsync();
+    }
+
+    private async Task GarantirSalvoAntesDeNavegar()
+    {
+        await SalvarInternoAsync();
+    }
+
     private async Task CopiarTexto(string texto)
     {
+        await SalvarInternoAsync();
         try
         {
             await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", texto);
@@ -125,25 +147,37 @@
         _ = Task.Delay(3000).ContinueWith(_ => InvokeAsync(() => { copiadoMsg = null; StateHasChanged(); }));
     }
 
-    private async Task SalvarConfiguracoesAsync()
+    private async Task<bool> SalvarInternoAsync()
     {
         erroMsg = null;
-
         if (Dashboard != null)
         {
             try
             {
                 await DashboardService.SalvarAsync(Dashboard, BIUsuarioContexto.De(UserState));
                 await OnSaved.InvokeAsync();
+                return true;
             }
             catch (UnauthorizedAccessException ex)
             {
                 erroMsg = ex.Message;
-                return;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                erroMsg = $"Erro ao salvar configurações: {ex.Message}";
+                return false;
             }
         }
+        return false;
+    }
 
-        await Fechar();
+    private async Task SalvarConfiguracoesAsync()
+    {
+        if (await SalvarInternoAsync())
+        {
+            await Fechar();
+        }
     }
 
     private async Task Fechar()

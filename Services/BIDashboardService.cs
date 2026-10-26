@@ -3,6 +3,15 @@ using JT_BI.Models;
 
 namespace JT_BI.Services;
 
+public enum BIStatusAcessoPublico
+{
+    Ok,
+    NaoEncontrado,
+    DesativadoPeloProprietario
+}
+
+public record BIRespAcessoPublico(BIStatusAcessoPublico Status, BIDashboard? Dashboard);
+
 public interface IBIDashboardService
 {
     Task<List<BIDashboard>> ObterTodosAsync();
@@ -11,6 +20,7 @@ public interface IBIDashboardService
     Task<BIDashboard?> ObterAcessivelAsync(Guid id, BIUsuarioContexto? usuario);
     Task<bool> PodeAcessarAsync(Guid id, BIUsuarioContexto? usuario);
     Task<BIDashboard?> ObterPorTokenPublicoAsync(string token);
+    Task<BIRespAcessoPublico> ObterStatusPorTokenPublicoAsync(string token);
     Task SalvarAsync(BIDashboard dashboard);
     Task SalvarAsync(BIDashboard dashboard, BIUsuarioContexto? usuario);
     Task ExcluirAsync(Guid id);
@@ -55,6 +65,7 @@ public class BIDashboardService : IBIDashboardService
 
         _dashboardsFilePath = Path.Combine(_storageDir, "dashboards.json");
         _datasetsFilePath = Path.Combine(_storageDir, "datasets.json");
+        Console.WriteLine($"[BIDashboardService] Diretório de persistência configurado: {_storageDir}");
     }
 
     public async Task<List<BIDashboard>> ObterTodosAsync()
@@ -101,10 +112,27 @@ public class BIDashboardService : IBIDashboardService
         return dashboard != null && PodeAcessar(dashboard, usuario);
     }
 
+    public async Task<BIRespAcessoPublico> ObterStatusPorTokenPublicoAsync(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return new BIRespAcessoPublico(BIStatusAcessoPublico.NaoEncontrado, null);
+
+        var todos = await ObterTodosAsync();
+        var dash = todos.FirstOrDefault(d => d.PublicToken.Equals(token, StringComparison.OrdinalIgnoreCase));
+
+        if (dash == null)
+            return new BIRespAcessoPublico(BIStatusAcessoPublico.NaoEncontrado, null);
+
+        if (!dash.PermiteAcessoPublico)
+            return new BIRespAcessoPublico(BIStatusAcessoPublico.DesativadoPeloProprietario, dash);
+
+        return new BIRespAcessoPublico(BIStatusAcessoPublico.Ok, dash);
+    }
+
     public async Task<BIDashboard?> ObterPorTokenPublicoAsync(string token)
     {
-        var todos = await ObterTodosAsync();
-        return todos.FirstOrDefault(d => d.PublicToken.Equals(token, StringComparison.OrdinalIgnoreCase) && d.PermiteAcessoPublico);
+        var resp = await ObterStatusPorTokenPublicoAsync(token);
+        return resp.Status == BIStatusAcessoPublico.Ok ? resp.Dashboard : null;
     }
 
     public Task SalvarAsync(BIDashboard dashboard)

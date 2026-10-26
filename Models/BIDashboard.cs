@@ -1,4 +1,4 @@
-﻿namespace JT_BI.Models;
+namespace JT_BI.Models;
 
 public class BIDashboard
 {
@@ -21,6 +21,7 @@ public class BIDashboard
     public bool PermiteAcessoPublico { get; set; } = false;
     public string PublicToken { get; set; } = Guid.NewGuid().ToString("N");
     public int AutoRefreshSegundos { get; set; } = 0; // 0 = desligado, 30, 60, 300
+    public bool ExibirMenuPublico { get; set; } = false; // Exibir ou não o menu na página compartilhada
 
     public List<BIWidget> Widgets { get; set; } = new();
     public List<Guid> DatasetsVinculadosIds { get; set; } = new();
