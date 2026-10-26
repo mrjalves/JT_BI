@@ -24,6 +24,7 @@
 @inject IBIDataSourceService DataSourceService
 @inject IBIImportService ImportService
 @inject IBIDataMiningService DataMiningService
+@inject BIImportUiService ImportUi
 @inject ITutorialService TutorialService
 @inject ToastService ToastService
 @inject NavigationManager Nav
@@ -113,7 +114,7 @@ else
 
                             <!-- Botão Importar Dados (Fase 3) -->
                             <button class="btn btn-sm btn-outline-secondary rounded-3 px-2 shadow-xs d-flex align-items-center gap-1"
-                                    @onclick="() => isImportModalOpen = true" title="Importar CSV / JSON">
+                                    @onclick="AbrirImportacaoAsync" title="Importar CSV / JSON">
                                 <i class="bi bi-file-earmark-arrow-up text-success"></i>
                                 <span class="d-none d-md-inline">Importar</span>
                             </button>
@@ -726,9 +727,6 @@ else
             </div>
         }
 
-        <!-- Modal Importar Dados (arquivo, link ou colar) -->
-        <BIImportModal @bind-IsOpen="isImportModalOpen" OnDashboardCriado="TratarDashboardCriado" />
-
         <!-- Modal Fontes de Dados (EDW) -->
         <BIFontesModal @bind-IsOpen="isFontesModalOpen" OnChanged="RecarregarFontesAsync" />
 
@@ -756,7 +754,6 @@ else
 
     // Modais e Estados
     private bool isTemplatesModalOpen = false;
-    private bool isImportModalOpen = false;
     private bool isDataMiningModalOpen = false;
     private bool isShareModalOpen = false;
     private bool isFontesModalOpen = false;
@@ -1208,6 +1205,13 @@ else
 
         return registros;
     }
+
+    private Task AbrirImportacaoAsync()
+        => ImportUi.AbrirAsync(dash => InvokeAsync(() =>
+        {
+            TratarDashboardCriado(dash);
+            StateHasChanged();
+        }));
 
     private void TratarDashboardCriado(BIDashboard novo)
     {

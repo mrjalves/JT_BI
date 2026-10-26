@@ -81,10 +81,10 @@ flowchart TD
 | :--- | :--- |
 | `Program.cs` | Composição da aplicação, registro de serviços, configuração estática do ecossistema JT, pipeline HTTP e mapeamento dos componentes Blazor. |
 | `Components/App.razor` | Documento raiz HTML e pontos de montagem do Blazor (`HeadOutlet`, `Routes`). |
-| `Components/Routes.razor` | Roteador com assembly adicional de `JT_UserInterface.Shared` e layout padrão compartilhado. |
+| `Components/Routes.razor` | Roteador com assembly adicional de `JT_UserInterface.Shared` e layout padrão `BILayout` (que aninha o layout compartilhado e o host global de importação). |
 | `Components/Pages/` | Páginas roteáveis do módulo: Studio, Hub, Editor, Visualizador Público e páginas de infraestrutura. |
 | `Components/BI/` | Componentes reutilizáveis de visualização, importação e compartilhamento de dashboards. |
-| `Components/Layout/` | Layout local usado pelo visualizador público, menu legado e modal de reconexão do Blazor Server. |
+| `Components/Layout/` | `BILayout` (layout padrão com host de importação), `PublicLayout` (apresentação sem menu) e menu legado. |
 | `Services/` | Serviços de aplicação do BI, provedores de menu/tutorial e armazenamento seguro web. |
 | `Models/` | Modelo de domínio analítico: dashboards, widgets, datasets e pontos de dados. |
 | `Data/` | Diretório de persistência dos arquivos `dashboards.json` e `datasets.json` (criado em tempo de execução). |
@@ -283,6 +283,7 @@ Assim como os dashboards, datasets possuem `UsuarioId`, `UsuarioUid` e `UsuarioN
 | `DwConsultaService` | `DwConsultaService` | Scoped | Consultas agregadas e amostras somente leitura sobre `Fato_{TabelaOrigem}`. |
 | `IndicadorDashboardService` | `IndicadorDashboardService` | Scoped | Cálculo de indicadores, painéis e séries a partir das origens EDW. |
 | `IMenuProvider` / `IModuloMenuProvider` | `BIMenuProvider` | Scoped | Itens do menu lateral integrados ao layout compartilhado. |
+| `IImportacaoDadosProvider` | `BIImportacaoProvider` | Scoped | Redireciona a importação do assistente de IA para o `BIImportModal`. |
 | `ITutorialProvider` | `BITutorialProvider` | Scoped | Definição dos tours guiados do Studio e do Hub. |
 | `ISecureStorageService` | `WebSecureStorageService` | Scoped | Persistência de tokens no `localStorage` com tratamento de prerendering e desconexão. |
 
@@ -338,6 +339,8 @@ A entrada pode vir de três origens no modal de importação:
 - **Colar:** textarea para CSV/JSON, com detecção automática do formato.
 
 Após a importação, `GerarDashboardAutomatico` cria um painel com cinco widgets: três KPIs (total, média e contagem) e dois gráficos (barras e pizza), vinculados ao dataset pelo identificador `dataset_{Guid}`. O dataset e o dashboard são salvos com o `BIUsuarioContexto` do usuário atual, respeitando o ownership.
+
+O modal é único e global: `BILayout` hospeda `BIImportHost`, controlado por `BIImportUiService`. Assim, tanto os botões das páginas quanto o botão de importação do assistente de IA abrem o mesmo `BIImportModal`. Para isso, `ChatInstrutor` consulta `IImportacaoDadosProvider` e o JT_BI registra `BIImportacaoProvider`.
 
 ### 5.4. `BIDataMiningService`
 
@@ -465,7 +468,7 @@ O compartilhamento é baseado em **link opaco com token**, e não em autenticaç
 1. Cada dashboard nasce com `PublicToken`, mas `PermiteAcessoPublico = false`: o compartilhamento é **privado por padrão** e precisa ser habilitado explicitamente.
 2. O `BIShareModal` permite habilitar/revogar o acesso, copiar o link e definir o intervalo de auto-refresh.
 3. `ObterPorTokenPublicoAsync` só retorna o painel quando o token existe **e** o compartilhamento está habilitado.
-4. O `VisualizadorPublico` usa layout local próprio, oferece alternância claro/escuro e atualização automática por timer. Não há atalho de edição na visão pública, e somente os datasets vinculados ao painel (`DatasetsVinculadosIds`) são carregados, sem aplicar filtro de dono — o token público concede leitura exclusivamente desses vínculos.
+4. O `VisualizadorPublico` usa o `PublicLayout`, sem o menu lateral ou o cabeçalho da aplicação: a página exibe apenas o cabeçalho configurado no dashboard (ícone, cor, nome e descrição), a alternância claro/escuro e a atualização automática por timer. Não há atalho de edição na visão pública, e somente os datasets vinculados ao painel (`DatasetsVinculadosIds`) são carregados, sem aplicar filtro de dono — o token público concede leitura exclusivamente desses vínculos.
 
 ```mermaid
 flowchart LR

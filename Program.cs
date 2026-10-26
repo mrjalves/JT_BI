@@ -64,6 +64,8 @@ builder.Services.AddSingleton<IBIDashboardService, BIDashboardService>();
 builder.Services.AddScoped<IBIDataSourceService, BIDataSourceService>();
 builder.Services.AddSingleton<IBIImportService, BIImportService>();
 builder.Services.AddSingleton<IBIDataMiningService, BIDataMiningService>();
+builder.Services.AddScoped<BIImportUiService>();
+builder.Services.AddScoped<JT_UserInterface.Shared.Services.Interfaces.Comum.IImportacaoDadosProvider, BIImportacaoProvider>();
 builder.Services.AddScoped<JT_Servicos.DW.OrigemDadosService>();
 builder.Services.AddScoped<JT_Servicos.DW.DwConsultaService>();
 builder.Services.AddScoped<JT_Servicos.DW.IndicadorDashboardService>();

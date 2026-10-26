@@ -1,0 +1,39 @@
+@using JT_BI.Models
+@using JT_BI.Services
+@inject BIImportUiService ImportUi
+@inject NavigationManager Nav
+@implements IDisposable
+
+<BIImportModal @bind-IsOpen="aberto" OnDashboardCriado="TratarDashboardCriadoAsync" />
+
+@code {
+    private bool aberto;
+
+    protected override void OnInitialized()
+    {
+        ImportUi.Solicitado += Abrir;
+    }
+
+    private async Task Abrir()
+    {
+        aberto = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task TratarDashboardCriadoAsync(BIDashboard dashboard)
+    {
+        var callback = ImportUi.ConsumirCallback();
+        if (callback != null)
+        {
+            await callback(dashboard);
+            return;
+        }
+
+        Nav.NavigateTo($"/dashboards/editor/{dashboard.Id}");
+    }
+
+    public void Dispose()
+    {
+        ImportUi.Solicitado -= Abrir;
+    }
+}
