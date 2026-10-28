@@ -8,7 +8,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents()
+    .AddInteractiveServerComponents(options =>
+    {
+        options.DetailedErrors = true;
+    })
     .AddHubOptions(options =>
     {
         // Permite colar CSVs/JSONs maiores no BIImportModal sem derrubar o circuito SignalR (padrão é 32 KB)

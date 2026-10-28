@@ -38,11 +38,13 @@ public static class JTBIServiceCollectionExtensions
         }
 
         FirebaseConfig.SetInstancia(dadosFConfig);
-        services.AddSingleton(FirebaseConfig.Instancia);
 
         // Registrar Camada de Interface Compartilhada e Segurança
         services.AddScoped<ISecureStorageService, WebSecureStorageService>();
         services.AddJTUserInterface();
+
+        // Sobrescreve o FirebaseConfig vazio registrado por AddJTUserInterface com a instância configurada
+        services.AddSingleton(FirebaseConfig.Instancia);
 
         // Remove o GestaoMenuProvider padrão para não exibir as páginas descontinuadas (/gestao/edw e /gestao/indicadores)
         var gestaoProviderDescriptor = services.FirstOrDefault(d =>

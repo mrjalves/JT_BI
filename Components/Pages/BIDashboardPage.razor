@@ -391,7 +391,7 @@ else
                                 <div class="row g-3">
                                     @foreach (var widget in DashboardAtivo.Widgets)
                                     {
-                                        <div class="@ObterClasseGridWidget(widget.LarguraColunas) transition-all" key="@widget.Id">
+                                        <div class="@ObterClasseGridWidget(widget.LarguraColunas) transition-all" @key="widget.Id">
                                             <BIWidgetView Widget="widget"
                                                           IsEditor="true"
                                                           IsSelected="@(WidgetSelecionado?.Id == widget.Id)"
@@ -1597,17 +1597,18 @@ else
     private void AjustarFonteWidgetSelecionado()
     {
         if (WidgetSelecionado == null) return;
-        var fonte = fontesMineracao.FirstOrDefault(f => f.Id == WidgetSelecionado.FonteDadosId);
+        var fonteId = WidgetSelecionado.FonteDadosId ?? string.Empty;
+        var fonte = fontesMineracao.FirstOrDefault(f => f.Id == fonteId);
         if (fonte != null)
         {
             WidgetSelecionado.OrigemId = fonte.OrigemId;
             WidgetSelecionado.MetricaCampo = fonte.Metricas.FirstOrDefault() ?? "Valor";
             WidgetSelecionado.DimensaoCampo = fonte.Dimensoes.FirstOrDefault() ?? "Categoria";
         }
-        else if (WidgetSelecionado.FonteDadosId.StartsWith("dataset_", StringComparison.OrdinalIgnoreCase))
+        else if (fonteId.StartsWith("dataset_", StringComparison.OrdinalIgnoreCase))
         {
             WidgetSelecionado.OrigemId = null;
-            var ds = datasetsDisponiveis.FirstOrDefault(d => $"dataset_{d.Id}" == WidgetSelecionado.FonteDadosId);
+            var ds = datasetsDisponiveis.FirstOrDefault(d => $"dataset_{d.Id}" == fonteId);
             if (ds != null)
             {
                 var colNum = ds.Colunas.FirstOrDefault(c => c.TipoDado == "Numero") ?? ds.Colunas.FirstOrDefault();
@@ -1621,18 +1622,20 @@ else
     private IEnumerable<string> ObterMetricasFonteWidget()
     {
         if (WidgetSelecionado == null) return Enumerable.Empty<string>();
-        var fonte = fontesMineracao.FirstOrDefault(f => f.Id == WidgetSelecionado.FonteDadosId);
+        var fonteId = WidgetSelecionado.FonteDadosId ?? string.Empty;
+        var fonte = fontesMineracao.FirstOrDefault(f => f.Id == fonteId);
         if (fonte != null) return fonte.Metricas;
-        var ds = datasetsDisponiveis.FirstOrDefault(d => $"dataset_{d.Id}" == WidgetSelecionado.FonteDadosId);
+        var ds = datasetsDisponiveis.FirstOrDefault(d => $"dataset_{d.Id}" == fonteId);
         return ds?.Colunas.Select(c => c.Nome) ?? Enumerable.Empty<string>();
     }
 
     private IEnumerable<string> ObterDimensoesFonteWidget()
     {
         if (WidgetSelecionado == null) return Enumerable.Empty<string>();
-        var fonte = fontesMineracao.FirstOrDefault(f => f.Id == WidgetSelecionado.FonteDadosId);
+        var fonteId = WidgetSelecionado.FonteDadosId ?? string.Empty;
+        var fonte = fontesMineracao.FirstOrDefault(f => f.Id == fonteId);
         if (fonte != null) return fonte.Dimensoes;
-        var ds = datasetsDisponiveis.FirstOrDefault(d => $"dataset_{d.Id}" == WidgetSelecionado.FonteDadosId);
+        var ds = datasetsDisponiveis.FirstOrDefault(d => $"dataset_{d.Id}" == fonteId);
         return ds?.Colunas.Select(c => c.Nome) ?? Enumerable.Empty<string>();
     }
 

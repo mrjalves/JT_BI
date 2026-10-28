@@ -1,19 +1,6 @@
 @layout JT_UserInterface.Shared.Layout.MainLayout
 @inherits LayoutComponentBase
-@inject NavigationManager Nav
 
 @Body
 
 <JT_BI.Components.BI.BIImportHost />
-
-@code {
-    protected override void OnParametersSet()
-    {
-        var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].Trim('/');
-        if (string.Equals(path, "/gestao/edw", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(path, "/gestao/indicadores", StringComparison.OrdinalIgnoreCase))
-        {
-            Nav.NavigateTo("/", replace: true);
-        }
-    }
-}

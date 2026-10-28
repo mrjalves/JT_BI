@@ -384,14 +384,16 @@
     private void IniciarEdicao(MOrigemDados origem)
     {
         editando = origem;
-        classeSelecionada = origem.ClasseOrigem;
-        nome = origem.Nome;
+        classeSelecionada = origem.ClasseOrigem ?? string.Empty;
+        nome = origem.Nome ?? string.Empty;
         descricao = origem.Descricao ?? string.Empty;
-        incluirRelacionamentos = origem.Configuracao?.Relacionamentos.Count > 0;
+        incluirRelacionamentos = (origem.Configuracao?.Relacionamentos?.Count ?? 0) > 0;
         pendenteExclusaoId = null;
 
         colunasMarcadas = new HashSet<string>(
-            origem.Configuracao?.Colunas ?? entidadeSelecionada?.Colunas.Select(c => c.NomeColuna) ?? Enumerable.Empty<string>(),
+            origem.Configuracao?.Colunas
+                ?? entidadeSelecionada?.Colunas?.Select(c => c.NomeColuna)
+                ?? Enumerable.Empty<string>(),
             StringComparer.OrdinalIgnoreCase);
     }
 

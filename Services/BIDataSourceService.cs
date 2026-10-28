@@ -43,6 +43,8 @@ public class BIDataSourceService : IBIDataSourceService
     private readonly string _pastaDados;
     private readonly string _arquivoOrigens;
     private static readonly SemaphoreSlim _lock = new(1, 1);
+    private static List<MOrigemDados>? _cacheOrigens;
+    private static readonly Dictionary<int, List<Dictionary<string, string>>> _cacheLinhasMemoria = new();
 
     private static readonly string[] Cores =
     {
@@ -68,56 +70,104 @@ public class BIDataSourceService : IBIDataSourceService
         _origemDadosService = origemDadosService;
         _dwConsultaService = dwConsultaService;
         _httpClient = httpClient;
-        _pastaDados = Path.Combine(env.ContentRootPath, "Data");
-        Directory.CreateDirectory(_pastaDados);
+
+        try
+        {
+            _pastaDados = Path.Combine(env.ContentRootPath, "Data");
+            if (!Directory.Exists(_pastaDados))
+                Directory.CreateDirectory(_pastaDados);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[BIDataSourceService] Fallback de diretório devido a permissões: {ex.Message}");
+            _pastaDados = Path.Combine(Path.GetTempPath(), "JT_BI_Data");
+            try
+            {
+                if (!Directory.Exists(_pastaDados))
+                    Directory.CreateDirectory(_pastaDados);
+            }
+            catch { }
+        }
+
         _arquivoOrigens = Path.Combine(_pastaDados, "origens_edw.json");
+    }
+
+    private string ConstruirUrlApi(string rotaRelativa)
+    {
+        if (rotaRelativa.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            rotaRelativa.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return rotaRelativa;
+
+        if (!rotaRelativa.StartsWith('/'))
+            rotaRelativa = "/" + rotaRelativa;
+
+        if (_httpClient.BaseAddress != null)
+            return $"{_httpClient.BaseAddress.ToString().TrimEnd('/')}{rotaRelativa}";
+
+        var baseUrl = JT_Aplicacao.Config.Config.Instancia?.Conexao?.BaseApiUrl
+            ?? JT_Aplicacao.Config.Config.Instancia?.FirebaseConfig?.BaseApiUrl
+            ?? JT_Aplicacao.Config.FirebaseConfig.Instancia?.BaseApiUrl
+            ?? "https://api.jtecsistemas.com.br";
+
+        return $"{baseUrl.TrimEnd('/')}{rotaRelativa}";
     }
 
     public Task<List<EntidadeModeloDto>> ObterCatalogoEntidadesAsync()
     {
-        // Garante que o assembly JT_Classes esteja carregado no AppDomain
         var jtClassesAssembly = typeof(MOrigemDados).Assembly;
-        var assemblies = AppDomain.CurrentDomain.GetAssemblies()
-            .Append(jtClassesAssembly)
-            .Distinct()
-            .ToList();
-
-        var tipos = assemblies
-            .SelectMany(a =>
-            {
-                try { return a.GetTypes(); }
-                catch { return Array.Empty<Type>(); }
-            })
-            .Where(t => t.IsClass && !t.IsAbstract && t.GetCustomAttribute<NomeTabelaAttribute>() != null)
-            .OrderBy(t => t.Name)
-            .ToList();
+        Type[] todosTipos;
+        try
+        {
+            todosTipos = jtClassesAssembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            todosTipos = ex.Types.Where(t => t != null).Cast<Type>().ToArray();
+        }
+        catch
+        {
+            todosTipos = Array.Empty<Type>();
+        }
 
         var catalogo = new List<EntidadeModeloDto>();
 
-        foreach (var tipo in tipos)
+        foreach (var tipo in todosTipos.OrderBy(t => t.Name))
         {
-            var tabelaAttr = tipo.GetCustomAttribute<NomeTabelaAttribute>()!;
-            if (string.IsNullOrWhiteSpace(tabelaAttr.Nome) || TabelasInternasIgnoradas.Contains(tabelaAttr.Nome))
-                continue;
-
-            var modulos = tipo.GetCustomAttributes<ModuloAttribute>()
-                .Select(m => (int)m.Modulo)
-                .ToList();
-
-            var colunas = ExtrairColunas(tipo);
-            if (colunas.Count == 0)
-                continue;
-
-            var relacoes = ExtrairRelacionamentos(tipo);
-
-            catalogo.Add(new EntidadeModeloDto
+            try
             {
-                Classe = $"{tipo.FullName}, {tipo.Assembly.GetName().Name}",
-                Tabela = tabelaAttr.Nome,
-                Modulos = modulos,
-                Colunas = colunas,
-                Relacionamentos = relacoes
-            });
+                if (!tipo.IsClass || tipo.IsAbstract)
+                    continue;
+
+                var tabelaAttr = tipo.GetCustomAttributes(typeof(NomeTabelaAttribute), inherit: false)
+                    .OfType<NomeTabelaAttribute>()
+                    .FirstOrDefault();
+                if (tabelaAttr == null || string.IsNullOrWhiteSpace(tabelaAttr.Nome) || TabelasInternasIgnoradas.Contains(tabelaAttr.Nome))
+                    continue;
+
+                var modulos = tipo.GetCustomAttributes(typeof(ModuloAttribute), inherit: false)
+                    .OfType<ModuloAttribute>()
+                    .Select(m => (int)m.Modulo)
+                    .ToList();
+
+                var colunas = ExtrairColunas(tipo);
+                if (colunas.Count == 0)
+                    continue;
+
+                var relacoes = ExtrairRelacionamentos(tipo);
+
+                catalogo.Add(new EntidadeModeloDto
+                {
+                    Classe = $"{tipo.FullName}, {tipo.Assembly.GetName().Name}",
+                    Tabela = tabelaAttr.Nome,
+                    Modulos = modulos,
+                    Colunas = colunas,
+                    Relacionamentos = relacoes
+                });
+            }
+            catch
+            {
+                // Ignora tipos com atributos malformados sem interromper o catálogo
+            }
         }
 
         return Task.FromResult(catalogo
@@ -146,7 +196,7 @@ public class BIDataSourceService : IBIDataSourceService
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-            var resp = await _httpClient.GetAsync("/api/origemdados", cts.Token);
+            var resp = await _httpClient.GetAsync(ConstruirUrlApi("/api/origemdados"), cts.Token);
             if (resp.IsSuccessStatusCode)
             {
                 var remotas = await resp.Content.ReadFromJsonAsync<List<MOrigemDados>>(cancellationToken: cts.Token);
@@ -181,8 +231,8 @@ public class BIDataSourceService : IBIDataSourceService
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
             var resp = origem.Id <= 0
-                ? await _httpClient.PostAsJsonAsync("/api/origemdados", origem, cts.Token)
-                : await _httpClient.PutAsJsonAsync($"/api/origemdados/{origem.Id}", origem, cts.Token);
+                ? await _httpClient.PostAsJsonAsync(ConstruirUrlApi("/api/origemdados"), origem, cts.Token)
+                : await _httpClient.PutAsJsonAsync(ConstruirUrlApi($"/api/origemdados/{origem.Id}"), origem, cts.Token);
 
             if (resp.IsSuccessStatusCode && origem.Id <= 0)
             {
@@ -218,15 +268,20 @@ public class BIDataSourceService : IBIDataSourceService
         if (removido)
         {
             await SalvarOrigensLocaisAsync(locais);
-            var cacheFile = CaminhoCacheOrigem(origemId);
-            if (File.Exists(cacheFile))
-                File.Delete(cacheFile);
+            _cacheLinhasMemoria.Remove(origemId);
+            try
+            {
+                var cacheFile = CaminhoCacheOrigem(origemId);
+                if (File.Exists(cacheFile))
+                    File.Delete(cacheFile);
+            }
+            catch { }
         }
 
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-            var resp = await _httpClient.DeleteAsync($"/api/origemdados/{origemId}", cts.Token);
+            var resp = await _httpClient.DeleteAsync(ConstruirUrlApi($"/api/origemdados/{origemId}"), cts.Token);
             if (resp.IsSuccessStatusCode)
                 removido = true;
         }
@@ -297,9 +352,8 @@ public class BIDataSourceService : IBIDataSourceService
         foreach (var origem in origens)
         {
             var colunasBase = origem.Configuracao?.Colunas ?? new List<string>();
-            var colunasRelacionadas = origem.Configuracao?.Relacionamentos
-                .SelectMany(r => r.Colunas.Select(c => $"{r.Alias}_{c}"))
-                ?? Enumerable.Empty<string>();
+            var colunasRelacionadas = (origem.Configuracao?.Relacionamentos ?? Enumerable.Empty<OrigemRelacionamentoConfig>())
+                .SelectMany(r => (r.Colunas ?? Enumerable.Empty<string>()).Select(c => $"{r.Alias}_{c}"));
 
             var colunas = colunasBase
                 .Concat(colunasRelacionadas)
@@ -311,7 +365,7 @@ public class BIDataSourceService : IBIDataSourceService
             {
                 Id = $"origem_{origem.Id}",
                 OrigemId = origem.Id,
-                Nome = origem.Nome,
+                Nome = origem.Nome ?? $"Fonte #{origem.Id}",
                 Descricao = string.IsNullOrWhiteSpace(origem.Descricao)
                     ? $"Tabela: {origem.TabelaOrigem}"
                     : origem.Descricao,
@@ -332,30 +386,35 @@ public class BIDataSourceService : IBIDataSourceService
         BIWidget widget,
         List<BIDataset>? datasets = null)
     {
-        if (string.Equals(widget.FonteDadosId, "mineracao", StringComparison.OrdinalIgnoreCase))
+        var fonteId = widget.FonteDadosId ?? string.Empty;
+        if (string.Equals(fonteId, "mineracao", StringComparison.OrdinalIgnoreCase))
             return (widget.ValorAtual ?? 0, widget.VariacaoPercentual);
 
-        if (widget.FonteDadosId.StartsWith("dataset_", StringComparison.OrdinalIgnoreCase) && datasets != null)
+        if (fonteId.StartsWith("dataset_", StringComparison.OrdinalIgnoreCase) && datasets != null)
             return ObterValorKpiDataset(widget, datasets);
 
         if (!TentarObterOrigemId(widget, out var origemId))
             return ObterValorKpiDemonstrativo(widget);
 
-        var resultado = await _dwConsultaService.ConsultarAsync(new ConsultaDwRequest
+        try
         {
-            OrigemId = origemId,
-            ColunaValor = string.IsNullOrWhiteSpace(widget.MetricaCampo) ? null : widget.MetricaCampo,
-            ColunaData = widget.ColunaData,
-            Agregacao = MapearAgregacao(widget.Agregacao)
-        });
+            var resultado = await _dwConsultaService.ConsultarAsync(new ConsultaDwRequest
+            {
+                OrigemId = origemId,
+                ColunaValor = string.IsNullOrWhiteSpace(widget.MetricaCampo) ? null : widget.MetricaCampo,
+                ColunaData = widget.ColunaData,
+                Agregacao = MapearAgregacao(widget.Agregacao)
+            });
 
-        if (resultado.Sucesso && resultado.Pontos.Count > 0)
-            return (resultado.Pontos.FirstOrDefault()?.Valor ?? 0, null);
+            if (resultado.Sucesso && resultado.Pontos.Count > 0)
+                return (resultado.Pontos.FirstOrDefault()?.Valor ?? 0, null);
+        }
+        catch { }
 
         var linhasCache = await ObterLinhasCacheOuApiAsync(origemId);
         if (linhasCache.Count > 0)
         {
-            return (CalcularKpiDeLinhas(linhasCache, widget.MetricaCampo, widget.Agregacao), null);
+            return (CalcularKpiDeLinhas(linhasCache, widget.MetricaCampo ?? string.Empty, widget.Agregacao), null);
         }
 
         return (widget.ValorAtual ?? 0, widget.VariacaoPercentual);
@@ -365,10 +424,11 @@ public class BIDataSourceService : IBIDataSourceService
         BIWidget widget,
         List<BIDataset>? datasets = null)
     {
-        if (string.Equals(widget.FonteDadosId, "mineracao", StringComparison.OrdinalIgnoreCase))
+        var fonteId = widget.FonteDadosId ?? string.Empty;
+        if (string.Equals(fonteId, "mineracao", StringComparison.OrdinalIgnoreCase))
             return widget.DadosEstaticos;
 
-        if (widget.FonteDadosId.StartsWith("dataset_", StringComparison.OrdinalIgnoreCase) && datasets != null)
+        if (fonteId.StartsWith("dataset_", StringComparison.OrdinalIgnoreCase) && datasets != null)
             return ObterDadosDataset(widget, datasets);
 
         if (!TentarObterOrigemId(widget, out var origemId))
@@ -382,39 +442,43 @@ public class BIDataSourceService : IBIDataSourceService
         if (string.IsNullOrWhiteSpace(colunaDimensao))
             colunaDimensao = null;
 
-        var resultado = await _dwConsultaService.ConsultarAsync(new ConsultaDwRequest
+        try
         {
-            OrigemId = origemId,
-            ColunaValor = string.IsNullOrWhiteSpace(widget.MetricaCampo) ? null : widget.MetricaCampo,
-            ColunaDimensao = colunaDimensao,
-            ColunaData = widget.ColunaData,
-            Agregacao = MapearAgregacao(widget.Agregacao),
-            AgruparPorMes = agruparPorMes,
-            Limite = 20
-        });
-
-        if (resultado.Sucesso && resultado.Pontos.Count > 0)
-        {
-            var total = resultado.Pontos.Sum(p => p.Valor ?? 0);
-            var pontos = new List<BIDataPoint>();
-
-            for (var i = 0; i < resultado.Pontos.Count; i++)
+            var resultado = await _dwConsultaService.ConsultarAsync(new ConsultaDwRequest
             {
-                var ponto = resultado.Pontos[i];
-                var valor = ponto.Valor ?? 0;
+                OrigemId = origemId,
+                ColunaValor = string.IsNullOrWhiteSpace(widget.MetricaCampo) ? null : widget.MetricaCampo,
+                ColunaDimensao = colunaDimensao,
+                ColunaData = widget.ColunaData,
+                Agregacao = MapearAgregacao(widget.Agregacao),
+                AgruparPorMes = agruparPorMes,
+                Limite = 20
+            });
 
-                pontos.Add(new BIDataPoint
+            if (resultado.Sucesso && resultado.Pontos.Count > 0)
+            {
+                var total = resultado.Pontos.Sum(p => p.Valor ?? 0);
+                var pontos = new List<BIDataPoint>();
+
+                for (var i = 0; i < resultado.Pontos.Count; i++)
                 {
-                    Rotulo = ponto.Rotulo,
-                    Valor = valor,
-                    ValorFormatado = FormatarValor(valor, widget.FormatoValor),
-                    Cor = Cores[i % Cores.Length],
-                    Percentual = total == 0 ? 0 : Math.Round(valor / total * 100, 2)
-                });
-            }
+                    var ponto = resultado.Pontos[i];
+                    var valor = ponto.Valor ?? 0;
 
-            return pontos;
+                    pontos.Add(new BIDataPoint
+                    {
+                        Rotulo = ponto.Rotulo,
+                        Valor = valor,
+                        ValorFormatado = FormatarValor(valor, widget.FormatoValor),
+                        Cor = Cores[i % Cores.Length],
+                        Percentual = total == 0 ? 0 : Math.Round(valor / total * 100, 2)
+                    });
+                }
+
+                return pontos;
+            }
         }
+        catch { }
 
         var linhasCache = await ObterLinhasCacheOuApiAsync(origemId);
         if (linhasCache.Count > 0)
@@ -430,22 +494,26 @@ public class BIDataSourceService : IBIDataSourceService
         List<string> colunas,
         int limite = 1000)
     {
-        var resultado = await _dwConsultaService.ObterAmostraAsync(new DwAmostraRequest
+        try
         {
-            OrigemId = origemId,
-            Colunas = colunas,
-            Limite = limite
-        });
+            var resultado = await _dwConsultaService.ObterAmostraAsync(new DwAmostraRequest
+            {
+                OrigemId = origemId,
+                Colunas = colunas,
+                Limite = limite
+            });
 
-        if (resultado.Sucesso && resultado.Linhas.Count > 0)
-        {
-            return resultado.Linhas
-                .Select(linha => linha.ToDictionary(
-                    par => par.Key,
-                    par => par.Value ?? string.Empty,
-                    StringComparer.OrdinalIgnoreCase))
-                .ToList();
+            if (resultado.Sucesso && resultado.Linhas.Count > 0)
+            {
+                return resultado.Linhas
+                    .Select(linha => linha.ToDictionary(
+                        par => par.Key,
+                        par => par.Value ?? string.Empty,
+                        StringComparer.OrdinalIgnoreCase))
+                    .ToList();
+            }
         }
+        catch { }
 
         var linhasCache = await ObterLinhasCacheOuApiAsync(origemId);
         return linhasCache.Take(limite).ToList();
@@ -453,6 +521,9 @@ public class BIDataSourceService : IBIDataSourceService
 
     private async Task<List<Dictionary<string, string>>> ObterLinhasCacheOuApiAsync(int origemId)
     {
+        if (_cacheLinhasMemoria.TryGetValue(origemId, out var mem) && mem.Count > 0)
+            return mem;
+
         var caminho = CaminhoCacheOrigem(origemId);
         if (File.Exists(caminho))
         {
@@ -461,7 +532,10 @@ public class BIDataSourceService : IBIDataSourceService
                 var json = await File.ReadAllTextAsync(caminho);
                 var lista = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(json);
                 if (lista is { Count: > 0 })
+                {
+                    _cacheLinhasMemoria[origemId] = lista;
                     return lista;
+                }
             }
             catch { }
         }
@@ -495,7 +569,7 @@ public class BIDataSourceService : IBIDataSourceService
             try
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-                var resp = await _httpClient.GetAsync(rota, cts.Token);
+                var resp = await _httpClient.GetAsync(ConstruirUrlApi(rota), cts.Token);
                 if (!resp.IsSuccessStatusCode)
                     continue;
 
@@ -620,6 +694,7 @@ public class BIDataSourceService : IBIDataSourceService
 
     private async Task SalvarCacheOrigemAsync(int origemId, List<Dictionary<string, string>> linhas)
     {
+        _cacheLinhasMemoria[origemId] = linhas;
         try
         {
             var json = JsonSerializer.Serialize(linhas);
@@ -633,15 +708,22 @@ public class BIDataSourceService : IBIDataSourceService
         await _lock.WaitAsync();
         try
         {
+            if (_cacheOrigens != null)
+                return _cacheOrigens.ToList();
+
             if (!File.Exists(_arquivoOrigens))
+            {
+                _cacheOrigens = new List<MOrigemDados>();
                 return new List<MOrigemDados>();
+            }
 
             var json = await File.ReadAllTextAsync(_arquivoOrigens);
-            return JsonSerializer.Deserialize<List<MOrigemDados>>(json) ?? new List<MOrigemDados>();
+            _cacheOrigens = JsonSerializer.Deserialize<List<MOrigemDados>>(json) ?? new List<MOrigemDados>();
+            return _cacheOrigens.ToList();
         }
         catch
         {
-            return new List<MOrigemDados>();
+            return _cacheOrigens?.ToList() ?? new List<MOrigemDados>();
         }
         finally
         {
@@ -654,8 +736,13 @@ public class BIDataSourceService : IBIDataSourceService
         await _lock.WaitAsync();
         try
         {
+            _cacheOrigens = origens.ToList();
             var json = JsonSerializer.Serialize(origens, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(_arquivoOrigens, json);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[BIDataSourceService] Aviso ao gravar origens no disco: {ex.Message}");
         }
         finally
         {
@@ -670,26 +757,39 @@ public class BIDataSourceService : IBIDataSourceService
 
         foreach (var p in props)
         {
-            var colAttr = p.GetCustomAttribute<NomeColunaAttribute>();
-            var pkAttr = p.GetCustomAttribute<ChavePrimariaAttribute>();
-            var fkAttr = p.GetCustomAttribute<ChaveEstrangeiraAttribute>();
-            if (colAttr == null && pkAttr == null)
-                continue;
-
-            var nomeColuna = colAttr?.Nome?.Trim() ?? p.Name;
-            if (colunas.Any(c => string.Equals(c.NomeColuna, nomeColuna, StringComparison.OrdinalIgnoreCase)))
-                continue;
-
-            var clrType = Nullable.GetUnderlyingType(p.PropertyType) ?? p.PropertyType;
-            colunas.Add(new ColunaModeloDto
+            try
             {
-                Propriedade = p.Name,
-                NomeColuna = nomeColuna,
-                TipoClr = clrType.Name,
-                EhPk = pkAttr != null,
-                EhFk = fkAttr != null,
-                Referencia = fkAttr?.Referencia
-            });
+                if (p.GetIndexParameters().Length > 0)
+                    continue;
+
+                var colAttr = p.GetCustomAttributes(typeof(NomeColunaAttribute), inherit: true)
+                    .OfType<NomeColunaAttribute>()
+                    .FirstOrDefault();
+                var pkAttr = p.GetCustomAttributes(typeof(ChavePrimariaAttribute), inherit: true)
+                    .OfType<ChavePrimariaAttribute>()
+                    .FirstOrDefault();
+                var fkAttr = p.GetCustomAttributes(typeof(ChaveEstrangeiraAttribute), inherit: true)
+                    .OfType<ChaveEstrangeiraAttribute>()
+                    .FirstOrDefault();
+                if (colAttr == null && pkAttr == null)
+                    continue;
+
+                var nomeColuna = colAttr?.Nome?.Trim() ?? p.Name;
+                if (colunas.Any(c => string.Equals(c.NomeColuna, nomeColuna, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                var clrType = Nullable.GetUnderlyingType(p.PropertyType) ?? p.PropertyType;
+                colunas.Add(new ColunaModeloDto
+                {
+                    Propriedade = p.Name,
+                    NomeColuna = nomeColuna,
+                    TipoClr = clrType.Name,
+                    EhPk = pkAttr != null,
+                    EhFk = fkAttr != null,
+                    Referencia = fkAttr?.Referencia
+                });
+            }
+            catch { }
         }
 
         return colunas;
@@ -702,35 +802,44 @@ public class BIDataSourceService : IBIDataSourceService
 
         foreach (var p in props)
         {
-            var rel = p.GetCustomAttribute<RelacionamentoAttribute>();
-            if (rel == null)
-                continue;
-
-            Type? tipoAlvo = null;
-            if (rel.TipoRelacionamento == TipoRelacionamento.Agregacao)
+            try
             {
-                tipoAlvo = p.PropertyType;
+                var rel = p.GetCustomAttributes(typeof(RelacionamentoAttribute), inherit: false)
+                    .OfType<RelacionamentoAttribute>()
+                    .FirstOrDefault();
+                if (rel == null)
+                    continue;
+
+                Type? tipoAlvo = null;
+                if (rel.TipoRelacionamento == TipoRelacionamento.Agregacao)
+                {
+                    tipoAlvo = p.PropertyType;
+                }
+                else if (rel.TipoRelacionamento == TipoRelacionamento.Composicao)
+                {
+                    tipoAlvo = p.PropertyType.IsGenericType
+                        ? p.PropertyType.GetGenericArguments().FirstOrDefault()
+                        : p.PropertyType.GetElementType();
+                }
+
+                if (tipoAlvo == null)
+                    continue;
+
+                var tabelaAlvo = tipoAlvo.GetCustomAttributes(typeof(NomeTabelaAttribute), inherit: false)
+                    .OfType<NomeTabelaAttribute>()
+                    .FirstOrDefault()?.Nome ?? tipoAlvo.Name;
+
+                relacoes.Add(new RelacionamentoModeloDto
+                {
+                    Propriedade = p.Name,
+                    TipoRelacionamento = rel.TipoRelacionamento.ToString(),
+                    PropriedadeChaveEstrangeira = rel.PropriedadeChaveEstrangeira,
+                    ClasseAlvo = $"{tipoAlvo.FullName}, {tipoAlvo.Assembly.GetName().Name}",
+                    TabelaAlvo = tabelaAlvo,
+                    Colunas = ExtrairColunas(tipoAlvo)
+                });
             }
-            else if (rel.TipoRelacionamento == TipoRelacionamento.Composicao)
-            {
-                tipoAlvo = p.PropertyType.IsGenericType
-                    ? p.PropertyType.GetGenericArguments().FirstOrDefault()
-                    : p.PropertyType.GetElementType();
-            }
-
-            if (tipoAlvo == null)
-                continue;
-
-            var tabelaAlvo = tipoAlvo.GetCustomAttribute<NomeTabelaAttribute>()?.Nome ?? tipoAlvo.Name;
-            relacoes.Add(new RelacionamentoModeloDto
-            {
-                Propriedade = p.Name,
-                TipoRelacionamento = rel.TipoRelacionamento.ToString(),
-                PropriedadeChaveEstrangeira = rel.PropriedadeChaveEstrangeira,
-                ClasseAlvo = $"{tipoAlvo.FullName}, {tipoAlvo.Assembly.GetName().Name}",
-                TabelaAlvo = tabelaAlvo,
-                Colunas = ExtrairColunas(tipoAlvo)
-            });
+            catch { }
         }
 
         return relacoes;
@@ -746,8 +855,9 @@ public class BIDataSourceService : IBIDataSourceService
             return true;
         }
 
-        if (widget.FonteDadosId.StartsWith("origem_", StringComparison.OrdinalIgnoreCase) &&
-            int.TryParse(widget.FonteDadosId["origem_".Length..], out origemId))
+        var fonteId = widget.FonteDadosId ?? string.Empty;
+        if (fonteId.StartsWith("origem_", StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(fonteId["origem_".Length..], out origemId))
             return true;
 
         return false;
