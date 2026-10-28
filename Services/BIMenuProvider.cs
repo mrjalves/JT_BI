@@ -17,9 +17,11 @@ public class BIMenuProvider : IModuloMenuProvider, IMenuProvider
         {
             new SModuloMenu
             {
-                NomeModulo = "Business Intelligence",
+                NomeModulo = "BI",
                 Icone = "bi-speedometer2",
-                Modulo = eModuloSistema.Gestao,
+                // Usa um valor de enum distinto de eModuloSistema.Gestao para que o NavMenu
+                // (que agrupa o estado aberto por Modulo.ToString()) não abra o menu de BI ao clicar em Gestão.
+                Modulo = (eModuloSistema)14,
                 Itens = new List<SItemMenu>
                 {
                     new SItemMenu

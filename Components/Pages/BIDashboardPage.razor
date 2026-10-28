@@ -2,6 +2,7 @@
 @page "/bi"
 @page "/bidashboard"
 @page "/home"
+@page "/dashboards/editor/{DashboardId:guid}"
 @rendermode InteractiveServer
 @implements IDisposable
 
@@ -394,6 +395,7 @@ else
                                             <BIWidgetView Widget="widget"
                                                           IsEditor="true"
                                                           IsSelected="@(WidgetSelecionado?.Id == widget.Id)"
+                                                          Datasets="datasetsDisponiveis"
                                                           OnEdit="() => SelecionarWidget(widget)"
                                                           OnDelete="() => RemoverWidget(widget.Id)" />
                                         </div>
@@ -509,6 +511,76 @@ else
                                         <div>
                                             <label class="form-label small fw-semibold text-secondary">Subtítulo / Descrição</label>
                                             <input type="text" class="form-control form-control-sm rounded-3" @bind="WidgetSelecionado.Subtitulo" />
+                                        </div>
+
+                                        <div>
+                                            <label class="form-label small fw-semibold text-secondary">Tipo de Widget</label>
+                                            <select class="form-select form-select-sm rounded-3" @bind="WidgetSelecionado.Tipo">
+                                                <option value="@BIWidgetTipo.CardKpi">Card Indicador (KPI)</option>
+                                                <option value="@BIWidgetTipo.GraficoBarras">Gráfico de Barras</option>
+                                                <option value="@BIWidgetTipo.GraficoLinhas">Gráfico de Linhas</option>
+                                                <option value="@BIWidgetTipo.GraficoPizza">Gráfico de Pizza</option>
+                                                <option value="@BIWidgetTipo.Tabela">Tabela Analítica</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label class="form-label small fw-semibold text-secondary">Fonte de Dados</label>
+                                            <select class="form-select form-select-sm rounded-3" @bind="WidgetSelecionado.FonteDadosId" @bind:after="AjustarFonteWidgetSelecionado">
+                                                @foreach (var f in fontesMineracao)
+                                                {
+                                                    <option value="@f.Id">@f.Nome</option>
+                                                }
+                                                @foreach (var ds in datasetsDisponiveis)
+                                                {
+                                                    <option value="@($"dataset_{ds.Id}")">Dataset: @ds.Nome</option>
+                                                }
+                                            </select>
+                                        </div>
+
+                                        <div class="row g-2">
+                                            <div class="col-6">
+                                                <label class="form-label small fw-semibold text-secondary">Métrica (Valor)</label>
+                                                <input type="text" class="form-control form-control-sm rounded-3" list="metricasInspector" @bind="WidgetSelecionado.MetricaCampo" />
+                                                <datalist id="metricasInspector">
+                                                    @foreach (var m in ObterMetricasFonteWidget())
+                                                    {
+                                                        <option value="@m"></option>
+                                                    }
+                                                </datalist>
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small fw-semibold text-secondary">Dimensão (Eixo)</label>
+                                                <input type="text" class="form-control form-control-sm rounded-3" list="dimensoesInspector" @bind="WidgetSelecionado.DimensaoCampo" />
+                                                <datalist id="dimensoesInspector">
+                                                    @foreach (var d in ObterDimensoesFonteWidget())
+                                                    {
+                                                        <option value="@d"></option>
+                                                    }
+                                                </datalist>
+                                            </div>
+                                        </div>
+
+                                        <div class="row g-2">
+                                            <div class="col-6">
+                                                <label class="form-label small fw-semibold text-secondary">Agregação</label>
+                                                <select class="form-select form-select-sm rounded-3" @bind="WidgetSelecionado.Agregacao">
+                                                    <option value="Soma">Soma</option>
+                                                    <option value="Media">Média</option>
+                                                    <option value="Contagem">Contagem</option>
+                                                    <option value="Max">Máximo</option>
+                                                    <option value="Min">Mínimo</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small fw-semibold text-secondary">Formato</label>
+                                                <select class="form-select form-select-sm rounded-3" @bind="WidgetSelecionado.FormatoValor">
+                                                    <option value="Moeda">Moeda (R$)</option>
+                                                    <option value="Numero">Número</option>
+                                                    <option value="Percentual">Percentual (%)</option>
+                                                    <option value="Decimal">Decimal</option>
+                                                </select>
+                                            </div>
                                         </div>
 
                                         <div>
@@ -742,7 +814,10 @@ else
         public DateTime Horario { get; set; } = DateTime.Now;
     }
 
+    [Parameter] public Guid? DashboardId { get; set; }
+
     private List<BIDashboard> ListaDashboards = new();
+    private List<BIDataset> datasetsDisponiveis = new();
     private BIDashboard? DashboardAtivo;
     private BIWidget? WidgetSelecionado;
     private bool IsCarregando = true;
@@ -843,6 +918,26 @@ else
         }
     }
 
+    protected override async Task OnParametersSetAsync()
+    {
+        if (TemAcesso && DashboardId.HasValue && DashboardAtivo?.Id != DashboardId.Value)
+        {
+            var contexto = BIUsuarioContexto.De(UserState);
+            var selecionado = ListaDashboards.FirstOrDefault(d => d.Id == DashboardId.Value)
+                ?? await DashboardService.ObterAcessivelAsync(DashboardId.Value, contexto);
+
+            if (selecionado != null)
+            {
+                if (ListaDashboards.All(d => d.Id != selecionado.Id))
+                {
+                    ListaDashboards.Insert(0, selecionado);
+                }
+                DashboardAtivo = selecionado;
+                WidgetSelecionado = null;
+            }
+        }
+    }
+
     public void Dispose()
     {
         if (_stateChangedHandler != null)
@@ -921,12 +1016,28 @@ else
             }
 
             var contexto = BIUsuarioContexto.De(UserState);
+            datasetsDisponiveis = await DashboardService.ObterDatasetsVisiveisAsync(contexto);
             ListaDashboards = await DashboardService.ObterVisiveisAsync(contexto);
-            if (ListaDashboards.Any())
+            if (DashboardId.HasValue)
+            {
+                var selecionado = ListaDashboards.FirstOrDefault(d => d.Id == DashboardId.Value)
+                    ?? await DashboardService.ObterAcessivelAsync(DashboardId.Value, contexto);
+
+                if (selecionado != null)
+                {
+                    if (ListaDashboards.All(d => d.Id != selecionado.Id))
+                    {
+                        ListaDashboards.Insert(0, selecionado);
+                    }
+                    DashboardAtivo = selecionado;
+                }
+            }
+
+            if (DashboardAtivo == null && ListaDashboards.Any())
             {
                 DashboardAtivo = ListaDashboards.First();
             }
-            else
+            else if (DashboardAtivo == null)
             {
                 DashboardAtivo = new BIDashboard
                 {
@@ -937,6 +1048,15 @@ else
                 };
                 await DashboardService.SalvarAsync(DashboardAtivo, contexto);
                 ListaDashboards.Add(DashboardAtivo);
+            }
+
+            if (DashboardAtivo.DatasetsVinculadosIds.Count > 0)
+            {
+                var vinculados = await DashboardService.ObterDatasetsPorIdsAsync(DashboardAtivo.DatasetsVinculadosIds);
+                foreach (var ds in vinculados.Where(d => datasetsDisponiveis.All(x => x.Id != d.Id)))
+                {
+                    datasetsDisponiveis.Add(ds);
+                }
             }
         }
         catch (Exception ex)
@@ -1207,14 +1327,26 @@ else
     }
 
     private Task AbrirImportacaoAsync()
-        => ImportUi.AbrirAsync(dash => InvokeAsync(() =>
+        => ImportUi.AbrirAsync(async dash =>
         {
-            TratarDashboardCriado(dash);
-            StateHasChanged();
-        }));
+            await TratarDashboardCriadoAsync(dash);
+            await InvokeAsync(StateHasChanged);
+        });
 
-    private void TratarDashboardCriado(BIDashboard novo)
+    private async Task TratarDashboardCriadoAsync(BIDashboard novo)
     {
+        var contexto = BIUsuarioContexto.De(UserState);
+        datasetsDisponiveis = await DashboardService.ObterDatasetsVisiveisAsync(contexto);
+        if (novo.DatasetsVinculadosIds.Count > 0)
+        {
+            var vinculados = await DashboardService.ObterDatasetsPorIdsAsync(novo.DatasetsVinculadosIds);
+            foreach (var ds in vinculados.Where(d => datasetsDisponiveis.All(x => x.Id != d.Id)))
+            {
+                datasetsDisponiveis.Add(ds);
+            }
+        }
+
+        ListaDashboards.RemoveAll(d => d.Id == novo.Id);
         ListaDashboards.Insert(0, novo);
         DashboardAtivo = novo;
         WidgetSelecionado = null;
@@ -1427,6 +1559,11 @@ else
     {
         if (DashboardAtivo == null) return;
 
+        var fonteInicial = fontesMineracao.FirstOrDefault();
+        var datasetVinculado = DashboardAtivo.DatasetsVinculadosIds.Count > 0
+            ? datasetsDisponiveis.FirstOrDefault(d => DashboardAtivo.DatasetsVinculadosIds.Contains(d.Id))
+            : null;
+
         var widget = new BIWidget
         {
             Id = Guid.NewGuid(),
@@ -1434,6 +1571,14 @@ else
             Titulo = ObterTituloPadraoPorTipo(tipo),
             LarguraColunas = tipo == BIWidgetTipo.CardKpi ? 4 : (tipo == BIWidgetTipo.Tabela ? 12 : 6),
             CorTema = "primary",
+            FonteDadosId = datasetVinculado != null ? $"dataset_{datasetVinculado.Id}" : (fonteInicial?.Id ?? "financeiro"),
+            OrigemId = datasetVinculado != null ? null : fonteInicial?.OrigemId,
+            MetricaCampo = datasetVinculado != null
+                ? (datasetVinculado.Colunas.FirstOrDefault(c => c.TipoDado == "Numero")?.Nome ?? datasetVinculado.Colunas.FirstOrDefault()?.Nome ?? "Valor")
+                : (fonteInicial?.Metricas.FirstOrDefault() ?? "Faturamento"),
+            DimensaoCampo = datasetVinculado != null
+                ? (datasetVinculado.Colunas.FirstOrDefault(c => c.TipoDado != "Numero")?.Nome ?? datasetVinculado.Colunas.LastOrDefault()?.Nome ?? "Categoria")
+                : (fonteInicial?.Dimensoes.FirstOrDefault() ?? "Mes"),
             ValorAtual = tipo == BIWidgetTipo.CardKpi ? 12450m : null
         };
 
@@ -1447,6 +1592,48 @@ else
     {
         WidgetSelecionado = widget;
         AbaDireitaAtiva = "propriedades";
+    }
+
+    private void AjustarFonteWidgetSelecionado()
+    {
+        if (WidgetSelecionado == null) return;
+        var fonte = fontesMineracao.FirstOrDefault(f => f.Id == WidgetSelecionado.FonteDadosId);
+        if (fonte != null)
+        {
+            WidgetSelecionado.OrigemId = fonte.OrigemId;
+            WidgetSelecionado.MetricaCampo = fonte.Metricas.FirstOrDefault() ?? "Valor";
+            WidgetSelecionado.DimensaoCampo = fonte.Dimensoes.FirstOrDefault() ?? "Categoria";
+        }
+        else if (WidgetSelecionado.FonteDadosId.StartsWith("dataset_", StringComparison.OrdinalIgnoreCase))
+        {
+            WidgetSelecionado.OrigemId = null;
+            var ds = datasetsDisponiveis.FirstOrDefault(d => $"dataset_{d.Id}" == WidgetSelecionado.FonteDadosId);
+            if (ds != null)
+            {
+                var colNum = ds.Colunas.FirstOrDefault(c => c.TipoDado == "Numero") ?? ds.Colunas.FirstOrDefault();
+                var colTxt = ds.Colunas.FirstOrDefault(c => c.TipoDado != "Numero") ?? ds.Colunas.LastOrDefault();
+                WidgetSelecionado.MetricaCampo = colNum?.Nome ?? string.Empty;
+                WidgetSelecionado.DimensaoCampo = colTxt?.Nome ?? string.Empty;
+            }
+        }
+    }
+
+    private IEnumerable<string> ObterMetricasFonteWidget()
+    {
+        if (WidgetSelecionado == null) return Enumerable.Empty<string>();
+        var fonte = fontesMineracao.FirstOrDefault(f => f.Id == WidgetSelecionado.FonteDadosId);
+        if (fonte != null) return fonte.Metricas;
+        var ds = datasetsDisponiveis.FirstOrDefault(d => $"dataset_{d.Id}" == WidgetSelecionado.FonteDadosId);
+        return ds?.Colunas.Select(c => c.Nome) ?? Enumerable.Empty<string>();
+    }
+
+    private IEnumerable<string> ObterDimensoesFonteWidget()
+    {
+        if (WidgetSelecionado == null) return Enumerable.Empty<string>();
+        var fonte = fontesMineracao.FirstOrDefault(f => f.Id == WidgetSelecionado.FonteDadosId);
+        if (fonte != null) return fonte.Dimensoes;
+        var ds = datasetsDisponiveis.FirstOrDefault(d => $"dataset_{d.Id}" == WidgetSelecionado.FonteDadosId);
+        return ds?.Colunas.Select(c => c.Nome) ?? Enumerable.Empty<string>();
     }
 
     private void RemoverWidget(Guid id)
