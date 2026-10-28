@@ -48,4 +48,7 @@ RUN mkdir -p /app/Data /app/logs && chown -R app:app /app/Data /app/logs
 # Usuário não-root para segurança
 USER app
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -fsS http://localhost:8080/health || wget -qO- http://localhost:8080/health || exit 1
+
 ENTRYPOINT ["dotnet", "JT_BI.dll"]

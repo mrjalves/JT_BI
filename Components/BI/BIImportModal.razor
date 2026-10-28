@@ -115,12 +115,12 @@
                         {
                             <div class="col-12">
                                 <div class="d-flex align-items-center justify-content-between mb-1">
-                                    <label class="form-label fw-semibold small text-muted mb-0">Cole os dados brutos:</label>
+                                    <label class="form-label fw-semibold small text-muted mb-0">Cole os dados brutos (até 500 KB; para arquivos até 10 MB use a aba Arquivo):</label>
                                     <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" @onclick="CarregarExemplo">
                                         <i class="bi bi-magic me-1"></i> Preencher Exemplo de Vendas
                                     </button>
                                 </div>
-                                <textarea class="form-control font-monospace" rows="7" @bind="conteudoBruto" @bind:after="DetectarFormato" placeholder="Cole aqui o conteúdo CSV ou JSON..." style="font-size: 0.82rem;"></textarea>
+                                <textarea class="form-control font-monospace" rows="7" maxlength="500000" @bind="conteudoBruto" @bind:after="DetectarFormato" placeholder="Cole aqui o conteúdo CSV ou JSON..." style="font-size: 0.82rem;"></textarea>
                             </div>
                         }
 

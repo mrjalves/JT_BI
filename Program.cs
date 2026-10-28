@@ -1,79 +1,68 @@
-using System.Text;
-using System.Text.Json;
-using JT_Aplicacao.Classes;
-using JT_Aplicacao.Config;
+using System.Net;
+using System.Threading.RateLimiting;
 using JT_BI.Components;
 using JT_BI.Services;
-using JT_Classes.Acessos;
-using JT_Servicos.Acessos;
-using JT_UserInterface.Shared;
 using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents()
+    .AddHubOptions(options =>
+    {
+        // Permite colar CSVs/JSONs maiores no BIImportModal sem derrubar o circuito SignalR (padrão é 32 KB)
+        options.MaximumReceiveMessageSize = 512 * 1024; // 512 KB
+    });
 
-// Carregar e inicializar instâncias estáticas do ecossistema JT
-var secaoConfig = builder.Configuration.GetSection("Config");
-var dadosConfig = secaoConfig.Get<Config>() ?? new Config
-{
-    ClientId = "JT_Sistemas",
-    TipoApp = "WEB",
-    Executor = "Sistema"
-};
-Config.SetInstancia(dadosConfig);
+builder.Services.AddHealthChecks();
 
-var secaoFConfig = builder.Configuration.GetSection("Config:FirebaseConfig");
-var dadosFConfig = secaoFConfig.Get<FirebaseConfig>() ?? new FirebaseConfig
+builder.Services.AddRateLimiter(options =>
 {
-    BaseApiUrl = "https://api.jtecsistemas.com.br",
-    DatabaseUrl = "https://api.jtecsistemas.com.br",
-    ProjetoId = "controlefinanceiro-35e2a",
-    ApiKey = "AIzaSyBMGBmvLhvar7rpys7NDvzEexbH_TZUEJs"
-};
-FirebaseConfig.SetInstancia(dadosFConfig);
-builder.Services.AddSingleton(FirebaseConfig.Instancia);
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 120,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+});
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownIPNetworks.Clear();
-    options.KnownProxies.Clear();
+    // Mantém apenas Loopback por padrão (127.0.0.1 / ::1) e adiciona proxies explicitamente configurados
+    var knownProxies = builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>();
+    if (knownProxies is not null)
+    {
+        foreach (var proxy in knownProxies)
+        {
+            if (IPAddress.TryParse(proxy, out var ip))
+            {
+                options.KnownProxies.Add(ip);
+            }
+        }
+    }
 });
 
-// Registrar Camada de Interface Compartilhada e Segurança
-builder.Services.AddScoped<ISecureStorageService, WebSecureStorageService>();
-builder.Services.AddJTUserInterface();
-
-// Injetar HttpClient com JwtAuthorizationHandler registrado pelo AddJTUserInterface
-builder.Services.AddScoped(sp =>
-{
-    var factory = sp.GetRequiredService<IHttpClientFactory>();
-    return factory.CreateClient(string.Empty);
-});
-builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
-builder.Services.AddScoped<JwtTokenService>();
-
-// Registrar Serviços do JT_BI
-builder.Services.AddScoped<JT_UserInterface.Shared.Services.Interfaces.Comum.IMenuProvider, BIMenuProvider>();
-builder.Services.AddScoped<JT_UserInterface.Shared.Services.Interfaces.Comum.IModuloMenuProvider, BIMenuProvider>();
-builder.Services.AddScoped<JT_UserInterface.Shared.Services.Interfaces.Comum.ITutorialProvider, BITutorialProvider>();
-builder.Services.AddSingleton<IBIDashboardService, BIDashboardService>();
-builder.Services.AddScoped<IBIDataSourceService, BIDataSourceService>();
-builder.Services.AddSingleton<IBIImportService, BIImportService>();
-builder.Services.AddSingleton<IBIDataMiningService, BIDataMiningService>();
-builder.Services.AddScoped<BIImportUiService>();
-builder.Services.AddScoped<PublicViewState>();
-builder.Services.AddScoped<JT_UserInterface.Shared.Services.Interfaces.Comum.IImportacaoDadosProvider, BIImportacaoProvider>();
-builder.Services.AddScoped<JT_Servicos.DW.OrigemDadosService>();
-builder.Services.AddScoped<JT_Servicos.DW.DwConsultaService>();
-builder.Services.AddScoped<JT_Servicos.DW.IndicadorDashboardService>();
+builder.Services.AddJTBI(builder.Configuration);
 
 var app = builder.Build();
 
 app.UseForwardedHeaders();
+
+// Cabeçalhos básicos de segurança HTTP
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.TryAdd("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.TryAdd("X-Frame-Options", "SAMEORIGIN");
+    context.Response.Headers.TryAdd("Referrer-Policy", "strict-origin-when-cross-origin");
+    await next();
+});
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -84,8 +73,10 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
+app.UseRateLimiter();
 app.UseAntiforgery();
 
+app.MapHealthChecks("/health").AllowAnonymous();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()

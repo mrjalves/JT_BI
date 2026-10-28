@@ -79,6 +79,7 @@ appsettings.Staging.json
 appsettings.*.local.json
 *.env
 *.env.*
+!.env.example
 *.pfx
 *.cer
 *.key

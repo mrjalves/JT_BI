@@ -1,18 +1,35 @@
 services:
   jt-bi:
-    image: jt-bi:latest
+    image: jt-bi:${IMAGE_TAG:-1.0.0}
     build:
       context: ..
       dockerfile: JT_BI/Dockerfile
     container_name: jt_bi_app
     restart: unless-stopped
     ports:
-      - "5020:8080"
+      - "127.0.0.1:5020:8080"
+    env_file:
+      - path: .env
+        required: false
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
+      - AllowedHosts=${ALLOWED_HOSTS:-bi.jtecsistemas.com.br;localhost;127.0.0.1}
       - Logging__LogLevel__Default=Information
       - Logging__LogLevel__Microsoft.AspNetCore=Warning
+      - Config__Ambiente=Producao
+      - Config__Conexao__BaseApiUrl=${JT_BASE_API_URL:-https://api.jtecsistemas.com.br}
+      - Config__Conexao__StringConexao=${JT_SQL_CONNECTION_STRING}
+      - Config__FirebaseConfig__BaseApiUrl=${JT_BASE_API_URL:-https://api.jtecsistemas.com.br}
+      - Config__FirebaseConfig__DatabaseUrl=${JT_BASE_API_URL:-https://api.jtecsistemas.com.br}
+      - Config__FirebaseConfig__ProjetoId=${JT_FIREBASE_PROJECT_ID}
+      - Config__FirebaseConfig__ApiKey=${JT_FIREBASE_API_KEY}
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:8080/health || wget -qO- http://localhost:8080/health || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     volumes:
       - ./logs:/app/logs
       - ./data:/app/Data
