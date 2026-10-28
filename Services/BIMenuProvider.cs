@@ -17,6 +17,19 @@ public class BIMenuProvider : IModuloMenuProvider, IMenuProvider
         {
             new SModuloMenu
             {
+                NomeModulo = "Gestão",
+                Icone = "bi-sliders",
+                Modulo = eModuloSistema.Gestao,
+                Itens = new List<SItemMenu>
+                {
+                    new SItemMenu { Url = "/gerenciar-categorias", Texto = "Categorias", Icone = "bi-tags-fill", Titulo = "Gerenciar Categorias" },
+                    new SItemMenu { Titulo = "Regras Negócio", Texto = "Regras Negócio", Url = "/regras", Icone = "bi-airplane-engines-fill" },
+                    new SItemMenu { Url = "/gestao/campos-personalizados", Texto = "Campos Adicionais", Icone = "bi-layout-text-sidebar-reverse", Titulo = "Campos Personalizados" },
+                    new SItemMenu { Url = "/gestao/migrador", Texto = "Migrador BD", Icone = "bi-database-gear", Titulo = "Migrador de Banco de Dados" }
+                }
+            },
+            new SModuloMenu
+            {
                 NomeModulo = "BI",
                 Icone = "bi-speedometer2",
                 // Usa um valor de enum distinto de eModuloSistema.Gestao para que o NavMenu

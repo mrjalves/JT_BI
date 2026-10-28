@@ -1,7 +1,11 @@
+@using JT_BI.Models
 @using JT_BI.Services
+@using JT_Classes.Acessos
 @using JT_Classes.DW
-@inject JT_Servicos.DW.OrigemDadosService OrigemService
-@inject NavigationManager Nav
+@inject IBIDataSourceService DataSourceService
+@inject IBIDashboardService DashboardService
+@inject BIImportUiService ImportUi
+@inject CurrentUserState UserState
 
 @if (IsOpen)
 {
@@ -11,11 +15,11 @@
                 <div class="modal-header bg-dark text-white p-3 border-0">
                     <div class="d-flex align-items-center gap-2">
                         <div class="p-2 bg-primary rounded-3 text-white">
-                            <i class="bi bi-database-gear"></i>
+                            <i class="bi bi-database-check"></i>
                         </div>
                         <div>
-                            <h5 class="modal-title fw-bold mb-0">Fontes de Dados (EDW)</h5>
-                            <small class="text-white-50">Crie, carregue e gerencie as conexões usadas no BI</small>
+                            <h5 class="modal-title fw-bold mb-0">Fontes de Dados do BI</h5>
+                            <small class="text-white-50">Conecte tabelas dos módulos do ecossistema JT ou importe planilhas externas</small>
                         </div>
                     </div>
                     <button type="button" class="btn-close btn-close-white" @onclick="Fechar"></button>
@@ -31,134 +35,168 @@
                     }
 
                     <div class="row g-4">
+                        <!-- Coluna Esquerda: Lista de Fontes Ativas -->
                         <div class="col-12 col-lg-7">
                             <div class="card border-0 shadow-sm rounded-4 h-100">
-                                <div class="card-header bg-body-tertiary border-0 py-3 d-flex align-items-center justify-content-between">
+                                <div class="card-header bg-body-tertiary border-0 py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
                                     <div>
-                                        <span class="fw-bold text-body">Origens conectadas</span>
-                                        <span class="badge bg-body-secondary text-body-secondary border ms-1">@origens.Count</span>
+                                        <span class="fw-bold text-body">Fontes Conectadas</span>
+                                        <span class="badge bg-primary-subtle text-primary border ms-1">@(origens.Count + datasets.Count)</span>
                                     </div>
-                                    <div class="d-flex gap-1">
-                                        <button class="btn btn-sm btn-outline-secondary rounded-3" @onclick="CarregarAsync" disabled="@carregando" title="Recarregar lista e modelo EDW">
-                                            <i class="bi bi-arrow-clockwise"></i>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-outline-success rounded-3" @onclick="AbrirImportacaoPlanilhaAsync" title="Importar arquivo CSV, JSON ou Link">
+                                            <i class="bi bi-file-earmark-arrow-up me-1"></i> Importar CSV / JSON
                                         </button>
-                                        <button class="btn btn-sm btn-primary rounded-3" @onclick="IniciarNova" disabled="@carregando">
-                                            <i class="bi bi-plus-lg me-1"></i> Nova
+                                        <button class="btn btn-sm btn-outline-secondary rounded-3" @onclick="CarregarAsync" disabled="@carregando" title="Atualizar lista">
+                                            <i class="bi bi-arrow-clockwise"></i>
                                         </button>
                                     </div>
                                 </div>
-                                <div class="card-body p-0">
+
+                                <div class="card-body p-3">
                                     @if (carregando)
                                     {
                                         <div class="text-center p-5">
                                             <div class="spinner-border text-primary" role="status"></div>
-                                            <p class="text-muted small mt-2 mb-0">Carregando origens e modelo de entidades...</p>
-                                        </div>
-                                    }
-                                    else if (origens.Count == 0)
-                                    {
-                                        <div class="text-center p-5">
-                                            <i class="bi bi-database-add text-muted" style="font-size: 2.5rem;"></i>
-                                            <p class="fw-semibold mt-2 mb-1">Nenhuma origem EDW cadastrada</p>
-                                            <p class="text-muted small">Use o formulário ao lado para criar a primeira fonte em poucos cliques.</p>
+                                            <p class="text-muted small mt-2 mb-0">Carregando catálogo de tabelas e fontes...</p>
                                         </div>
                                     }
                                     else
                                     {
-                                        <div class="table-responsive">
-                                            <table class="table table-sm align-middle mb-0">
-                                                <thead class="table-light">
-                                                    <tr>
-                                                        <th class="ps-3">Fonte</th>
-                                                        <th>Tabela</th>
-                                                        <th class="text-center">Linhas</th>
-                                                        <th class="text-end pe-3">Ações</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    @foreach (var origem in origens)
-                                                    {
-                                                        <tr class="@(editando?.Id == origem.Id ? "table-primary" : "")">
-                                                            <td class="ps-3">
-                                                                <div class="fw-semibold small">@origem.Nome</div>
-                                                                <div class="text-muted" style="font-size: 0.72rem;">
-                                                                    @(string.IsNullOrWhiteSpace(origem.Descricao) ? "Sem descrição" : origem.Descricao)
-                                                                </div>
-                                                                <div class="small mt-1">
-                                                                    @if (origem.UltimaExecucao.HasValue)
-                                                                    {
-                                                                        <span class="text-muted" style="font-size: 0.72rem;">
-                                                                            <i class="bi bi-clock-history me-1"></i>@origem.UltimaExecucao.Value.ToString("dd/MM/yyyy HH:mm")
-                                                                        </span>
-                                                                    }
-                                                                    @if (!string.IsNullOrWhiteSpace(origem.UltimaMensagem))
-                                                                    {
-                                                                        <span class="d-block @(origem.UltimaMensagem.StartsWith("Erro", StringComparison.OrdinalIgnoreCase) ? "text-danger" : "text-success")" style="font-size: 0.72rem;">
-                                                                            @origem.UltimaMensagem
-                                                                        </span>
-                                                                    }
-                                                                </div>
-                                                            </td>
-                                                            <td><code class="small">@origem.TabelaOrigem</code></td>
-                                                            <td class="text-center small">@origem.LinhasCarregadas</td>
-                                                            <td class="text-end pe-3">
-                                                                <div class="btn-group btn-group-sm">
-                                                                    <button class="btn btn-outline-success" title="Executar carga ETL"
-                                                                            disabled="@(executandoId == origem.Id)" @onclick="() => ExecutarAsync(origem)">
-                                                                        @if (executandoId == origem.Id)
-                                                                        {
-                                                                            <span class="spinner-border spinner-border-sm" role="status"></span>
-                                                                        }
-                                                                        else
-                                                                        {
-                                                                            <i class="bi bi-play-fill"></i>
-                                                                        }
-                                                                    </button>
-                                                                    <button class="btn btn-outline-primary" title="Editar origem" @onclick="() => IniciarEdicao(origem)">
-                                                                        <i class="bi bi-pencil-fill"></i>
-                                                                    </button>
-                                                                    <button class="btn @(pendenteExclusaoId == origem.Id ? "btn-danger" : "btn-outline-danger")"
-                                                                            title="@(pendenteExclusaoId == origem.Id ? "Confirmar exclusão" : "Excluir origem")"
-                                                                            @onclick="() => SolicitarExclusaoAsync(origem)">
-                                                                        <i class="bi @(pendenteExclusaoId == origem.Id ? "bi-check-lg" : "bi-trash")"></i>
-                                                                    </button>
-                                                                </div>
-                                                            </td>
+                                        @if (origens.Count == 0 && datasets.Count == 0)
+                                        {
+                                            <div class="text-center p-4 border border-dashed rounded-4 mb-3 bg-body-tertiary">
+                                                <i class="bi bi-database-add text-primary" style="font-size: 2.2rem;"></i>
+                                                <p class="fw-semibold mt-2 mb-1">Nenhuma tabela personalizada conectada ainda</p>
+                                                <p class="text-muted small mb-0">
+                                                    Escolha uma tabela do sistema no formulário à direita (ex.: <strong>Despesas</strong>, <strong>Contas</strong>, <strong>Comandas</strong>, <strong>Clientes</strong>) e clique em <strong>Conectar e Sincronizar</strong>.
+                                                </p>
+                                            </div>
+                                        }
+
+                                        @if (origens.Count > 0)
+                                        {
+                                            <div class="small fw-bold text-uppercase text-muted mb-2" style="font-size: 0.72rem;">
+                                                <i class="bi bi-table me-1"></i> Tabelas Conectadas (@origens.Count)
+                                            </div>
+                                            <div class="table-responsive mb-3">
+                                                <table class="table table-sm align-middle mb-0">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th class="ps-2">Fonte</th>
+                                                            <th>Tabela</th>
+                                                            <th class="text-center">Registros</th>
+                                                            <th class="text-end pe-2">Ações</th>
                                                         </tr>
-                                                    }
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach (var origem in origens)
+                                                        {
+                                                            <tr class="@(editando?.Id == origem.Id ? "table-primary" : "")">
+                                                                <td class="ps-2">
+                                                                    <div class="fw-semibold small">@origem.Nome</div>
+                                                                    <div class="text-muted" style="font-size: 0.72rem;">
+                                                                        @(string.IsNullOrWhiteSpace(origem.UltimaMensagem) ? (origem.Descricao ?? "Pronta para consulta") : origem.UltimaMensagem)
+                                                                    </div>
+                                                                </td>
+                                                                <td><code class="small">@origem.TabelaOrigem</code></td>
+                                                                <td class="text-center small">
+                                                                    <span class="badge bg-body-secondary text-body border">@origem.LinhasCarregadas</span>
+                                                                </td>
+                                                                <td class="text-end pe-2">
+                                                                    <div class="btn-group btn-group-sm">
+                                                                        <button class="btn btn-outline-success" title="Sincronizar dados agora"
+                                                                                disabled="@(executandoId == origem.Id)" @onclick="() => ExecutarAsync(origem)">
+                                                                            @if (executandoId == origem.Id)
+                                                                            {
+                                                                                <span class="spinner-border spinner-border-sm" role="status"></span>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <i class="bi bi-arrow-repeat"></i>
+                                                                            }
+                                                                        </button>
+                                                                        <button class="btn btn-outline-primary" title="Editar colunas e nome" @onclick="() => IniciarEdicao(origem)">
+                                                                            <i class="bi bi-pencil-fill"></i>
+                                                                        </button>
+                                                                        <button class="btn @(pendenteExclusaoId == origem.Id ? "btn-danger" : "btn-outline-danger")"
+                                                                                title="@(pendenteExclusaoId == origem.Id ? "Confirmar exclusão" : "Remover fonte")"
+                                                                                @onclick="() => SolicitarExclusaoAsync(origem)">
+                                                                            <i class="bi @(pendenteExclusaoId == origem.Id ? "bi-check-lg" : "bi-trash")"></i>
+                                                                        </button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        }
+
+                                        @if (datasets.Count > 0)
+                                        {
+                                            <div class="small fw-bold text-uppercase text-muted mb-2 mt-2" style="font-size: 0.72rem;">
+                                                <i class="bi bi-file-earmark-spreadsheet me-1"></i> Planilhas / Datasets Importados (@datasets.Count)
+                                            </div>
+                                            <div class="d-flex flex-column gap-2">
+                                                @foreach (var ds in datasets)
+                                                {
+                                                    <div class="d-flex align-items-center justify-content-between p-2 rounded-3 border bg-body-tertiary small">
+                                                        <div>
+                                                            <span class="fw-semibold">@ds.Nome</span>
+                                                            <span class="badge bg-success-subtle text-success ms-2">@ds.Origem</span>
+                                                            <span class="text-muted ms-2">@ds.QtdLinhas linhas · @ds.Colunas.Count colunas</span>
+                                                        </div>
+                                                        <span class="text-muted" style="font-size: 0.72rem;">@ds.DataImportacao.ToString("dd/MM/yyyy HH:mm")</span>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
                                     }
                                 </div>
                             </div>
                         </div>
 
+                        <!-- Coluna Direita: Conectar ou Editar Tabela do Sistema -->
                         <div class="col-12 col-lg-5">
                             <div class="card border-0 shadow-sm rounded-4">
-                                <div class="card-header bg-body-tertiary border-0 py-3">
-                                    <span class="fw-bold text-body">
-                                        @(editando == null ? "Criar fonte rápida" : "Editar fonte")
-                                    </span>
-                                    <div class="text-muted" style="font-size: 0.75rem;">
-                                        @(editando == null ? "Selecione a entidade e nós montamos as colunas e relacionamentos." : "Ajuste nome, descrição e relacionamentos. Para colunas específicas use o gerenciador avançado.")
+                                <div class="card-header bg-body-tertiary border-0 py-3 d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <span class="fw-bold text-body">
+                                            @(editando == null ? "Conectar Tabela do Sistema" : $"Editando: {editando.Nome}")
+                                        </span>
+                                        <div class="text-muted" style="font-size: 0.75rem;">
+                                            Selecione qualquer tabela dos módulos JT para usar nos gráficos e KPIs.
+                                        </div>
                                     </div>
+                                    @if (editando != null)
+                                    {
+                                        <button class="btn btn-xs btn-outline-secondary rounded-3" @onclick="IniciarNova">
+                                            + Nova
+                                        </button>
+                                    }
                                 </div>
+
                                 <div class="card-body">
                                     <div class="mb-3">
-                                        <label class="form-label fw-semibold small text-muted">Entidade / tabela de origem</label>
+                                        <label class="form-label fw-semibold small text-muted">1. Escolha a Tabela / Módulo</label>
                                         <select class="form-select form-select-sm" @bind="classeSelecionada" @bind:after="AoSelecionarClasse" disabled="@(editando != null)">
-                                            <option value="">Selecione uma entidade...</option>
-                                            @foreach (var entidade in modelo.OrderBy(m => m.Tabela))
+                                            <option value="">Selecione uma tabela do sistema...</option>
+                                            @foreach (var grupo in modelo.GroupBy(m => BIDataSourceService.ObterCategoriaModulo(m)))
                                             {
-                                                <option value="@entidade.Classe">@entidade.Tabela · @BIOrigemFactory.NomeSimples(entidade.Classe)</option>
+                                                <optgroup label="@grupo.Key">
+                                                    @foreach (var entidade in grupo.OrderBy(e => e.Tabela))
+                                                    {
+                                                        <option value="@entidade.Classe">@entidade.Tabela (@entidade.Colunas.Count colunas)</option>
+                                                    }
+                                                </optgroup>
                                             }
                                         </select>
                                     </div>
 
                                     <div class="mb-3">
-                                        <label class="form-label fw-semibold small text-muted">Nome da fonte</label>
-                                        <input class="form-control form-control-sm" @bind="nome" placeholder="Ex: Contas a Pagar" />
+                                        <label class="form-label fw-semibold small text-muted">2. Nome de exibição no BI</label>
+                                        <input class="form-control form-control-sm" @bind="nome" placeholder="Ex: Despesas Financeiras, Comandas do Restaurante..." />
                                     </div>
 
                                     <div class="mb-3">
@@ -169,52 +207,81 @@
                                     @if (entidadeSelecionada != null)
                                     {
                                         <div class="border rounded-3 bg-body-tertiary p-3 mb-3">
-                                            <div class="d-flex flex-wrap gap-2 mb-2">
-                                                <span class="badge bg-primary-subtle text-primary border">
-                                                    <i class="bi bi-columns-gap me-1"></i>@entidadeSelecionada.Colunas.Count colunas
-                                                </span>
-                                                <span class="badge bg-info-subtle text-info border">
-                                                    <i class="bi bi-diagram-3 me-1"></i>@entidadeSelecionada.Relacionamentos.Count relacionamentos
-                                                </span>
+                                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    <span class="badge bg-primary-subtle text-primary border">
+                                                        <i class="bi bi-columns-gap me-1"></i>@colunasMarcadas.Count/@entidadeSelecionada.Colunas.Count colunas
+                                                    </span>
+                                                    @if (entidadeSelecionada.Relacionamentos.Count > 0)
+                                                    {
+                                                        <span class="badge bg-info-subtle text-info border">
+                                                            <i class="bi bi-diagram-3 me-1"></i>@entidadeSelecionada.Relacionamentos.Count vínculos
+                                                        </span>
+                                                    }
+                                                </div>
+                                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none small"
+                                                        @onclick="() => exibirColunasAvancadas = !exibirColunasAvancadas">
+                                                    <i class="bi @(exibirColunasAvancadas ? "bi-chevron-up" : "bi-sliders") me-1"></i>
+                                                    @(exibirColunasAvancadas ? "Ocultar colunas" : "Escolher colunas")
+                                                </button>
                                             </div>
-                                            <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" id="chkRelacoes" @bind="incluirRelacionamentos" />
-                                                <label class="form-check-label small" for="chkRelacoes">
-                                                    Incluir relacionamentos automaticamente (LEFT JOINs com todas as colunas)
-                                                </label>
-                                            </div>
-                                        </div>
-                                    }
 
-                                    @if (editando != null)
-                                    {
-                                        <p class="text-muted mb-2" style="font-size: 0.75rem;">
-                                            <i class="bi bi-info-circle me-1"></i>
-                                            A seleção atual de colunas será preservada. Desmarque relacionamentos para removê-los.
-                                        </p>
-                                    }
+                                            @if (entidadeSelecionada.Relacionamentos.Count > 0)
+                                            {
+                                                <div class="form-check form-switch mb-1">
+                                                    <input class="form-check-input" type="checkbox" id="chkRelacoes" @bind="incluirRelacionamentos" />
+                                                    <label class="form-check-label small" for="chkRelacoes">
+                                                        Incluir dados das tabelas relacionadas automaticamente
+                                                    </label>
+                                                </div>
+                                            }
 
-                                    @if (modelo.Count == 0 && !carregando)
-                                    {
-                                        <div class="alert alert-warning py-2 small mb-3">
-                                            Nenhuma entidade disponível no modelo. Verifique a conexão com a API/banco de dados.
+                                            @if (exibirColunasAvancadas)
+                                            {
+                                                <div class="mt-2 pt-2 border-top" style="max-height: 170px; overflow-y: auto;">
+                                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                                        <span class="text-muted" style="font-size: 0.72rem;">Colunas disponíveis:</span>
+                                                        <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" style="font-size: 0.72rem;"
+                                                                @onclick="SelecionarTodasColunas">
+                                                            Marcar todas
+                                                        </button>
+                                                    </div>
+                                                    <div class="row g-1">
+                                                        @foreach (var col in entidadeSelecionada.Colunas)
+                                                        {
+                                                            <div class="col-6">
+                                                                <div class="form-check mb-0">
+                                                                    <input class="form-check-input" type="checkbox"
+                                                                           id="chk_col_@col.NomeColuna"
+                                                                           checked="@colunasMarcadas.Contains(col.NomeColuna)"
+                                                                           @onchange="e => AlternarColuna(col.NomeColuna, e.Value is true)" />
+                                                                    <label class="form-check-label text-truncate d-block" style="font-size: 0.75rem;" for="chk_col_@col.NomeColuna" title="@col.NomeColuna (@col.TipoClr)">
+                                                                        @col.NomeColuna
+                                                                    </label>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            }
                                         </div>
                                     }
 
                                     <div class="d-flex flex-wrap gap-2">
-                                        <button class="btn btn-sm btn-primary rounded-3" @onclick="() => SalvarAsync(false)" disabled="@(salvando || !PodeSalvar)">
+                                        <button class="btn btn-sm btn-primary rounded-3 flex-grow-1 py-2 fw-semibold"
+                                                @onclick="() => SalvarAsync(true)"
+                                                disabled="@(salvando || !PodeSalvar)">
                                             @if (salvando)
                                             {
                                                 <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                                             }
-                                            <i class="bi bi-save me-1"></i>@(editando == null ? "Criar fonte" : "Salvar alterações")
+                                            else
+                                            {
+                                                <i class="bi bi-lightning-charge-fill me-1"></i>
+                                            }
+                                            @(editando == null ? "Conectar e Sincronizar Fonte" : "Salvar e Sincronizar")
                                         </button>
-                                        @if (editando == null)
-                                        {
-                                            <button class="btn btn-sm btn-success rounded-3" @onclick="() => SalvarAsync(true)" disabled="@(salvando || !PodeSalvar)">
-                                                <i class="bi bi-lightning-charge me-1"></i> Criar e carregar
-                                            </button>
-                                        }
+
                                         @if (editando != null)
                                         {
                                             <button class="btn btn-sm btn-outline-secondary rounded-3" @onclick="CancelarEdicao">Cancelar</button>
@@ -226,11 +293,8 @@
                     </div>
                 </div>
 
-                <div class="modal-footer bg-light border-0 p-3 d-flex justify-content-between">
-                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-3" @onclick="AbrirGerenciadorAvancado">
-                        <i class="bi bi-sliders me-1"></i> Gerenciador avançado
-                    </button>
-                    <button type="button" class="btn btn-sm btn-secondary rounded-3" @onclick="Fechar">Fechar</button>
+                <div class="modal-footer bg-light border-0 p-3 d-flex justify-content-end">
+                    <button type="button" class="btn btn-sm btn-secondary rounded-3 px-4" @onclick="Fechar">Concluir</button>
                 </div>
             </div>
         </div>
@@ -243,7 +307,10 @@
     [Parameter] public EventCallback OnChanged { get; set; }
 
     private List<MOrigemDados> origens = new();
+    private List<BIDataset> datasets = new();
     private List<EntidadeModeloDto> modelo = new();
+    private HashSet<string> colunasMarcadas = new(StringComparer.OrdinalIgnoreCase);
+    private bool exibirColunasAvancadas;
     private bool carregando;
     private bool salvando;
     private bool _carregado;
@@ -264,7 +331,8 @@
     private bool PodeSalvar
         => !string.IsNullOrWhiteSpace(classeSelecionada)
            && !string.IsNullOrWhiteSpace(nome)
-           && entidadeSelecionada != null;
+           && entidadeSelecionada != null
+           && colunasMarcadas.Count > 0;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -287,12 +355,13 @@
         carregando = true;
         try
         {
-            origens = await OrigemService.GetAll();
-            modelo = await OrigemService.ObterModeloEntidadesAsync();
+            modelo = await DataSourceService.ObterCatalogoEntidadesAsync();
+            origens = await DataSourceService.ObterOrigensConfiguradasAsync();
+            datasets = await DashboardService.ObterDatasetsVisiveisAsync(BIUsuarioContexto.De(UserState));
         }
         catch (Exception ex)
         {
-            DefinirMensagem($"Falha ao carregar fontes: {ex.Message}", "alert-danger");
+            DefinirMensagem($"Falha ao carregar catálogo de fontes: {ex.Message}", "alert-danger");
         }
         finally
         {
@@ -307,6 +376,8 @@
         nome = string.Empty;
         descricao = string.Empty;
         incluirRelacionamentos = true;
+        exibirColunasAvancadas = false;
+        colunasMarcadas.Clear();
         pendenteExclusaoId = null;
     }
 
@@ -318,6 +389,10 @@
         descricao = origem.Descricao ?? string.Empty;
         incluirRelacionamentos = origem.Configuracao?.Relacionamentos.Count > 0;
         pendenteExclusaoId = null;
+
+        colunasMarcadas = new HashSet<string>(
+            origem.Configuracao?.Colunas ?? entidadeSelecionada?.Colunas.Select(c => c.NomeColuna) ?? Enumerable.Empty<string>(),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     private void CancelarEdicao()
@@ -328,13 +403,33 @@
     private void AoSelecionarClasse()
     {
         var entidade = entidadeSelecionada;
-        if (entidade == null) return;
+        if (entidade == null)
+        {
+            colunasMarcadas.Clear();
+            return;
+        }
 
-        if (string.IsNullOrWhiteSpace(nome))
-            nome = BIOrigemFactory.NomeSugerido(entidade);
+        nome = $"{BIDataSourceService.ObterCategoriaModulo(entidade)} — {BIOrigemFactory.NomeSugerido(entidade)}";
+        descricao = $"Tabela {entidade.Tabela} ({entidade.Colunas.Count} colunas)";
+        colunasMarcadas = new HashSet<string>(
+            entidade.Colunas.Select(c => c.NomeColuna),
+            StringComparer.OrdinalIgnoreCase);
+    }
 
-        if (string.IsNullOrWhiteSpace(descricao))
-            descricao = $"Fonte EDW baseada em {entidade.Tabela}.";
+    private void AlternarColuna(string nomeColuna, bool marcada)
+    {
+        if (marcada)
+            colunasMarcadas.Add(nomeColuna);
+        else
+            colunasMarcadas.Remove(nomeColuna);
+    }
+
+    private void SelecionarTodasColunas()
+    {
+        if (entidadeSelecionada == null) return;
+        colunasMarcadas = new HashSet<string>(
+            entidadeSelecionada.Colunas.Select(c => c.NomeColuna),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task SalvarAsync(bool executarAgora)
@@ -342,7 +437,7 @@
         var entidade = entidadeSelecionada;
         if (entidade == null)
         {
-            DefinirMensagem("Selecione a entidade de origem.", "alert-warning");
+            DefinirMensagem("Selecione uma tabela do sistema.", "alert-warning");
             return;
         }
 
@@ -354,23 +449,31 @@
             origem.Descricao = string.IsNullOrWhiteSpace(descricao) ? null : descricao.Trim();
             origem.ClasseOrigem = entidade.Classe;
             origem.TabelaOrigem = entidade.Tabela;
-            origem.Configuracao = editando == null
-                ? BIOrigemFactory.ConstruirConfiguracao(entidade, incluirRelacionamentos)
-                : BIOrigemFactory.ComRelacionamentos(entidade, editando.Configuracao, incluirRelacionamentos);
 
-            if (!await OrigemService.Save(origem))
+            var config = BIOrigemFactory.ConstruirConfiguracao(entidade, incluirRelacionamentos);
+            config.Colunas = colunasMarcadas.ToList();
+            origem.Configuracao = config;
+
+            var eraEdicao = editando != null;
+            origem = await DataSourceService.SalvarOrigemAsync(origem);
+
+            if (executarAgora)
             {
-                DefinirMensagem("Não foi possível salvar a fonte. Verifique a conexão e tente novamente.", "alert-danger");
-                return;
+                var resultado = await DataSourceService.ExecutarCargaOrigemAsync(origem.Id);
+                DefinirMensagem(
+                    $"Fonte '{origem.Nome}' {(eraEdicao ? "atualizada" : "conectada")}! {resultado.Mensagem}",
+                    "alert-success");
+            }
+            else
+            {
+                DefinirMensagem(
+                    eraEdicao ? $"Fonte '{origem.Nome}' atualizada." : $"Fonte '{origem.Nome}' conectada.",
+                    "alert-success");
             }
 
-            DefinirMensagem(editando == null ? $"Fonte '{origem.Nome}' criada." : $"Fonte '{origem.Nome}' atualizada.", "alert-success");
             IniciarNova();
             await CarregarAsync();
             await NotificarAlteracaoAsync();
-
-            if (executarAgora)
-                await ExecutarInternoAsync(origem.Id, origem.Nome);
         }
         catch (Exception ex)
         {
@@ -384,27 +487,20 @@
 
     private async Task ExecutarAsync(MOrigemDados origem)
     {
-        await ExecutarInternoAsync(origem.Id, origem.Nome);
-    }
-
-    private async Task ExecutarInternoAsync(int origemId, string nomeOrigem)
-    {
-        executandoId = origemId;
+        executandoId = origem.Id;
         try
         {
-            var resultado = await OrigemService.ExecutarCargaAsync(origemId);
-            var prefixo = resultado.Sucesso ? "Carga concluída" : "Falha na carga";
-            var detalhe = string.IsNullOrWhiteSpace(resultado.Mensagem) ? string.Empty : $" — {resultado.Mensagem}";
+            var resultado = await DataSourceService.ExecutarCargaOrigemAsync(origem.Id);
             DefinirMensagem(
-                $"{prefixo} de '{nomeOrigem}': {resultado.LinhasCarregadas} linha(s){detalhe}",
-                resultado.Sucesso ? "alert-success" : "alert-danger");
+                $"Sincronização de '{origem.Nome}': {resultado.Mensagem}",
+                resultado.Sucesso ? "alert-success" : "alert-warning");
 
             await CarregarAsync();
             await NotificarAlteracaoAsync();
         }
         catch (Exception ex)
         {
-            DefinirMensagem($"Erro ao executar carga: {ex.Message}", "alert-danger");
+            DefinirMensagem($"Erro ao sincronizar fonte: {ex.Message}", "alert-danger");
         }
         finally
         {
@@ -417,15 +513,15 @@
         if (pendenteExclusaoId != origem.Id)
         {
             pendenteExclusaoId = origem.Id;
-            DefinirMensagem($"Clique novamente na lixeira para confirmar a exclusão de '{origem.Nome}'.", "alert-warning");
+            DefinirMensagem($"Clique novamente no botão vermelho para confirmar a remoção de '{origem.Nome}'.", "alert-warning");
             return;
         }
 
         try
         {
-            var removido = await OrigemService.Delete(origem.Id);
+            var removido = await DataSourceService.ExcluirOrigemAsync(origem.Id);
             DefinirMensagem(
-                removido ? $"Fonte '{origem.Nome}' excluída." : "Não foi possível excluir a fonte.",
+                removido ? $"Fonte '{origem.Nome}' removida." : "Não foi possível remover a fonte.",
                 removido ? "alert-success" : "alert-danger");
 
             pendenteExclusaoId = null;
@@ -437,20 +533,20 @@
         }
         catch (Exception ex)
         {
-            DefinirMensagem($"Erro ao excluir fonte: {ex.Message}", "alert-danger");
+            DefinirMensagem($"Erro ao remover fonte: {ex.Message}", "alert-danger");
         }
+    }
+
+    private async Task AbrirImportacaoPlanilhaAsync()
+    {
+        await Fechar();
+        await ImportUi.AbrirAsync();
     }
 
     private async Task NotificarAlteracaoAsync()
     {
         if (OnChanged.HasDelegate)
             await OnChanged.InvokeAsync();
-    }
-
-    private void AbrirGerenciadorAvancado()
-    {
-        _ = Fechar();
-        Nav.NavigateTo("/gestao/edw");
     }
 
     private async Task Fechar()

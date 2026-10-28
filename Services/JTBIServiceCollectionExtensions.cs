@@ -44,6 +44,15 @@ public static class JTBIServiceCollectionExtensions
         services.AddScoped<ISecureStorageService, WebSecureStorageService>();
         services.AddJTUserInterface();
 
+        // Remove o GestaoMenuProvider padrão para não exibir as páginas descontinuadas (/gestao/edw e /gestao/indicadores)
+        var gestaoProviderDescriptor = services.FirstOrDefault(d =>
+            d.ServiceType == typeof(IModuloMenuProvider) &&
+            d.ImplementationType == typeof(JT_UserInterface.Shared.Layout.GestaoMenuProvider));
+        if (gestaoProviderDescriptor != null)
+        {
+            services.Remove(gestaoProviderDescriptor);
+        }
+
         // Injetar HttpClient com JwtAuthorizationHandler registrado pelo AddJTUserInterface
         services.AddScoped(sp =>
         {
