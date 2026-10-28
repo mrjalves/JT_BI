@@ -19,14 +19,22 @@ public static class JTBIServiceCollectionExtensions
         Config.SetInstancia(dadosConfig);
 
         var secaoFConfig = configuration.GetSection("Config:FirebaseConfig");
-        var dadosFConfig = secaoFConfig.Get<FirebaseConfig>();
-        if (dadosFConfig is null ||
-            string.IsNullOrWhiteSpace(dadosFConfig.BaseApiUrl) ||
-            string.IsNullOrWhiteSpace(dadosFConfig.ApiKey))
+        var dadosFConfig = secaoFConfig.Get<FirebaseConfig>() ?? new FirebaseConfig();
+
+        if (string.IsNullOrWhiteSpace(dadosFConfig.BaseApiUrl))
+        {
+            dadosFConfig.BaseApiUrl = dadosConfig.Conexao?.BaseApiUrl ?? string.Empty;
+        }
+
+        if (string.IsNullOrWhiteSpace(dadosFConfig.DatabaseUrl))
+        {
+            dadosFConfig.DatabaseUrl = dadosFConfig.BaseApiUrl;
+        }
+
+        if (string.IsNullOrWhiteSpace(dadosFConfig.BaseApiUrl))
         {
             throw new InvalidOperationException(
-                "Configuração 'Config:FirebaseConfig' (BaseApiUrl e ApiKey) é obrigatória. " +
-                "Defina via User Secrets em desenvolvimento ou variáveis de ambiente (Config__FirebaseConfig__*) em produção.");
+                "Configuração 'Config:Conexao:BaseApiUrl' ou 'Config:FirebaseConfig:BaseApiUrl' é obrigatória.");
         }
 
         FirebaseConfig.SetInstancia(dadosFConfig);
