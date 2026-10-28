@@ -79,8 +79,8 @@ jobs:
         run: |
           ssh -p ${{ secrets.VPS_PORT || 22 }} ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} 'bash -s' <<'EOF'
           set -e
-          sudo mkdir -p ${{ env.DEST }}/Data ${{ env.DEST }}/logs
-          sudo chmod -R 777 ${{ env.DEST }}/Data ${{ env.DEST }}/logs || true
+          mkdir -p ${{ env.DEST }}/Data ${{ env.DEST }}/logs || true
+          chmod -R 777 ${{ env.DEST }}/Data ${{ env.DEST }}/logs 2>/dev/null || true
           sudo systemctl restart ${{ env.SERVICE }}
           sleep 5
           if ! systemctl is-active --quiet ${{ env.SERVICE }}; then
