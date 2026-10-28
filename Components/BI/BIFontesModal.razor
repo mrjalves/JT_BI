@@ -9,48 +9,112 @@
 
 @if (IsOpen)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 1055;">
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(15, 23, 42, 0.72); backdrop-filter: blur(4px); z-index: 1055;">
         <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content border-0 shadow-2xl rounded-4 overflow-hidden">
-                <div class="modal-header bg-dark text-white p-3 border-0">
-                    <div class="d-flex align-items-center gap-2">
-                        <div class="p-2 bg-primary rounded-3 text-white">
-                            <i class="bi bi-database-check"></i>
+                <div class="modal-header bi-modal-header p-3 border-0">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-2 bg-primary rounded-3 text-white d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                            <i class="bi bi-hdd-network-fill fs-5 text-white"></i>
                         </div>
                         <div>
-                            <h5 class="modal-title fw-bold mb-0">Fontes de Dados do BI</h5>
-                            <small class="text-white-50">Conecte tabelas dos módulos do ecossistema JT ou importe planilhas externas</small>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <h5 class="modal-title fw-bold mb-0 text-white" style="color: #ffffff !important;">
+                                    Fontes de Dados &amp; Conexão no Servidor
+                                </h5>
+                                <span class="badge bg-success text-white rounded-pill px-2 py-1" style="font-size: 0.7rem;">
+                                    <i class="bi bi-Broadcast me-1"></i>CONEXÃO NO SERVIDOR ATIVA
+                                </span>
+                            </div>
+                            <small class="d-block" style="color: rgba(241, 245, 249, 0.88) !important;">
+                                Selecione os módulos para buscar tabelas diretamente no banco de dados do servidor ou importe arquivos externos
+                            </small>
                         </div>
                     </div>
                     <button type="button" class="btn-close btn-close-white" @onclick="Fechar"></button>
                 </div>
 
                 <div class="modal-body p-4">
+                    <!-- Indicador explícito de conexão no banco do servidor -->
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 p-3 mb-3 rounded-3 border"
+                         style="background: linear-gradient(90deg, rgba(16, 185, 129, 0.10) 0%, rgba(37, 99, 235, 0.08) 100%); border-color: rgba(16, 185, 129, 0.35) !important;">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-success rounded-circle p-2 d-inline-flex align-items-center justify-content-center">
+                                <i class="bi bi-hdd-network text-white"></i>
+                            </span>
+                            <div>
+                                <div class="fw-bold small text-body">
+                                    Busca Conectada ao Banco de Dados no Servidor
+                                    <span class="badge bg-primary-subtle text-primary border ms-1">SERVIDOR JT</span>
+                                </div>
+                                <div class="text-muted" style="font-size: 0.75rem;">
+                                    Servidor ativo: <code class="fw-semibold">@DataSourceService.ObterUrlServidorAtivo()</code> · Catálogo com <strong>@modelo.Count</strong> tabelas mapeadas em <strong>@ModulosDisponiveis.Count</strong> módulos
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-success rounded-3 bg-body" @onclick="AbrirImportacaoPlanilhaAsync" title="Importar arquivo CSV, JSON ou Link externo">
+                                <i class="bi bi-file-earmark-arrow-up me-1"></i> Importar CSV / JSON
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary rounded-3 bg-body" @onclick="CarregarAsync" disabled="@carregando" title="Recarregar catálogo do servidor">
+                                <i class="bi bi-arrow-clockwise me-1"></i> Atualizar Servidor
+                            </button>
+                        </div>
+                    </div>
+
                     @if (!string.IsNullOrEmpty(mensagem))
                     {
-                        <div class="alert @classeMensagem alert-dismissible fade show py-2 small rounded-3" role="alert">
-                            <i class="bi bi-info-circle me-1"></i> @mensagem
+                        <div class="alert @classeMensagem alert-dismissible fade show py-2 px-3 small rounded-3 mb-3" role="alert">
+                            <i class="bi bi-info-circle-fill me-1"></i> @mensagem
                             <button type="button" class="btn-close btn-sm" @onclick="() => mensagem = null"></button>
                         </div>
                     }
 
+                    <!-- Seletor de Módulos da Busca no Banco no Servidor -->
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <label class="form-label fw-bold small text-uppercase mb-0" style="letter-spacing: 0.4px; color: var(--text-color, #0f172a);">
+                                <i class="bi bi-grid-1x2-fill text-primary me-1"></i> 1. Selecione o Módulo da Busca no Banco do Servidor:
+                            </label>
+                            @if (!string.IsNullOrEmpty(moduloSelecionado))
+                            {
+                                <button type="button" class="btn btn-xs btn-link text-decoration-none p-0 small" @onclick='() => SelecionarModulo("")'>
+                                    Mostrar todos os módulos (@modelo.Count tabelas)
+                                </button>
+                            }
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button"
+                                    class="bi-module-chip @(string.IsNullOrEmpty(moduloSelecionado) ? "active" : "")"
+                                    @onclick='() => SelecionarModulo("")'>
+                                <i class="bi bi-collection me-1"></i> Todos os Módulos
+                                <span class="badge bg-secondary bg-opacity-25 text-reset ms-1">@modelo.Count</span>
+                            </button>
+                            @foreach (var mod in ModulosDisponiveis)
+                            {
+                                var ativo = string.Equals(moduloSelecionado, mod.Nome, StringComparison.OrdinalIgnoreCase);
+                                <button type="button"
+                                        class="bi-module-chip @(ativo ? "active" : "")"
+                                        @onclick="() => SelecionarModulo(mod.Nome)">
+                                    <i class="bi @mod.Icone me-1"></i> @mod.Nome
+                                    <span class="badge bg-secondary bg-opacity-25 text-reset ms-1">@mod.QuantidadeTabelas</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+
                     <div class="row g-4">
-                        <!-- Coluna Esquerda: Lista de Fontes Ativas -->
+                        <!-- Coluna Esquerda: Fontes Conectadas (Módulos do Servidor + Tabelas Sincronizadas + Datasets) -->
                         <div class="col-12 col-lg-7">
-                            <div class="card border-0 shadow-sm rounded-4 h-100">
-                                <div class="card-header bg-body-tertiary border-0 py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                    <div>
-                                        <span class="fw-bold text-body">Fontes Conectadas</span>
-                                        <span class="badge bg-primary-subtle text-primary border ms-1">@(origens.Count + datasets.Count)</span>
+                            <div class="card border shadow-xs rounded-4 h-100">
+                                <div class="card-header bg-body-tertiary border-bottom py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="fw-bold text-body">Fontes Vinculadas ao BI</span>
+                                        <span class="badge bg-primary text-white rounded-pill">@(fontesServidorPadrao.Count + origens.Count + datasets.Count)</span>
                                     </div>
-                                    <div class="d-flex gap-2">
-                                        <button class="btn btn-sm btn-outline-success rounded-3" @onclick="AbrirImportacaoPlanilhaAsync" title="Importar arquivo CSV, JSON ou Link">
-                                            <i class="bi bi-file-earmark-arrow-up me-1"></i> Importar CSV / JSON
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-secondary rounded-3" @onclick="CarregarAsync" disabled="@carregando" title="Atualizar lista">
-                                            <i class="bi bi-arrow-clockwise"></i>
-                                        </button>
-                                    </div>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                        <i class="bi bi-hdd-network me-1"></i> Servidor + Arquivos
+                                    </span>
                                 </div>
 
                                 <div class="card-body p-3">
@@ -58,33 +122,56 @@
                                     {
                                         <div class="text-center p-5">
                                             <div class="spinner-border text-primary" role="status"></div>
-                                            <p class="text-muted small mt-2 mb-0">Carregando catálogo de tabelas e fontes...</p>
+                                            <p class="text-muted small mt-2 mb-0">Consultando tabelas e módulos no servidor...</p>
                                         </div>
                                     }
                                     else
                                     {
-                                        @if (origens.Count == 0 && datasets.Count == 0)
+                                        <!-- Tabelas Específicas do Banco no Servidor Conectadas -->
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <div class="small fw-bold text-uppercase text-secondary" style="font-size: 0.74rem;">
+                                                <i class="bi bi-table me-1 text-primary"></i> Tabelas do Servidor Sincronizadas (@origens.Count)
+                                            </div>
+                                            @if (!string.IsNullOrEmpty(moduloSelecionado))
+                                            {
+                                                <button class="btn btn-xs btn-outline-primary rounded-3 py-0 px-2 small"
+                                                        disabled="@conectandoModulo"
+                                                        @onclick="ConectarTabelasDoModuloAtualAsync"
+                                                        title="Conectar automaticamente as principais tabelas deste módulo no servidor">
+                                                    @if (conectandoModulo)
+                                                    {
+                                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi bi-lightning-charge me-1"></i>
+                                                    }
+                                                    Conectar Tabelas de @moduloSelecionado
+                                                </button>
+                                            }
+                                        </div>
+
+                                        @if (origens.Count == 0)
                                         {
-                                            <div class="text-center p-4 border border-dashed rounded-4 mb-3 bg-body-tertiary">
-                                                <i class="bi bi-database-add text-primary" style="font-size: 2.2rem;"></i>
-                                                <p class="fw-semibold mt-2 mb-1">Nenhuma tabela personalizada conectada ainda</p>
-                                                <p class="text-muted small mb-0">
-                                                    Escolha uma tabela do sistema no formulário à direita (ex.: <strong>Despesas</strong>, <strong>Contas</strong>, <strong>Comandas</strong>, <strong>Clientes</strong>) e clique em <strong>Conectar e Sincronizar</strong>.
-                                                </p>
+                                            <div class="p-3 border border-dashed rounded-3 mb-3 bg-body-tertiary d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                                <div>
+                                                    <div class="fw-semibold small text-body">
+                                                        <i class="bi bi-hdd-network text-primary me-1"></i> Nenhuma tabela individual fixada ainda
+                                                    </div>
+                                                    <div class="text-muted" style="font-size: 0.75rem;">
+                                                        Selecione um módulo acima e escolha uma tabela do servidor à direita para sincronizar registros específicos.
+                                                    </div>
+                                                </div>
                                             </div>
                                         }
-
-                                        @if (origens.Count > 0)
+                                        else
                                         {
-                                            <div class="small fw-bold text-uppercase text-muted mb-2" style="font-size: 0.72rem;">
-                                                <i class="bi bi-table me-1"></i> Tabelas Conectadas (@origens.Count)
-                                            </div>
                                             <div class="table-responsive mb-3">
                                                 <table class="table table-sm align-middle mb-0">
                                                     <thead class="table-light">
                                                         <tr>
-                                                            <th class="ps-2">Fonte</th>
-                                                            <th>Tabela</th>
+                                                            <th class="ps-2">Fonte / Conexão</th>
+                                                            <th>Tabela no Servidor</th>
                                                             <th class="text-center">Registros</th>
                                                             <th class="text-end pe-2">Ações</th>
                                                         </tr>
@@ -94,9 +181,14 @@
                                                         {
                                                             <tr class="@(editando?.Id == origem.Id ? "table-primary" : "")">
                                                                 <td class="ps-2">
-                                                                    <div class="fw-semibold small">@origem.Nome</div>
+                                                                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                                                                        <span class="fw-semibold small text-body">@origem.Nome</span>
+                                                                        <span class="badge bg-success-subtle text-success border" style="font-size: 0.65rem;">
+                                                                            <i class="bi bi-hdd-network me-1"></i>SERVIDOR
+                                                                        </span>
+                                                                    </div>
                                                                     <div class="text-muted" style="font-size: 0.72rem;">
-                                                                        @(string.IsNullOrWhiteSpace(origem.UltimaMensagem) ? (origem.Descricao ?? "Pronta para consulta") : origem.UltimaMensagem)
+                                                                        @(string.IsNullOrWhiteSpace(origem.UltimaMensagem) ? (origem.Descricao ?? "Conectada ao banco no servidor") : origem.UltimaMensagem)
                                                                     </div>
                                                                 </td>
                                                                 <td><code class="small">@origem.TabelaOrigem</code></td>
@@ -105,7 +197,7 @@
                                                                 </td>
                                                                 <td class="text-end pe-2">
                                                                     <div class="btn-group btn-group-sm">
-                                                                        <button class="btn btn-outline-success" title="Sincronizar dados agora"
+                                                                        <button class="btn btn-outline-success" title="Sincronizar dados com o servidor agora"
                                                                                 disabled="@(executandoId == origem.Id)" @onclick="() => ExecutarAsync(origem)">
                                                                             @if (executandoId == origem.Id)
                                                                             {
@@ -116,7 +208,7 @@
                                                                                 <i class="bi bi-arrow-repeat"></i>
                                                                             }
                                                                         </button>
-                                                                        <button class="btn btn-outline-primary" title="Editar colunas e nome" @onclick="() => IniciarEdicao(origem)">
+                                                                        <button class="btn btn-outline-primary" title="Editar colunas e vínculos" @onclick="() => IniciarEdicao(origem)">
                                                                             <i class="bi bi-pencil-fill"></i>
                                                                         </button>
                                                                         <button class="btn @(pendenteExclusaoId == origem.Id ? "btn-danger" : "btn-outline-danger")"
@@ -133,18 +225,54 @@
                                             </div>
                                         }
 
+                                        <!-- Módulos Integrados do Servidor -->
+                                        <div class="small fw-bold text-uppercase text-secondary mb-2" style="font-size: 0.74rem;">
+                                            <i class="bi bi-hdd-stack me-1 text-success"></i> Módulos Integrados no Servidor (@fontesServidorPadrao.Count)
+                                        </div>
+                                        <div class="row g-2 mb-3">
+                                            @foreach (var modFonte in fontesServidorPadrao)
+                                            {
+                                                <div class="col-12 col-md-6">
+                                                    <div class="p-2 rounded-3 border bg-body-tertiary d-flex align-items-center justify-content-between gap-2 h-100">
+                                                        <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                                            <div class="p-2 bg-@modFonte.Cor-subtle text-@modFonte.Cor rounded-3 flex-shrink-0">
+                                                                <i class="bi @modFonte.Icone"></i>
+                                                            </div>
+                                                            <div class="overflow-hidden">
+                                                                <div class="fw-semibold small text-body text-truncate" title="@modFonte.Nome">@modFonte.Nome</div>
+                                                                <div class="d-flex align-items-center gap-1">
+                                                                    <span class="badge bg-success-subtle text-success border" style="font-size: 0.62rem;">
+                                                                        <i class="bi bi-hdd-network me-1"></i>SERVIDOR
+                                                                    </span>
+                                                                    <small class="text-muted" style="font-size: 0.68rem;">@modFonte.Metricas.Count métricas</small>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <button type="button"
+                                                                class="btn btn-xs btn-outline-primary rounded-3 flex-shrink-0 py-1 px-2"
+                                                                style="font-size: 0.72rem;"
+                                                                @onclick="() => SelecionarModulo(modFonte.Modulo)"
+                                                                title="Filtrar tabelas deste módulo no banco do servidor">
+                                                            <i class="bi bi-search me-1"></i>Tabelas
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+
+                                        <!-- Planilhas / Datasets Importados -->
                                         @if (datasets.Count > 0)
                                         {
-                                            <div class="small fw-bold text-uppercase text-muted mb-2 mt-2" style="font-size: 0.72rem;">
-                                                <i class="bi bi-file-earmark-spreadsheet me-1"></i> Planilhas / Datasets Importados (@datasets.Count)
+                                            <div class="small fw-bold text-uppercase text-secondary mb-2 mt-2" style="font-size: 0.74rem;">
+                                                <i class="bi bi-file-earmark-spreadsheet me-1 text-info"></i> Planilhas / Datasets Importados (@datasets.Count)
                                             </div>
                                             <div class="d-flex flex-column gap-2">
                                                 @foreach (var ds in datasets)
                                                 {
                                                     <div class="d-flex align-items-center justify-content-between p-2 rounded-3 border bg-body-tertiary small">
                                                         <div>
-                                                            <span class="fw-semibold">@ds.Nome</span>
-                                                            <span class="badge bg-success-subtle text-success ms-2">@ds.Origem</span>
+                                                            <span class="fw-semibold text-body">@ds.Nome</span>
+                                                            <span class="badge bg-info-subtle text-info border ms-2">IMPORTADO (@ds.Origem)</span>
                                                             <span class="text-muted ms-2">@ds.QtdLinhas linhas · @ds.Colunas.Count colunas</span>
                                                         </div>
                                                         <span class="text-muted" style="font-size: 0.72rem;">@ds.DataImportacao.ToString("dd/MM/yyyy HH:mm")</span>
@@ -157,34 +285,58 @@
                             </div>
                         </div>
 
-                        <!-- Coluna Direita: Conectar ou Editar Tabela do Sistema -->
+                        <!-- Coluna Direita: Busca por Módulo e Conexão de Tabela no Servidor -->
                         <div class="col-12 col-lg-5">
-                            <div class="card border-0 shadow-sm rounded-4">
-                                <div class="card-header bg-body-tertiary border-0 py-3 d-flex align-items-center justify-content-between">
+                            <div class="card border shadow-xs rounded-4 h-100">
+                                <div class="card-header bg-body-tertiary border-bottom py-2 px-3 d-flex align-items-center justify-content-between">
                                     <div>
                                         <span class="fw-bold text-body">
-                                            @(editando == null ? "Conectar Tabela do Sistema" : $"Editando: {editando.Nome}")
+                                            @(editando == null ? "2. Conectar Tabela do Banco no Servidor" : $"Editando Fonte: {editando.Nome}")
                                         </span>
-                                        <div class="text-muted" style="font-size: 0.75rem;">
-                                            Selecione qualquer tabela dos módulos JT para usar nos gráficos e KPIs.
+                                        <div class="text-muted" style="font-size: 0.74rem;">
+                                            @(string.IsNullOrEmpty(moduloSelecionado)
+                                                ? "Exibindo todas as tabelas do servidor"
+                                                : $"Filtrando módulo do servidor: {moduloSelecionado}")
                                         </div>
                                     </div>
                                     @if (editando != null)
                                     {
                                         <button class="btn btn-xs btn-outline-secondary rounded-3" @onclick="IniciarNova">
-                                            + Nova
+                                            + Nova Tabela
                                         </button>
                                     }
                                 </div>
 
-                                <div class="card-body">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-semibold small text-muted">1. Escolha a Tabela / Módulo</label>
-                                        <select class="form-select form-select-sm" @bind="classeSelecionada" @bind:after="AoSelecionarClasse" disabled="@(editando != null)">
-                                            <option value="">Selecione uma tabela do sistema...</option>
-                                            @foreach (var grupo in modelo.GroupBy(m => BIDataSourceService.ObterCategoriaModulo(m)))
+                                <div class="card-body p-3">
+                                    <div class="mb-2">
+                                        <label class="form-label fw-semibold small text-body mb-1">
+                                            <i class="bi bi-funnel me-1 text-primary"></i> Filtrar busca no servidor por nome da tabela:
+                                        </label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text bg-body-tertiary"><i class="bi bi-search"></i></span>
+                                            <input type="text" class="form-control"
+                                                   placeholder="Ex: Conta, Comanda, Cliente, Produto, Despesa..."
+                                                   @bind="termoBuscaTabela"
+                                                   @bind:event="oninput"
+                                                   disabled="@(editando != null)" />
+                                            @if (!string.IsNullOrWhiteSpace(termoBuscaTabela))
                                             {
-                                                <optgroup label="@grupo.Key">
+                                                <button class="btn btn-outline-secondary" type="button" @onclick='() => termoBuscaTabela = ""'>
+                                                    <i class="bi bi-x"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold small text-body mb-1">
+                                            <i class="bi bi-hdd-network me-1 text-success"></i> Tabela do Servidor (@EntidadesFiltradas.Count encontrada(s)):
+                                        </label>
+                                        <select class="form-select form-select-sm" @bind="classeSelecionada" @bind:after="AoSelecionarClasse" disabled="@(editando != null)">
+                                            <option value="">Selecione uma tabela do banco no servidor...</option>
+                                            @foreach (var grupo in EntidadesFiltradas.GroupBy(m => BIDataSourceService.ObterCategoriaModulo(m)))
+                                            {
+                                                <optgroup label="Módulo no Servidor: @grupo.Key">
                                                     @foreach (var entidade in grupo.OrderBy(e => e.Tabela))
                                                     {
                                                         <option value="@entidade.Classe">@entidade.Tabela (@entidade.Colunas.Count colunas)</option>
@@ -195,13 +347,13 @@
                                     </div>
 
                                     <div class="mb-3">
-                                        <label class="form-label fw-semibold small text-muted">2. Nome de exibição no BI</label>
-                                        <input class="form-control form-control-sm" @bind="nome" placeholder="Ex: Despesas Financeiras, Comandas do Restaurante..." />
+                                        <label class="form-label fw-semibold small text-body mb-1">Nome de exibição no BI:</label>
+                                        <input class="form-control form-control-sm" @bind="nome" placeholder="Ex: Financeiro — Contas a Pagar" />
                                     </div>
 
                                     <div class="mb-3">
-                                        <label class="form-label fw-semibold small text-muted">Descrição (opcional)</label>
-                                        <input class="form-control form-control-sm" @bind="descricao" placeholder="Resumo do que esta fonte representa" />
+                                        <label class="form-label fw-semibold small text-body mb-1">Descrição (opcional):</label>
+                                        <input class="form-control form-control-sm" @bind="descricao" placeholder="Resumo do que esta tabela do servidor representa" />
                                     </div>
 
                                     @if (entidadeSelecionada != null)
@@ -209,13 +361,16 @@
                                         <div class="border rounded-3 bg-body-tertiary p-3 mb-3">
                                             <div class="d-flex align-items-center justify-content-between mb-2">
                                                 <div class="d-flex flex-wrap gap-1">
+                                                    <span class="badge bg-success-subtle text-success border">
+                                                        <i class="bi bi-hdd-network me-1"></i>@BIDataSourceService.ObterCategoriaModulo(entidadeSelecionada)
+                                                    </span>
                                                     <span class="badge bg-primary-subtle text-primary border">
                                                         <i class="bi bi-columns-gap me-1"></i>@colunasMarcadas.Count/@entidadeSelecionada.Colunas.Count colunas
                                                     </span>
                                                     @if (entidadeSelecionada.Relacionamentos.Count > 0)
                                                     {
                                                         <span class="badge bg-info-subtle text-info border">
-                                                            <i class="bi bi-diagram-3 me-1"></i>@entidadeSelecionada.Relacionamentos.Count vínculos
+                                                            <i class="bi bi-diagram-3 me-1"></i>@entidadeSelecionada.Relacionamentos.Count vínculo(s)
                                                         </span>
                                                     }
                                                 </div>
@@ -230,8 +385,8 @@
                                             {
                                                 <div class="form-check form-switch mb-1">
                                                     <input class="form-check-input" type="checkbox" id="chkRelacoes" @bind="incluirRelacionamentos" />
-                                                    <label class="form-check-label small" for="chkRelacoes">
-                                                        Incluir dados das tabelas relacionadas automaticamente
+                                                    <label class="form-check-label small text-body" for="chkRelacoes">
+                                                        Vincular automaticamente tabelas relacionadas no servidor (JOIN)
                                                     </label>
                                                 </div>
                                             }
@@ -240,7 +395,7 @@
                                             {
                                                 <div class="mt-2 pt-2 border-top" style="max-height: 170px; overflow-y: auto;">
                                                     <div class="d-flex justify-content-between align-items-center mb-1">
-                                                        <span class="text-muted" style="font-size: 0.72rem;">Colunas disponíveis:</span>
+                                                        <span class="text-muted" style="font-size: 0.72rem;">Colunas disponíveis na tabela do servidor:</span>
                                                         <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" style="font-size: 0.72rem;"
                                                                 @onclick="SelecionarTodasColunas">
                                                             Marcar todas
@@ -255,7 +410,7 @@
                                                                            id="chk_col_@col.NomeColuna"
                                                                            checked="@colunasMarcadas.Contains(col.NomeColuna)"
                                                                            @onchange="e => AlternarColuna(col.NomeColuna, e.Value is true)" />
-                                                                    <label class="form-check-label text-truncate d-block" style="font-size: 0.75rem;" for="chk_col_@col.NomeColuna" title="@col.NomeColuna (@col.TipoClr)">
+                                                                    <label class="form-check-label text-truncate d-block text-body" style="font-size: 0.75rem;" for="chk_col_@col.NomeColuna" title="@col.NomeColuna (@col.TipoClr)">
                                                                         @col.NomeColuna
                                                                     </label>
                                                                 </div>
@@ -277,9 +432,9 @@
                                             }
                                             else
                                             {
-                                                <i class="bi bi-lightning-charge-fill me-1"></i>
+                                                <i class="bi bi-hdd-network me-1"></i>
                                             }
-                                            @(editando == null ? "Conectar e Sincronizar Fonte" : "Salvar e Sincronizar")
+                                            @(editando == null ? "Conectar e Sincronizar no Servidor" : "Salvar e Sincronizar no Servidor")
                                         </button>
 
                                         @if (editando != null)
@@ -293,7 +448,10 @@
                     </div>
                 </div>
 
-                <div class="modal-footer bg-light border-0 p-3 d-flex justify-content-end">
+                <div class="modal-footer bg-light border-0 p-3 d-flex justify-content-between align-items-center">
+                    <span class="text-muted small">
+                        <i class="bi bi-shield-check text-success me-1"></i> As fontes conectadas ficam disponíveis nos gráficos, KPIs e no Laboratório de Mineração.
+                    </span>
                     <button type="button" class="btn btn-sm btn-secondary rounded-3 px-4" @onclick="Fechar">Concluir</button>
                 </div>
             </div>
@@ -302,17 +460,23 @@
 }
 
 @code {
+    public record ModuloResumo(string Nome, string Icone, int QuantidadeTabelas);
+
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
 
     private List<MOrigemDados> origens = new();
+    private List<FonteDadosInfo> fontesServidorPadrao = new();
     private List<BIDataset> datasets = new();
     private List<EntidadeModeloDto> modelo = new();
     private HashSet<string> colunasMarcadas = new(StringComparer.OrdinalIgnoreCase);
+    private string moduloSelecionado = string.Empty;
+    private string termoBuscaTabela = string.Empty;
     private bool exibirColunasAvancadas;
     private bool carregando;
     private bool salvando;
+    private bool conectandoModulo;
     private bool _carregado;
     private int executandoId;
     private int? pendenteExclusaoId;
@@ -325,6 +489,20 @@
     private string descricao = string.Empty;
     private bool incluirRelacionamentos = true;
 
+    private List<ModuloResumo> ModulosDisponiveis => modelo
+        .GroupBy(m => BIDataSourceService.ObterCategoriaModulo(m))
+        .Select(g => new ModuloResumo(g.Key, ObterIconeModulo(g.Key), g.Count()))
+        .OrderByDescending(m => m.QuantidadeTabelas)
+        .ToList();
+
+    private List<EntidadeModeloDto> EntidadesFiltradas => modelo
+        .Where(m => string.IsNullOrWhiteSpace(moduloSelecionado) ||
+                    string.Equals(BIDataSourceService.ObterCategoriaModulo(m), moduloSelecionado, StringComparison.OrdinalIgnoreCase))
+        .Where(m => string.IsNullOrWhiteSpace(termoBuscaTabela) ||
+                    m.Tabela.Contains(termoBuscaTabela, StringComparison.OrdinalIgnoreCase) ||
+                    m.Classe.Contains(termoBuscaTabela, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
     private EntidadeModeloDto? entidadeSelecionada
         => modelo.FirstOrDefault(m => string.Equals(m.Classe, classeSelecionada, StringComparison.Ordinal));
 
@@ -333,6 +511,17 @@
            && !string.IsNullOrWhiteSpace(nome)
            && entidadeSelecionada != null
            && colunasMarcadas.Count > 0;
+
+    private static string ObterIconeModulo(string modulo) => modulo switch
+    {
+        "Financeiro & Contábil" => "bi-cash-coin",
+        "Food & Restaurante" => "bi-cup-straw",
+        "Comercial & Vendas" => "bi-graph-up-arrow",
+        "Estoque & Suprimentos" => "bi-box-seam",
+        "Projetos & Serviços" => "bi-kanban",
+        "Acessos & Gestão" => "bi-shield-lock",
+        _ => "bi-database"
+    };
 
     protected override async Task OnParametersSetAsync()
     {
@@ -357,15 +546,58 @@
         {
             modelo = await DataSourceService.ObterCatalogoEntidadesAsync();
             origens = await DataSourceService.ObterOrigensConfiguradasAsync();
+            var todasFontes = await DataSourceService.ObterFontesDisponiveisAsync();
+            fontesServidorPadrao = todasFontes.Where(f => !f.OrigemId.HasValue).ToList();
             datasets = await DashboardService.ObterDatasetsVisiveisAsync(BIUsuarioContexto.De(UserState));
         }
         catch (Exception ex)
         {
-            DefinirMensagem($"Falha ao carregar catálogo de fontes: {ex.Message}", "alert-danger");
+            DefinirMensagem($"Falha ao carregar catálogo do servidor: {ex.Message}", "alert-danger");
         }
         finally
         {
             carregando = false;
+        }
+    }
+
+    private void SelecionarModulo(string modulo)
+    {
+        moduloSelecionado = modulo;
+        if (editando == null)
+        {
+            var primeira = EntidadesFiltradas.FirstOrDefault();
+            if (primeira != null && !string.IsNullOrEmpty(modulo))
+            {
+                classeSelecionada = primeira.Classe;
+                AoSelecionarClasse();
+            }
+        }
+    }
+
+    private async Task ConectarTabelasDoModuloAtualAsync()
+    {
+        if (string.IsNullOrWhiteSpace(moduloSelecionado))
+            return;
+
+        conectandoModulo = true;
+        try
+        {
+            var qtd = await DataSourceService.ConectarModuloServidorAsync(moduloSelecionado);
+            DefinirMensagem(
+                qtd > 0
+                    ? $"{qtd} tabela(s) do módulo '{moduloSelecionado}' conectada(s) ao servidor com sucesso!"
+                    : $"As tabelas principais de '{moduloSelecionado}' já estão conectadas.",
+                "alert-success");
+            await CarregarAsync();
+            await NotificarAlteracaoAsync();
+        }
+        catch (Exception ex)
+        {
+            DefinirMensagem($"Erro ao conectar tabelas do módulo: {ex.Message}", "alert-danger");
+        }
+        finally
+        {
+            conectandoModulo = false;
         }
     }
 
@@ -412,7 +644,7 @@
         }
 
         nome = $"{BIDataSourceService.ObterCategoriaModulo(entidade)} — {BIOrigemFactory.NomeSugerido(entidade)}";
-        descricao = $"Tabela {entidade.Tabela} ({entidade.Colunas.Count} colunas)";
+        descricao = $"Conexão no Servidor · Tabela {entidade.Tabela} ({entidade.Colunas.Count} colunas)";
         colunasMarcadas = new HashSet<string>(
             entidade.Colunas.Select(c => c.NomeColuna),
             StringComparer.OrdinalIgnoreCase);
@@ -439,7 +671,7 @@
         var entidade = entidadeSelecionada;
         if (entidade == null)
         {
-            DefinirMensagem("Selecione uma tabela do sistema.", "alert-warning");
+            DefinirMensagem("Selecione uma tabela do banco no servidor.", "alert-warning");
             return;
         }
 
@@ -463,13 +695,13 @@
             {
                 var resultado = await DataSourceService.ExecutarCargaOrigemAsync(origem.Id);
                 DefinirMensagem(
-                    $"Fonte '{origem.Nome}' {(eraEdicao ? "atualizada" : "conectada")}! {resultado.Mensagem}",
+                    $"Fonte '{origem.Nome}' {(eraEdicao ? "atualizada" : "conectada ao servidor")}! {resultado.Mensagem}",
                     "alert-success");
             }
             else
             {
                 DefinirMensagem(
-                    eraEdicao ? $"Fonte '{origem.Nome}' atualizada." : $"Fonte '{origem.Nome}' conectada.",
+                    eraEdicao ? $"Fonte '{origem.Nome}' atualizada." : $"Fonte '{origem.Nome}' conectada ao servidor.",
                     "alert-success");
             }
 
@@ -494,7 +726,7 @@
         {
             var resultado = await DataSourceService.ExecutarCargaOrigemAsync(origem.Id);
             DefinirMensagem(
-                $"Sincronização de '{origem.Nome}': {resultado.Mensagem}",
+                $"Sincronização com o servidor para '{origem.Nome}': {resultado.Mensagem}",
                 resultado.Sucesso ? "alert-success" : "alert-warning");
 
             await CarregarAsync();

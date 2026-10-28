@@ -15,24 +15,30 @@ public class FonteDadosInfo
     public int? OrigemId { get; set; }
     public string Nome { get; set; } = string.Empty;
     public string Descricao { get; set; } = string.Empty;
+    public string Modulo { get; set; } = "Servidor";
+    public string TipoConexao { get; set; } = "SERVIDOR";
     public string Icone { get; set; } = "bi-database";
     public string Cor { get; set; } = "primary";
     public bool Demonstrativa { get; set; }
+    public bool ConexaoServidor { get; set; } = true;
     public List<string> Metricas { get; set; } = new();
     public List<string> Dimensoes { get; set; } = new();
 }
 
 public interface IBIDataSourceService
 {
+    string ObterUrlServidorAtivo();
     Task<List<FonteDadosInfo>> ObterFontesDisponiveisAsync();
     Task<List<EntidadeModeloDto>> ObterCatalogoEntidadesAsync();
     Task<List<MOrigemDados>> ObterOrigensConfiguradasAsync();
     Task<MOrigemDados> SalvarOrigemAsync(MOrigemDados origem);
     Task<bool> ExcluirOrigemAsync(int origemId);
     Task<EdwExecucaoResultado> ExecutarCargaOrigemAsync(int origemId);
+    Task<int> ConectarModuloServidorAsync(string categoriaModulo);
     Task<List<BIDataPoint>> ObterDadosWidgetAsync(BIWidget widget, List<BIDataset>? datasets = null);
     Task<(decimal Valor, decimal? Variacao)> ObterValorKpiAsync(BIWidget widget, List<BIDataset>? datasets = null);
     Task<List<Dictionary<string, string>>> ObterAmostraAsync(int origemId, List<string> colunas, int limite = 1000);
+    Task<List<Dictionary<string, string>>> ObterAmostraPorFonteAsync(string fonteId, List<string> colunas, List<BIDataset>? datasets = null, int limite = 1000);
 }
 
 public class BIDataSourceService : IBIDataSourceService
@@ -92,6 +98,17 @@ public class BIDataSourceService : IBIDataSourceService
         _arquivoOrigens = Path.Combine(_pastaDados, "origens_edw.json");
     }
 
+    public string ObterUrlServidorAtivo()
+    {
+        if (_httpClient.BaseAddress != null)
+            return _httpClient.BaseAddress.ToString().TrimEnd('/');
+
+        return (JT_Aplicacao.Config.Config.Instancia?.Conexao?.BaseApiUrl
+            ?? JT_Aplicacao.Config.Config.Instancia?.FirebaseConfig?.BaseApiUrl
+            ?? JT_Aplicacao.Config.FirebaseConfig.Instancia?.BaseApiUrl
+            ?? "https://api.jtecsistemas.com.br").TrimEnd('/');
+    }
+
     private string ConstruirUrlApi(string rotaRelativa)
     {
         if (rotaRelativa.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
@@ -101,15 +118,7 @@ public class BIDataSourceService : IBIDataSourceService
         if (!rotaRelativa.StartsWith('/'))
             rotaRelativa = "/" + rotaRelativa;
 
-        if (_httpClient.BaseAddress != null)
-            return $"{_httpClient.BaseAddress.ToString().TrimEnd('/')}{rotaRelativa}";
-
-        var baseUrl = JT_Aplicacao.Config.Config.Instancia?.Conexao?.BaseApiUrl
-            ?? JT_Aplicacao.Config.Config.Instancia?.FirebaseConfig?.BaseApiUrl
-            ?? JT_Aplicacao.Config.FirebaseConfig.Instancia?.BaseApiUrl
-            ?? "https://api.jtecsistemas.com.br";
-
-        return $"{baseUrl.TrimEnd('/')}{rotaRelativa}";
+        return $"{ObterUrlServidorAtivo()}{rotaRelativa}";
     }
 
     public Task<List<EntidadeModeloDto>> ObterCatalogoEntidadesAsync()
@@ -180,13 +189,95 @@ public class BIDataSourceService : IBIDataSourceService
 
     public static string ObterCategoriaModulo(EntidadeModeloDto entidade)
     {
-        var ns = entidade.Classe;
-        if (ns.Contains(".Financeiro.", StringComparison.OrdinalIgnoreCase)) return "Financeiro";
-        if (ns.Contains(".Restaurante.", StringComparison.OrdinalIgnoreCase) || ns.Contains(".Food.", StringComparison.OrdinalIgnoreCase)) return "Food & Restaurante";
-        if (ns.Contains(".CRM.", StringComparison.OrdinalIgnoreCase) || ns.Contains(".Vendas.", StringComparison.OrdinalIgnoreCase)) return "Comercial & Vendas";
-        if (ns.Contains(".Projetos.", StringComparison.OrdinalIgnoreCase)) return "Projetos";
-        if (ns.Contains(".Acessos.", StringComparison.OrdinalIgnoreCase)) return "Acessos & Usuários";
+        var ns = entidade.Classe ?? string.Empty;
+        var tab = entidade.Tabela ?? string.Empty;
+
+        if (ns.Contains(".Financeiro.", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Conta", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Despesa", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Receita", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Caixa", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Fatura", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Banco", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Lancamento", StringComparison.OrdinalIgnoreCase))
+            return "Financeiro & Contábil";
+
+        if (ns.Contains(".Restaurante.", StringComparison.OrdinalIgnoreCase) ||
+            ns.Contains(".Food.", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Comanda", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Mesa", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Cardapio", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Cozinha", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Garcom", StringComparison.OrdinalIgnoreCase))
+            return "Food & Restaurante";
+
+        if (ns.Contains(".Estoque.", StringComparison.OrdinalIgnoreCase) ||
+            ns.Contains(".Suprimento.", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Estoque", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Insumo", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Fornecedor", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Lote", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Compra", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Produto", StringComparison.OrdinalIgnoreCase))
+            return "Estoque & Suprimentos";
+
+        if (ns.Contains(".CRM.", StringComparison.OrdinalIgnoreCase) ||
+            ns.Contains(".Vendas.", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Cliente", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Venda", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Lead", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Proposta", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Orcamento", StringComparison.OrdinalIgnoreCase))
+            return "Comercial & Vendas";
+
+        if (ns.Contains(".Projetos.", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Projeto", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Tarefa", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Sprint", StringComparison.OrdinalIgnoreCase))
+            return "Projetos & Serviços";
+
+        if (ns.Contains(".Acessos.", StringComparison.OrdinalIgnoreCase) ||
+            ns.Contains(".Gestao.", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Usuario", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Perfil", StringComparison.OrdinalIgnoreCase) ||
+            tab.Contains("Permissao", StringComparison.OrdinalIgnoreCase))
+            return "Acessos & Gestão";
+
         return "Cadastros Gerais";
+    }
+
+    public async Task<int> ConectarModuloServidorAsync(string categoriaModulo)
+    {
+        var catalogo = await ObterCatalogoEntidadesAsync();
+        var existentes = await ObterOrigensConfiguradasAsync();
+
+        var tabelasModulo = catalogo
+            .Where(e => string.IsNullOrWhiteSpace(categoriaModulo) ||
+                        string.Equals(ObterCategoriaModulo(e), categoriaModulo, StringComparison.OrdinalIgnoreCase))
+            .Take(6)
+            .ToList();
+
+        var conectadas = 0;
+        foreach (var entidade in tabelasModulo)
+        {
+            if (existentes.Any(o => string.Equals(o.TabelaOrigem, entidade.Tabela, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            var nova = new MOrigemDados
+            {
+                Nome = $"{ObterCategoriaModulo(entidade)} — {BIOrigemFactory.NomeSugerido(entidade)}",
+                Descricao = $"Conexão no Servidor · Tabela {entidade.Tabela} ({entidade.Colunas.Count} colunas)",
+                ClasseOrigem = entidade.Classe,
+                TabelaOrigem = entidade.Tabela,
+                Configuracao = BIOrigemFactory.ConstruirConfiguracao(entidade, incluirRelacionamentos: true)
+            };
+
+            nova = await SalvarOrigemAsync(nova);
+            await ExecutarCargaOrigemAsync(nova.Id);
+            conectadas++;
+        }
+
+        return conectadas;
     }
 
     public async Task<List<MOrigemDados>> ObterOrigensConfiguradasAsync()
@@ -367,17 +458,20 @@ public class BIDataSourceService : IBIDataSourceService
                 OrigemId = origem.Id,
                 Nome = origem.Nome ?? $"Fonte #{origem.Id}",
                 Descricao = string.IsNullOrWhiteSpace(origem.Descricao)
-                    ? $"Tabela: {origem.TabelaOrigem}"
+                    ? $"Conexão no Servidor · Tabela: {origem.TabelaOrigem}"
                     : origem.Descricao,
-                Icone = "bi-database-fill-check",
+                Modulo = "Tabela do Servidor",
+                TipoConexao = "SERVIDOR",
+                Icone = "bi-hdd-network-fill",
                 Cor = Cores[indice++ % Cores.Length],
                 Demonstrativa = false,
+                ConexaoServidor = true,
                 Metricas = colunas,
                 Dimensoes = colunas
             });
         }
 
-        // Mantém as fontes padrão de demonstração disponíveis para que painéis e templates funcionem sempre
+        // Mantém os Módulos Integrados do Servidor disponíveis para consultas, widgets e mineração
         fontes.AddRange(FontesDemonstrativas());
         return fontes;
     }
@@ -517,6 +611,173 @@ public class BIDataSourceService : IBIDataSourceService
 
         var linhasCache = await ObterLinhasCacheOuApiAsync(origemId);
         return linhasCache.Take(limite).ToList();
+    }
+
+    public async Task<List<Dictionary<string, string>>> ObterAmostraPorFonteAsync(
+        string fonteId,
+        List<string> colunas,
+        List<BIDataset>? datasets = null,
+        int limite = 1000)
+    {
+        if (string.IsNullOrWhiteSpace(fonteId))
+            return new List<Dictionary<string, string>>();
+
+        // 1. Tabela conectada no servidor (origem_{id})
+        if (fonteId.StartsWith("origem_", StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(fonteId["origem_".Length..], out var origemId) &&
+            origemId > 0)
+        {
+            var linhasOrigem = await ObterAmostraAsync(origemId, colunas, limite);
+            if (linhasOrigem.Count > 0)
+                return linhasOrigem;
+        }
+        else if (int.TryParse(fonteId, out var idNumerico) && idNumerico > 0)
+        {
+            var linhasOrigem = await ObterAmostraAsync(idNumerico, colunas, limite);
+            if (linhasOrigem.Count > 0)
+                return linhasOrigem;
+        }
+
+        // 2. Dataset / planilha importada (dataset_{guid})
+        if (fonteId.StartsWith("dataset_", StringComparison.OrdinalIgnoreCase) && datasets != null)
+        {
+            var dsId = fonteId["dataset_".Length..];
+            var ds = datasets.FirstOrDefault(d => string.Equals(d.Id.ToString(), dsId, StringComparison.OrdinalIgnoreCase));
+            if (ds != null && ds.Linhas.Count > 0)
+            {
+                return ds.Linhas
+                    .Take(limite)
+                    .Select(row => row.ToDictionary(
+                        kv => kv.Key,
+                        kv => Convert.ToString(kv.Value, CultureInfo.InvariantCulture) ?? string.Empty,
+                        StringComparer.OrdinalIgnoreCase))
+                    .ToList();
+            }
+        }
+
+        // 3. Módulo integrado do Servidor (financeiro, food, vendas, estoque)
+        var origens = await ObterOrigensConfiguradasAsync();
+        var termoModulo = fonteId.ToLowerInvariant() switch
+        {
+            "financeiro" => "Financeiro",
+            "food" => "Restaurante",
+            "vendas" => "Comercial",
+            "estoque" => "Estoque",
+            _ => fonteId
+        };
+
+        var origemModulo = origens.FirstOrDefault(o =>
+            (o.Nome?.Contains(termoModulo, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (o.ClasseOrigem?.Contains(termoModulo, StringComparison.OrdinalIgnoreCase) ?? false));
+
+        if (origemModulo is { Id: > 0 })
+        {
+            var linhasModulo = await ObterAmostraAsync(origemModulo.Id, colunas, limite);
+            if (linhasModulo.Count > 0)
+                return linhasModulo;
+        }
+
+        return GerarAmostraModuloServidor(fonteId, colunas);
+    }
+
+    private static List<Dictionary<string, string>> GerarAmostraModuloServidor(string fonteId, List<string> colunas)
+    {
+        var itensBase = fonteId.ToLowerInvariant() switch
+        {
+            "food" => new (string Nome, decimal V1, decimal V2, decimal V3)[]
+            {
+                ("Pizzas Artesanais", 48500m, 620m, 78.2m),
+                ("Pratos Executivos", 39200m, 540m, 72.5m),
+                ("Carnes & Grelhados", 36400m, 310m, 117.4m),
+                ("Bebidas & Chopp", 29800m, 890m, 33.4m),
+                ("Hambúrgueres Gourmet", 24100m, 410m, 58.7m),
+                ("Porções & Entradas", 16800m, 320m, 52.5m),
+                ("Sobremesas da Casa", 14300m, 290m, 49.3m),
+                ("Vinhos & Drinks", 12900m, 140m, 92.1m),
+                ("Cafeteria & Lanches", 8400m, 260m, 32.3m),
+                ("Combos Família", 31500m, 210m, 150.0m)
+            },
+            "estoque" => new (string Nome, decimal V1, decimal V2, decimal V3)[]
+            {
+                ("Proteínas & Carnes Nobres", 184000m, 18.5m, 2m),
+                ("Laticínios & Queijos", 112000m, 22.0m, 3m),
+                ("Bebidas Alcoólicas", 96500m, 14.2m, 1m),
+                ("Hortifruti Selecionado", 64200m, 28.4m, 5m),
+                ("Embalagens Delivery", 48900m, 19.0m, 1m),
+                ("Farinhas & Massas", 39400m, 16.8m, 2m),
+                ("Limpeza & Higiene", 24800m, 9.5m, 0m),
+                ("Descartáveis Operacionais", 19200m, 11.2m, 1m),
+                ("Temperos & Especiarias", 14600m, 7.4m, 2m),
+                ("Suprimentos de Bar", 38400m, 13.6m, 1m)
+            },
+            "financeiro" => new (string Nome, decimal V1, decimal V2, decimal V3)[]
+            {
+                ("Operação Matriz", 142500m, 84200m, 58300m),
+                ("Unidade Centro", 98400m, 61500m, 36900m),
+                ("Canal Delivery Digital", 76800m, 42100m, 34700m),
+                ("Contratos Corporativos", 64200m, 29800m, 34400m),
+                ("Eventos & Reservas", 45900m, 24100m, 21800m),
+                ("Vendas Balcão", 38700m, 22400m, 16300m),
+                ("Franquia Sul", 89300m, 51200m, 38100m),
+                ("E-commerce / App Próprio", 54100m, 28900m, 25200m)
+            },
+            _ => new (string Nome, decimal V1, decimal V2, decimal V3)[]
+            {
+                ("Grupo Empresarial Alpha", 68400m, 24m, 2850m),
+                ("Rede Comercial Beta", 54200m, 19m, 2852m),
+                ("Distribuidora Horizonte", 49800m, 22m, 2263m),
+                ("Restaurante Solar", 38900m, 16m, 2431m),
+                ("Supermercados União", 34100m, 14m, 2435m),
+                ("Padaria & Café Central", 22400m, 11m, 2036m),
+                ("Hotelaria Atlântico", 19800m, 8m, 2475m),
+                ("Clínica Vida Saudável", 14200m, 6m, 2366m),
+                ("Comércio Varejista Sul", 9600m, 4m, 2400m),
+                ("Eventos Premium Ltda", 7800m, 3m, 2600m)
+            }
+        };
+
+        var fonteInfo = FontesDemonstrativas().FirstOrDefault(f => string.Equals(f.Id, fonteId, StringComparison.OrdinalIgnoreCase))
+            ?? FontesDemonstrativas().First();
+
+        var todasColunas = colunas
+            .Concat(fonteInfo.Dimensoes)
+            .Concat(fonteInfo.Metricas)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var lista = new List<Dictionary<string, string>>();
+        foreach (var item in itensBase)
+        {
+            var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Cliente"] = item.Nome,
+                ["Item"] = item.Nome,
+                ["Valor"] = item.V1.ToString(CultureInfo.InvariantCulture),
+                ["Faturamento"] = item.V1.ToString(CultureInfo.InvariantCulture),
+                ["TicketMedio"] = item.V3.ToString(CultureInfo.InvariantCulture),
+                ["Frequencia"] = item.V2.ToString(CultureInfo.InvariantCulture)
+            };
+
+            foreach (var dim in fonteInfo.Dimensoes)
+                dict[dim] = item.Nome;
+
+            for (var m = 0; m < fonteInfo.Metricas.Count; m++)
+            {
+                var val = m == 0 ? item.V1 : (m == 1 ? item.V2 : item.V3);
+                dict[fonteInfo.Metricas[m]] = val.ToString(CultureInfo.InvariantCulture);
+            }
+
+            foreach (var col in todasColunas)
+            {
+                if (!dict.ContainsKey(col))
+                    dict[col] = item.V1.ToString(CultureInfo.InvariantCulture);
+            }
+
+            lista.Add(dict);
+        }
+
+        return lista;
     }
 
     private async Task<List<Dictionary<string, string>>> ObterLinhasCacheOuApiAsync(int origemId)
@@ -965,45 +1226,57 @@ public class BIDataSourceService : IBIDataSourceService
             new FonteDadosInfo
             {
                 Id = "financeiro",
-                Nome = "Módulo Financeiro & Tesouraria",
-                Descricao = "Indicadores padrão de Faturamento, Despesas, Fluxo de Caixa e Contas.",
+                Nome = "Módulo Financeiro & Contábil",
+                Descricao = "Conexão no Servidor · Faturamento, Despesas, Fluxo de Caixa e Contas.",
+                Modulo = "Financeiro & Contábil",
+                TipoConexao = "SERVIDOR",
                 Icone = "bi-cash-coin",
                 Cor = "success",
-                Demonstrativa = true,
+                Demonstrativa = false,
+                ConexaoServidor = true,
                 Metricas = new List<string> { "Faturamento", "Despesas", "Lucro Liquido", "Inadimplencia", "Saldo Caixa" },
-                Dimensoes = new List<string> { "Mes", "Centro de Custo", "Forma Pagamento", "Conta Bancaria" }
+                Dimensoes = new List<string> { "Centro de Custo", "Mes", "Forma Pagamento", "Conta Bancaria" }
             },
             new FonteDadosInfo
             {
                 Id = "food",
                 Nome = "Módulo Food & Restaurante",
-                Descricao = "Indicadores padrão de Comandas, Mesas, Cardápio e Giro de Atendimento.",
+                Descricao = "Conexão no Servidor · Comandas, Mesas, Cardápio e Giro de Atendimento.",
+                Modulo = "Food & Restaurante",
+                TipoConexao = "SERVIDOR",
                 Icone = "bi-cup-straw",
                 Cor = "warning",
-                Demonstrativa = true,
+                Demonstrativa = false,
+                ConexaoServidor = true,
                 Metricas = new List<string> { "Faturamento Restaurante", "Ticket Medio", "Qtd Pedidos", "Giro Mesas", "Tempo Medio Atendimento" },
                 Dimensoes = new List<string> { "Categoria Cardapio", "Ambiente Salao", "Turno / Horario", "Garcom / Atendente" }
             },
             new FonteDadosInfo
             {
                 Id = "vendas",
-                Nome = "Módulo Comercial & CRM",
-                Descricao = "Indicadores padrão de Funil de Vendas, Leads, Conversão e Clientes.",
+                Nome = "Módulo Comercial & Vendas",
+                Descricao = "Conexão no Servidor · Funil de Vendas, Leads, Conversão e Clientes.",
+                Modulo = "Comercial & Vendas",
+                TipoConexao = "SERVIDOR",
                 Icone = "bi-graph-up-arrow",
                 Cor = "primary",
-                Demonstrativa = true,
-                Metricas = new List<string> { "Novos Leads", "Taxa Conversao", "Vendas Fechadas", "Valor Pipeline" },
-                Dimensoes = new List<string> { "Canal Aquisicao", "Vendedor", "Status Negocio", "Segmento Cliente" }
+                Demonstrativa = false,
+                ConexaoServidor = true,
+                Metricas = new List<string> { "Valor Pipeline", "Vendas Fechadas", "Novos Leads", "Taxa Conversao" },
+                Dimensoes = new List<string> { "Segmento Cliente", "Canal Aquisicao", "Vendedor", "Status Negocio" }
             },
             new FonteDadosInfo
             {
                 Id = "estoque",
                 Nome = "Módulo Estoque & Suprimentos",
-                Descricao = "Indicadores padrão de Insumos, Giro de Estoque, Lotes e Compras.",
+                Descricao = "Conexão no Servidor · Insumos, Giro de Estoque, Lotes e Compras.",
+                Modulo = "Estoque & Suprimentos",
+                TipoConexao = "SERVIDOR",
                 Icone = "bi-box-seam",
                 Cor = "info",
-                Demonstrativa = true,
-                Metricas = new List<string> { "Valor Total Estoque", "Itens Criticos", "Giro Estoque", "Perdas / Descarte" },
+                Demonstrativa = false,
+                ConexaoServidor = true,
+                Metricas = new List<string> { "Valor Total Estoque", "Giro Estoque", "Itens Criticos", "Perdas / Descarte" },
                 Dimensoes = new List<string> { "Grupo Produto", "Fornecedor", "Local Armazenagem" }
             }
         };

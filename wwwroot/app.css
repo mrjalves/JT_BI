@@ -146,3 +146,70 @@ main.content-body::-webkit-scrollbar-thumb:hover {
 .cursor-grab { cursor: grab; }
 .transition-all { transition: all 0.2s ease-in-out; }
 .shadow-xs { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+
+/* =========================================================================
+   Cabeçalhos de Modais e Legibilidade do BI
+   ========================================================================= */
+.bi-modal-header,
+.modal-header.bg-dark,
+.modal-header.bg-primary {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
+    color: #ffffff !important;
+}
+
+.bi-modal-header .modal-title,
+.bi-modal-header h5,
+.bi-modal-header h6,
+.modal-header.bg-dark .modal-title,
+.modal-header.bg-dark h5,
+.modal-header.bg-primary .modal-title,
+.modal-header.bg-primary h5,
+.modal-header.text-white .modal-title,
+.modal-header.text-white h5 {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.2px;
+}
+
+.bi-modal-header small,
+.modal-header.bg-dark small,
+.modal-header.bg-primary small,
+.modal-header.text-white small {
+    color: rgba(241, 245, 249, 0.88) !important;
+}
+
+.bi-mining-card {
+    background-color: var(--surface-card, #ffffff) !important;
+    border: 1px solid var(--border-color, #cbd5e1) !important;
+    color: var(--text-color, #0f172a) !important;
+    border-radius: 0.85rem !important;
+}
+
+.bi-mining-card h6,
+.bi-mining-card .form-label {
+    color: var(--text-color, #0f172a) !important;
+}
+
+.bi-module-chip {
+    border: 1px solid var(--border-color, #cbd5e1);
+    background-color: var(--surface-card, #ffffff);
+    color: var(--text-color, #1e293b);
+    border-radius: 0.65rem;
+    padding: 0.38rem 0.7rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    transition: all 0.15s ease;
+    cursor: pointer;
+}
+
+.bi-module-chip:hover {
+    border-color: #2563eb;
+    background-color: rgba(37, 99, 235, 0.06);
+}
+
+.bi-module-chip.active {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: #ffffff !important;
+    border-color: #1d4ed8;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+}
