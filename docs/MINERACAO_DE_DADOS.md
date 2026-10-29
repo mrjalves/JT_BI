@@ -1,197 +1,190 @@
-# Mineração de Dados — JT_BI
+# Mineração de Dados & Inteligência Artificial — JT_BI
 
-Este documento descreve como o laboratório de mineração do **JT_BI** obtém dados reais do EDW e como os algoritmos de **K-Means**, **Curva ABC** e **Score de Risco/Churn** são calculados.
-
-A implementação é 100% C# (`BIDataMiningService`), sem runtime Python e sem dependência do notebook de referência em `Agentes/AGENTE_BI`.
+Este documento descreve o funcionamento do **Laboratório de Mineração de Dados (BI)** e do **Agente de IA (CRISP-DM)** do **JT_BI**, cobrindo o fluxo de dados reais (EDW ou Datasets importados de até 5 GB), os algoritmos de **Clusterização K-Means Multidimensional**, **Classificação Curva ABC (Pareto 80/95)**, **Previsão de Churn supervisionada com ML.NET (FastTree)**, integração com **LLMs (Google Gemini / OpenAI)** e a injeção de widgets no Canvas.
 
 ---
 
-## 1. Visão Geral
+## 1. Visão Geral e Arquitetura CRISP-DM
+
+O pipeline segue a metodologia **CRISP-DM** (*Cross-Industry Standard Process for Data Mining*):
 
 ```mermaid
-flowchart LR
-    Modal["Laboratório de Mineração<br/>(Studio)"] -->|"origem + campos"| Amostra["IBIDataSourceService<br/>ObterAmostraAsync"]
-    Amostra --> Dw["DwConsultaService<br/>/api/dw/amostra ou SQL local"]
-    Dw --> Fato["EDW<br/>Fato_{TabelaOrigem}<br/>(último DataCarregamento)"]
-    Amostra --> Algoritmos["BIDataMiningService"]
-    Algoritmos --> Widgets["Widgets no canvas<br/>FonteDadosId = mineracao"]
+flowchart TD
+    subgraph Fase1 ["1. Compreensão do Negócio & Dados"]
+        Origem["Origem EDW ou Dataset (CSV/JSON até 5 GB)"]
+        PreProc["Tratamento & Pré-processamento<br/>(Limpeza de nulos, deduplicação de chaves e tipos)"]
+    end
+
+    subgraph Fase2 ["2. Algoritmos Analíticos & ML"]
+        KMeans["K-Means Multidimensional<br/>(Normalização z-score + Silhueta)"]
+        ABC["Curva ABC (Pareto 80/95)<br/>(Acumulado sobre valor e itens)"]
+        Churn["Previsão de Churn (ML.NET FastTree)<br/>(Probabilidade de evasão e receita sob risco)"]
+    end
+
+    subgraph Fase3 ["3. Inteligência Aumentada (LLM)"]
+        LLM["Agente CRISP-DM<br/>(Google Gemini / OpenAI-compatible)"]
+        Revisor["Revisor Científico & Metodológico<br/>(Crítica analítica e pontos de atenção)"]
+    end
+
+    subgraph Fase4 ["4. Implantação no Canvas"]
+        Widgets["10 Widgets Analíticos Injetados no Painel<br/>(KPIs, Pizza, Barras e Tabelas em 12 colunas)"]
+        ConsultorExec["Consultor Executivo IA<br/>(Diagnóstico 360° no Painel Público)"]
+    end
+
+    Origem --> PreProc
+    PreProc --> KMeans
+    PreProc --> ABC
+    PreProc --> Churn
+    KMeans --> LLM
+    ABC --> LLM
+    Churn --> LLM
+    LLM --> Revisor
+    Revisor --> Widgets
+    Widgets --> ConsultorExec
 ```
 
-O modal **Laboratório de Mineração de Dados (BI)** é aberto pelo Studio. Ele lista apenas fontes com `OrigemId` (ou seja, origens reais do EDW); quando não há nenhuma origem configurada, exibe um aviso e a mineração não é executada.
-
 ---
 
-## 2. Entrada de Dados
+## 2. Entrada de Dados e Pré-processamento
 
-### 2.1. Seleção no modal
+### 2.1. Fontes Suportadas
+O Laboratório aceita tanto **tabelas reais do Enterprise Data Warehouse (EDW)** quanto **Datasets importados** (arquivos CSV ou JSON de até 5 GB).
 
-| Controle | Uso |
-| :--- | :--- |
-| **Origem de Dados (EDW)** | Define `origemMineracaoId`; as colunas da origem alimentam os `datalist` dos campos. |
-| **Número de Clusters (K)** | UI oferece 2, 3 ou 4 grupos (o serviço aceita até 5). |
-| **Campo de identificação** | Coluna usada como rótulo do item/cliente. |
-| **Valor 1 / Valor 2** | Duas colunas numéricas do K-Means (ex.: valor e frequência). |
-| **Campo de valor (ABC)** | Coluna numérica usada para ordenar e acumular a Curva ABC. |
-
-### 2.2. Amostra
-
-`BIDashboardPage.ObterRegistrosMineracaoAsync` chama:
-
-```csharp
-DataSourceService.ObterAmostraAsync(origemMineracaoId, colunas, 5000)
-```
-
-O caminho até o banco é:
-
-1. `BIDataSourceService.ObterAmostraAsync` monta um `DwAmostraRequest`.
-2. `DwConsultaService` usa `POST /api/dw/amostra` em modo API ou SQL parametrizado no modo local.
-3. O SQL lê `Fato_{TabelaOrigem}` considerando apenas `DataCarregamento = MAX(DataCarregamento)`.
-4. Os valores são convertidos para `Dictionary<string, string>` (case-insensitive).
-
-A amostra é limitada a **5.000 linhas** no fluxo de mineração (`DwConsultaService` permite até 5.000 e no máximo 50 colunas).
-
----
-
-## 3. K-Means
-
-Implementação em `BIDataMiningService.ExecutarKMeans`.
-
-### 3.1. Preparação
-
-- Cada registro vira um `ClusterItem` com duas dimensões numéricas (`Valores`).
-- Os valores originais são preservados em `ValoresOriginais` para relatórios.
-- As dimensões são normalizadas por **z-score**:
-
-$$\tilde{x} = \frac{x - \mu}{\sigma}$$
-
-com $\sigma$ populacional. Se o desvio for zero (ou houver um único item), usa-se `1` para evitar divisão por zero. A normalização impede que colunas monetárias dominem a distância euclidiana.
-
-### 3.2. Parâmetros
-
-- `k` é limitado a `[2, 5]` e depois ao número de registros (com mínimo 1).
-- As sementes são escolhidas por `Random(42)`, garantindo **resultado determinístico** entre execuções.
-- O laço executa no máximo **50 iterações** ou até não haver mudança de cluster.
-- A atribuição usa distância euclidiana ao quadrado (sem `sqrt`, pois a ordem é a mesma).
-
-### 3.3. Saída
-
-- `Grupos`: quantidade, percentual, cor, centróide (média dos valores **originais**) e nome.
-- Os grupos são ordenados por média de `Valor 1` e renomeados:
-  - `k = 2` → `Alto Valor / VIP`, `Baixo Valor / Risco`
-  - `k = 3` → `Alto Valor / VIP`, `Médio Potencial`, `Baixo Valor / Risco`
-  - `k = 4` → `Alto Valor / VIP`, `Médio-Alto`, `Médio-Baixo`, `Baixo Valor / Risco`
-  - `k = 5` → `Cluster 1..5`
-- `ResumoExecutivo` informa iterações, clusters e total de registros.
-
----
-
-## 4. Curva ABC
-
-Implementação em `BIDataMiningService.CalcularCurvaAbc`.
-
-1. Lê `Campo nome` e `Campo valor` de cada registro.
-2. Ordena **decrescente** por valor.
-3. Acumula o valor e calcula o percentual acumulado:
-
-$$\text{acumulado} = \frac{\sum_{i=1}^{n} v_i}{\text{total}} \times 100$$
-
-4. Classifica usando o acumulado **anterior** ao item:
-
-| Acumulado anterior | Classe |
-| :--- | :--- |
-| `< 80%` | A |
-| `>= 80%` e `< 95%` | B |
-| `>= 95%` | C |
-
-Assim, **o item que cruza a faixa pertence à classe que ele completou**. Exemplo com valores `70`, `20`, `10`:
-
-| Item | Acumulado | Classe |
+| Fonte | Mecanismo de Leitura | Limite |
 | :--- | :--- | :--- |
-| 70 | 70% | A |
-| 20 | 90% | A |
-| 10 | 100% | B |
+| **Origens EDW** (`Fato_{Tabela}`) | `DwConsultaService` via `/api/dw/amostra` (ou SQL direto local). | Até 50.000 registros na amostra do laboratório. |
+| **Datasets Importados** (`dataset_{id}`) | `IBIDataSourceService.ObterLinhasDatasetAsync` a partir de `datasets.json`. | Suporta arquivos de até 5 GB com streaming assíncrono em chunks. |
 
-O resultado inclui `QtdClasseA/B/C` e `TotalGeral`.
-
-### 4.1. Conversão numérica
-
-`ExtrairDouble` tenta `InvariantCulture` e, em seguida, `pt-BR`. Isso permite ler tanto `1234.56` quanto `1.234,56`.
-
----
-
-## 5. Score de Risco / Churn
-
-Implementação em `BIDataMiningService.CalcularScoreRiscoChurn`.
-
-```
-scoreDias = min(60, diasSemComprar * 0.8)
-scoreCanc = min(40, qtdCancelamentos * 20)
-score     = min(100, max(0, scoreDias + scoreCanc))
-```
-
-| Score | Categoria |
-| :--- | :--- |
-| `>= 70` | Crítico |
-| `>= 40` | Médio |
-| `< 40` | Baixo |
-
-O motivo prioriza dias sem atividade quando `dias > 60`; caso contrário, destaca cancelamentos; se nenhum critério se aplica, usa `Engajamento regular`. A saída é ordenada por score decrescente.
-
-> O laboratório do Studio executa atualmente K-Means e Curva ABC. O cálculo de churn está disponível no serviço (`CalcularScoreRiscoChurn`) para uso por novas telas e pelo consultor.
+### 2.2. Tratamento e Higienização de Dados
+Antes de submeter os dados aos algoritmos matemáticos ou ao LLM, o método de tratamento sanitiza a fonte:
+- **Deduplicação de chaves**: Agrupa ocorrências com o mesmo identificador (ex.: transações de vendas do mesmo `CustomerID`), somando valores monetários, calculando frequências e determinando a última data de compra (recência). Isso elimina colisões de dicionário (ex.: *"An item with the same key has already been added"*).
+- **Conversão Numérica Bicultural**: `ExtrairDouble` suporta separadores decimais internacionais (`1234.56`) e no padrão brasileiro (`1.234,56`).
+- **Tratamento de Nulos**: Linhas com identificador ou valores essenciais vazios são filtradas ou substituídas por valores padrão neutros.
 
 ---
 
-## 6. Geração de Widgets
+## 3. Clusterização K-Means Multidimensional
 
-| Método | Widgets gerados |
-| :--- | :--- |
-| `GerarWidgetsMinacao` | KPI com número de clusters, gráfico de pizza com distribuição e tabela detalhada. |
-| `GerarWidgetsCurvaAbc` | KPI de itens Classe A e gráfico de barras A/B/C. |
+Implementada em `BIDataMiningService.ExecutarKMeans`:
 
-Todos os widgets recebem:
+### 3.1. Normalização e Distância
+- Suporta $N$ dimensões numéricas (ex.: Recência, Frequência, Monetário — RFM).
+- Cada dimensão é normalizada via **z-score**:
+  $$\tilde{x} = \frac{x - \mu}{\sigma}$$
+  com $\sigma$ populacional. Quando $\sigma = 0$, adota-se $1$ para evitar divisão por zero.
+- Aplicação de `log1p` para variáveis com cauda longa (ex.: receita monetária), garantindo que valores extremos não distorçam os centróides.
 
-- `FonteDadosId = "mineracao"`
-- `DadosEstaticos` com os pontos calculados (rótulo, valor, percentual, cor e valor formatado)
+### 3.2. Parâmetros e Convergência
+- Quantidade de clusters $k \in [2, 5]$ (configurável pelo usuário ou inferido pela IA).
+- Inicialização determinística com semente fixa (`Random(42)`), permitindo reprodutibilidade dos resultados.
+- Critério de parada: estabilidade dos centróides ou máximo de **50 iterações**.
 
-`BIDataSourceService` reconhece a fonte `mineracao` e devolve `DadosEstaticos` diretamente, sem nova consulta ao EDW. Os widgets são persistidos no dashboard; os dados de origem **não** são armazenados.
+### 3.3. Avaliação de Qualidade (Coeficiente de Silhueta)
+O algoritmo calcula o **coeficiente de silhueta médio** ($s \in [-1, 1]$):
+$$s(i) = \frac{b(i) - a(i)}{\max(a(i), b(i))}$$
+onde $a(i)$ é a distância média intra-cluster e $b(i)$ é a menor distância média a outro cluster. O valor é exibido no subtítulo do widget KPI (ex.: *silhueta 0.42*).
+
+### 3.4. Rotulagem dos Clusters
+Os centróides são ordenados por volume financeiro e classificados semanticamente:
+- $k=2$: `Alto Valor / VIP`, `Baixo Valor / Risco`
+- $k=3$: `Alto Valor / VIP`, `Médio Potencial`, `Em Risco / Inativos`
+- $k=4$: `VIP / Campeões`, `Alto Potencial`, `Atenção`, `Em Risco / Inativos`
 
 ---
 
-## 7. Limites e Tratamento de Erros
+## 4. Classificação Curva ABC (Princípio de Pareto 80/95)
 
-| Situação | Comportamento |
-| :--- | :--- |
-| Nenhuma origem EDW | Modal exibe aviso; nenhuma mineração é executada. |
-| Campos não informados | Feedback de aviso e retorno vazio. |
-| Amostra vazia | Feedback de aviso; nenhum widget é gerado. |
-| Menos de 2 registros no K-Means | Execução abortada. |
-| Curva ABC sem registros | Resultado vazio, sem widgets. |
-| Falha de comunicação/SQL | `DwConsultaResultado.Sucesso = false` com `Mensagem`; a UI não injeta widgets. |
+Implementada em `BIDataMiningService.CalcularCurvaAbc`:
+
+1. Agrupa e soma o valor acumulado por chave de identificação (produto, cliente ou categoria).
+2. Ordena **decrescentemente** pelo valor monetário total.
+3. Calcula o percentual acumulado sobre o faturamento global:
+   $$\text{Acumulado}_i = \frac{\sum_{j=1}^{i} V_j}{V_{\text{total}}} \times 100$$
+4. Enquadramento nas faixas:
+   - **Classe A**: Responsáveis por até **80%** do faturamento total.
+   - **Classe B**: Responsáveis pelos **15%** seguintes (de 80% a 95%).
+   - **Classe C**: Responsáveis pelos **5%** restantes (de 95% a 100%).
+
+O item que ultrapassa a linha divisória pertence à classe que ele completou. O resultado detalha o número de itens, valor total faturado e percentual de participação de cada classe.
 
 ---
 
-## 8. Testes Automatizados
+## 5. Previsão de Churn com ML.NET (FastTree)
 
-O projeto `tests/JT_BI.Tests` (NUnit) cobre os algoritmos com **15 testes**:
+Implementada com **Microsoft.ML** e fallback estocástico em `BIDataMiningService.CalcularScoreRiscoChurn`:
 
-- K-Means: normalização z-score, preservação dos valores originais, ordenação dos clusters, determinismo, limite de `k` e caso de um único registro.
-- Curva ABC: limite 80/95, ordenação decrescente, interpretação `pt-BR` e entrada vazia.
-- Churn: faixas de score, motivos e ordenação.
-- Widgets: fonte `mineracao`, dados estáticos e percentuais.
+### 5.1. Modelo Supervisionado (FastTree / Árvore de Decisão)
+- **Features de Entrada**:
+  - `RecenciaDias`: dias desde a última transação do cliente.
+  - `Frequencia`: quantidade total de compras/pedidos no período.
+  - `Monetario`: volume financeiro total transacionado.
+- **Treinamento e Inferência**:
+  - Utiliza `FastTreeBinaryTrainer` do ML.NET (`Microsoft.ML.FastTree`) para classificar a probabilidade de evasão do cliente ($0.0$ a $1.0$).
+  - Clientes com probabilidade $> 0.70$ são classificados em **Alto Risco**, entre $0.40$ e $0.70$ em **Médio Risco**, e $< 0.40$ em **Baixo Risco**.
 
-Execução:
+### 5.2. Métricas de Impacto Financeiro
+- **Receita em Risco**: Soma do valor monetário de todos os clientes em `Alto Risco`.
+- **Top 10 Clientes Prioritários para Retenção**: Tabela com os clientes de maior valor monetário sob risco de cancelamento, exibindo probabilidade e motivo principal (ex.: *Ausente há mais de 90 dias* ou *Queda abrupta de frequência*).
 
+---
+
+## 6. Agente de IA para Mineração e Provedores LLM
+
+Implementado em `BIMineracaoAgenteService`:
+
+### 6.1. Provedores Suportados
+O agente suporta dois provedores principais com chave configurável na interface:
+1. **Google Gemini** (Gemini 2.5 Flash / Pro): nativo via API do Google AI Studio.
+2. **OpenAI-Compatible**: suporte a endpoints compatíveis (OpenAI GPT-4o, Ollama, LocalAI, vLLM).
+3. **Fallback Heurístico Local**: Se a chave de API não estiver configurada ou a conexão falhar, o agente executa uma análise heurística determinística completa em C#, garantindo que a aplicação nunca pare de funcionar.
+
+### 6.2. Ciclo de Análise do Agente
+1. **Definição de Parâmetros com IA**: O LLM lê o objetivo do usuário (ex.: *"Segmentar clientes e prever churn"*) e sugere os melhores campos de valor, identificação e recência da fonte de dados.
+2. **Executar Tudo com IA**: Dispara em paralelo o K-Means, Curva ABC e Churn FastTree, envia as estatísticas agregadas para o LLM e recebe uma síntese estratégica.
+3. **Revisor Científico & Metodológico**: Uma segunda etapa de análise critica os resultados encontrados, avaliando o coeficiente de silhueta, concentração de receita da Curva ABC e eventuais vieses da base, gerando **Pontos de Atenção** práticos para a tomada de decisão executiva.
+
+---
+
+## 7. Geração e Injeção de Widgets no Canvas
+
+Quando a análise é finalizada, **10 widgets analíticos** completos são injetados no painel ativo:
+
+| # | Widget | Tipo | Largura no Grid | Propósito |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | **Segmentos K-Means** | `CardKpi` | 4 colunas (`col-lg-4`) | Quantidade de grupos, registros e silhueta. |
+| 2 | **Distribuição dos Segmentos** | `GraficoPizza` | 8 colunas (`col-lg-8`) | Proporção de clientes por cluster K-Means. |
+| 3 | **Valor Total por Segmento** | `GraficoBarras` | 6 colunas (`col-lg-6`) | Faturamento acumulado por perfil de grupo. |
+| 4 | **Perfil Médio de cada Segmento** | `Tabela` | 6 colunas (`col-lg-6`) | Médias de recência, frequência e monetário. |
+| 5 | **Quantidade de Itens por Classe** | `GraficoBarras` | 6 colunas (`col-lg-6`) | Distribuição das classes A, B e C da Curva ABC. |
+| 6 | **Participação no Valor** | `GraficoPizza` | 6 colunas (`col-lg-6`) | Pareto do faturamento por classe ABC. |
+| 7 | **Clientes em Alto Risco de Churn** | `CardKpi` | 4 colunas (`col-lg-4`) | Contagem e receita total em risco crítico. |
+| 8 | **Distribuição de Risco de Churn** | `GraficoPizza` | 8 colunas (`col-lg-8`) | Proporção de clientes Alto, Médio e Baixo risco. |
+| 9 | **Top 10 Clientes Prioritários** | `Tabela` | 12 colunas (`col-12`) | Clientes prioritários para ações de retenção. |
+| 10 | **Parecer Executivo & Metodológico** | `Tabela` | 12 colunas (`col-12`) | Diagnóstico do LLM e revisor com planos de ação. |
+
+Os widgets são vinculados com `FonteDadosId = "mineracao"` e possuem `DadosEstaticos` embutidos. As larguras obedecem à grade de 12 colunas Bootstrap (`LarguraColunas` 3, 4, 6, 8 e 12) sincronizada com `Largura` percentual, garantindo que o painel no Studio e a visualização compartilhada (`/compartilhado/{Token}`) exibam o layout organizado em pares e larguras totais.
+
+---
+
+## 8. Consultor Executivo IA no Painel Público
+
+No visualizador compartilhado ([`VisualizadorPublico.razor`](file:///c:/Users/sirja/source/repos/mrjalves/JT_BI/Components/Pages/VisualizadorPublico.razor)), o componente [`BIPainelRelatorioIA.razor`](file:///c:/Users/sirja/source/repos/mrjalves/JT_BI/Components/BI/BIPainelRelatorioIA.razor) disponibiliza o painel executivo com três abas navegáveis:
+- **Diagnóstico 360°**: Faturamento consolidado, ticket médio, principais classes ABC e síntese do consultor.
+- **Segmentação & Pareto**: Métricas de concentração K-Means e Pareto de itens.
+- **Previsão de Riscos & Churn**: Alertas de clientes e receita sob risco de evasão.
+
+---
+
+## 9. Suíte de Testes Automatizados
+
+O projeto `tests/JT_BI.Tests` (NUnit) cobre toda a suíte com **54 testes automatizados**:
+- Algoritmos K-Means (normalização, cálculo de silhueta, determinismo, limite de $k$).
+- Curva ABC (limiares 80/95, ordenação decrescente, conversão cultural pt-BR).
+- Previsão de Churn (FastTree ML.NET, categorização de risco, cálculo de receita exposta).
+- Agente CRISP-DM e Revisor (estruturação de parecer, fallback determinístico, deduplicação de chaves).
+- Geração de Widgets e Grade Bootstrap (sincronização `LarguraColunas` e `Largura`).
+
+Comando para execução:
 ```bash
 dotnet test tests/JT_BI.Tests/JT_BI.Tests.csproj
 ```
-
-A pasta `tests/` é excluída do build e do publish do host `JT_BI.csproj`.
-
----
-
-## 9. Limitações e Evolução
-
-- K-Means bidimensional: não há seleção automática de `k` (cotovelo/silhueta) nem mais de duas dimensões na UI.
-- RFM completo ainda não é calculado; a base atual usa duas métricas escolhidas pelo usuário.
-- O score de churn não está exposto no modal do Studio.
-- O determinismo depende da ordem dos registros retornada pela amostra; para séries grandes, considere `ORDER BY` estável.

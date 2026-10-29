@@ -1,19 +1,22 @@
-# JT_BI - Business Intelligence & Dashboard Executivo
+# JT_BI - Business Intelligence, Mineração de Dados & IA Executiva
 
-Módulo de Business Intelligence e Dashboards Gerenciais da plataforma **JT Sistemas**, desenvolvido em **.NET 10** com **Blazor Interactive Server**.
+Módulo de Business Intelligence, Analytics Avançado e Dashboards Gerenciais da plataforma **JT Sistemas**, desenvolvido em **.NET 10** com **Blazor Interactive Server**, **ML.NET** e suporte a **Modelos de Linguagem (Google Gemini / OpenAI)**.
 
 ---
 
-## 🚀 Tecnologias
+## 🚀 Tecnologias e Capacidades
 
 - **Framework:** .NET 10 (C# 13)
-- **UI & Interatividade:** Blazor Interactive Server Components
-- **Estilização:** CSS moderno com design tokens, suporte a Dark/Light Theme e layout responsivo
-- **Serviços:** `IBIDashboardService`, `IBIDataSourceService`, `IBIImportService`, `IBIDataMiningService`, `OrigemDadosService`, `DwConsultaService`, `IndicadorDashboardService`, `BIMenuProvider`, `BITutorialProvider`
-- **Dados:** origens reais do EDW (`Fato_{TabelaOrigem}`) via `DwConsultaService` (`/api/dw` ou SQL local), com fallback para fontes demonstrativas
-- **Persistência:** arquivos JSON em `Data/` (`dashboards.json` e `datasets.json`), com cache em memória e fallback para diretório temporário
-- **Ownership:** dashboards e datasets vinculados ao usuário (`CurrentUserState`), com visão total para Administrador/Supervisor e dashboards legados sem dono tratados como compartilhados
-- **Integração:** Dependência direta dos projetos de camada compartilhada `JT_ApplicationLayer` (`JT_Classes`, `JT_Servicos`, `JT_Aplicacao` e `JT_UserInterface.Shared`)
+- **UI & Interatividade:** Blazor Interactive Server Components com layout responsivo e barras laterais com rolagem fixa
+- **Machine Learning & Mineração:** **ML.NET** (`Microsoft.ML.FastTree`), K-Means Multidimensional com cálculo de Silhueta, Curva ABC (Princípio de Pareto 80/95) e Score Supervisionado de Churn
+- **Inteligência Artificial (LLM):** Agente analítico CRISP-DM integrado a **Google Gemini** e provedores compatíveis com **OpenAI**, com revisor científico e parecer executivo
+- **Consultor Executivo IA Público:** `BIPainelRelatorioIA` integrado ao visualizador público com diagnóstico 360°, segmentação e previsão de riscos
+- **Uploads de Alta Capacidade:** Suporte a arquivos CSV e JSON de **até 5 GB** via streaming com Kestrel e SignalR configurados para grandes payloads
+- **Serviços Principais:** `IBIDashboardService`, `IBIDataSourceService`, `IBIImportService`, `IBIDataMiningService`, `IBIMineracaoAgenteService`, `ConfiguracaoIAService`, `BIModuloVerificacaoService`, `DwConsultaService`, `OrigemDadosService`
+- **Dados:** origens reais do EDW (`Fato_{TabelaOrigem}`) via `DwConsultaService` (`/api/dw` ou SQL local) e datasets importados gerenciáveis
+- **Persistência:** arquivos JSON estruturados em `Data/` (`dashboards.json` e `datasets.json`), com cache em memória e tratamento de concorrência por semáforo
+- **Ownership:** dashboards e datasets vinculados ao usuário autenticado (`CurrentUserState`), com visão global para Administrador/Supervisor
+- **Qualidade & Confiabilidade:** **54 testes unitários automatizados** cobrindo algoritmos, ML, tratamento de dados e renderização de grade Bootstrap
 
 ---
 
@@ -23,9 +26,9 @@ O JT_BI é um host único **Blazor Web App (Interactive Server)**, com separaç�
 
 👉 **[Documento de Arquitetura (docs/ARQUITETURA.md)](docs/ARQUITETURA.md)**
 
-Detalhes dos algoritmos de clusterização, Curva ABC, score de risco e testes estão em:
+Detalhamento da metodologia CRISP-DM, K-Means multidimensional, Curva ABC, FastTree Churn e testes automatizados:
 
-👉 **[Mineração de Dados (docs/MINERACAO_DE_DADOS.md)](docs/MINERACAO_DE_DADOS.md)**
+👉 **[Mineração de Dados & Inteligência Artificial (docs/MINERACAO_DE_DADOS.md)](docs/MINERACAO_DE_DADOS.md)**
 
 ---
 
@@ -42,6 +45,9 @@ dotnet restore
 
 # Compilar
 dotnet build
+
+# Executar testes unitários (54 testes)
+dotnet test tests/JT_BI.Tests/JT_BI.Tests.csproj
 
 # Executar com hot reload
 dotnet watch

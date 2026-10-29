@@ -110,14 +110,33 @@ flowchart TD
 O `Program.cs` centraliza a composição da aplicação:
 
 ```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    // Permite payloads e uploads de arquivos de até 5 GB
+    serverOptions.Limits.MaxRequestBodySize = 5L * 1024 * 1024 * 1024;
+});
+
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents()
+    .AddHubOptions(options =>
+    {
+        // Suporta uploads de grandes arquivos (até 5 GB) e mensagens SignalR sem interrupção de circuito
+        options.MaximumReceiveMessageSize = null;
+        options.ClientTimeoutInterval = TimeSpan.FromMinutes(15);
+        options.HandshakeTimeout = TimeSpan.FromSeconds(60);
+        options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    });
 
 Config.SetInstancia(builder.Configuration.GetSection("Config").Get<Config>());
 FirebaseConfig.SetInstancia(builder.Configuration.GetSection("Config:FirebaseConfig").Get<FirebaseConfig>());
 
 builder.Services.AddScoped<ISecureStorageService, WebSecureStorageService>();
 builder.Services.AddJTUserInterface();
+
+// Decoração do IModuloVerificacaoService para assegurar que eModuloSistema.IA esteja sempre ativo no BI
+builder.Services.AddScoped<IModuloVerificacaoService, BIModuloVerificacaoService>();
 
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<JwtTokenService>();
@@ -130,6 +149,8 @@ builder.Services.AddSingleton<IBIDashboardService, BIDashboardService>();
 builder.Services.AddScoped<IBIDataSourceService, BIDataSourceService>();
 builder.Services.AddSingleton<IBIImportService, BIImportService>();
 builder.Services.AddSingleton<IBIDataMiningService, BIDataMiningService>();
+builder.Services.AddScoped<IBIMineracaoAgenteService, BIMineracaoAgenteService>();
+builder.Services.AddScoped<JT_Servicos.IA.ConfiguracaoIAService>();
 
 builder.Services.AddScoped<JT_Servicos.DW.OrigemDadosService>();
 builder.Services.AddScoped<JT_Servicos.DW.DwConsultaService>();
@@ -138,9 +159,10 @@ builder.Services.AddScoped<JT_Servicos.DW.IndicadorDashboardService>();
 
 ### Decisões de Ciclo de Vida
 
-- **Estado analítico como `Singleton`:** `BIDashboardService`, `BIImportService` e `BIDataMiningService` concentram cache de dashboards/datasets e algoritmos sem estado por usuário. O semáforo de escrita do serviço de dashboards evita leituras concorrentes inconsistentes do arquivo JSON e mantém o Studio estável entre circuitos Blazor.
-- **Acesso a dados como `Scoped`:** `BIDataSourceService` depende de `OrigemDadosService` e `DwConsultaService`, que usam `HttpClient` por circuito (modo API) e a conexão multi-tenant resolvida por request (`BaseRepository.StringConexaoProvider`) no modo local. Por isso os três são registrados como `Scoped`.
-- **Serviços de plataforma como `Scoped`:** menu, tutorial, armazenamento seguro e token JWT acompanham o escopo do circuito do usuário.
+- **Estado analítico como `Singleton`:** `BIDashboardService`, `BIImportService` e `BIDataMiningService` concentram cache de dashboards/datasets e algoritmos sem estado por usuário. O semáforo de escrita do serviço de dashboards serializa operações no arquivo JSON e mantém o Studio estável entre circuitos Blazor.
+- **Agente de IA e ML como `Scoped`:** `BIMineracaoAgenteService` e `ConfiguracaoIAService` utilizam o contexto HTTP do circuito e a configuração de chaves do usuário (Gemini / OpenAI).
+- **Acesso a dados como `Scoped`:** `BIDataSourceService` depende de `OrigemDadosService` e `DwConsultaService`, que usam `HttpClient` por circuito (modo API) e a conexão multi-tenant resolvida por request (`BaseRepository.StringConexaoProvider`) no modo local.
+- **Verificação de Módulos:** `BIModuloVerificacaoService` assegura que `eModuloSistema.IA` seja reconhecido como ativo, viabilizando a injeção da aba padrão de IA em `/configuracoes`.
 - **Configurações estáticas:** `Config` e `FirebaseConfig` são inicializadas no host e expostas como instâncias únicas para os serviços compartilhados.
 
 ### Pipeline HTTP
@@ -251,10 +273,13 @@ Representa um painel analítico completo. Além dos metadados visuais (nome, des
 
 ### 4.2. `BIWidget`
 
-É a unidade visual e analítica do painel. Possui duas dimensões de layout:
+É a unidade visual e analítica do painel. Possui duas dimensões de layout perfeitamente integradas:
 
-1. **Posicionamento absoluto percentual** (`PosX`, `PosY`, `Largura`, `Altura`) para o canvas livre do editor.
-2. **Largura em colunas** (`LarguraColunas`) para a grade responsiva do visualizador público.
+1. **Posicionamento percentual** (`PosX`, `PosY`, `Largura`, `Altura`): utilizado no canvas de edição visual.
+2. **Grade responsiva Bootstrap de 12 colunas** (`LarguraColunas`): define as classes (`col-12`, `col-12 col-xl-8`, `col-12 col-lg-6`, `col-12 col-sm-6 col-lg-4`, `col-12 col-sm-6 col-lg-3`).
+
+> [!NOTE]
+> `BIWidget` possui **sincronização bidirecional automática** entre `Largura` (percentual) e `LarguraColunas` (grade 1 a 12). Definir `LarguraColunas = 12` calcula `Largura = 100%`, `LarguraColunas = 8` calcula `66.7%`, `6` calcula `50%`, `4` calcula `33.3%` e `3` calcula `25%`. Isso garante que o tamanho configurado no construtor de widgets e no editor seja respeitado tanto no Studio quanto no visualizador público.
 
 A vinculação de dados é declarativa e resolvida em `BIDataSourceService`:
 
@@ -265,7 +290,7 @@ A vinculação de dados é declarativa e resolvida em `BIDataSourceService`:
 
 ### 4.3. `BIDataset`
 
-Armazena dados tabulares importados de CSV ou JSON. As colunas carregam o tipo inferido (`Texto` ou `Numero`) e as linhas são dicionários dinâmicos, o que permite ao editor oferecer métricas e dimensões sem um schema fixo.
+Armazena dados tabulares importados de CSV ou JSON (suportando arquivos de **até 5 GB**). As colunas carregam o tipo inferido (`Texto` ou `Numero`) e as linhas são dicionários dinâmicos, o que permite ao editor oferecer métricas e dimensões sem um schema fixo.
 
 Assim como os dashboards, datasets possuem `UsuarioId`, `UsuarioUid` e `UsuarioNome`. Datasets antigos sem dono permanecem compartilhados. A leitura por vínculo (`ObterDatasetsPorIdsAsync`) ignora o filtro de dono, permitindo que um painel público renderize apenas os datasets aos quais foi explicitamente associado.
 
@@ -275,10 +300,13 @@ Assim como os dashboards, datasets possuem `UsuarioId`, `UsuarioUid` e `UsuarioN
 
 | Contrato | Implementação | Ciclo de Vida | Responsabilidade |
 | :--- | :--- | :--- | :--- |
-| `IBIDashboardService` | `BIDashboardService` | Singleton | CRUD de dashboards/datasets, cache em memória, persistência JSON, duplicação, token público e sanitização. |
+| `IBIDashboardService` | `BIDashboardService` | Singleton | CRUD de dashboards/datasets, cache em memória, persistência JSON, duplicação, token público e sanitização não-destrutiva de widgets. |
 | `IBIDataSourceService` | `BIDataSourceService` | Scoped | Catálogo de origens EDW, resolução de KPIs e séries, agregações, leitura de datasets e amostras para mineração. |
-| `IBIImportService` | `BIImportService` | Singleton | Importação de CSV/JSON, inferência de tipos e geração automática de dashboard. |
-| `IBIDataMiningService` | `BIDataMiningService` | Singleton | K-Means bidimensional, Curva ABC, score de risco/churn e geração de widgets analíticos. |
+| `IBIImportService` | `BIImportService` | Singleton | Importação de CSV/JSON em streaming assíncrono (até 5 GB), inferência de tipos e geração automática de dashboard. |
+| `IBIDataMiningService` | `BIDataMiningService` | Singleton | K-Means Multidimensional (z-score + silhueta), Curva ABC (Pareto 80/95), Previsão de Churn com ML.NET FastTree e injeção de widgets. |
+| `IBIMineracaoAgenteService` | `BIMineracaoAgenteService` | Scoped | Agente analítico CRISP-DM com suporte a Google Gemini e OpenAI-compatible, com fallback heurístico e revisor metodológico. |
+| `ConfiguracaoIAService` | `ConfiguracaoIAService` | Scoped | Parametrização de API Keys (Gemini/OpenAI), persistência de configurações de IA e descoberta de modelos. |
+| `IModuloVerificacaoService` | `BIModuloVerificacaoService` | Scoped | Decorador de verificação garantindo que o módulo `eModuloSistema.IA` esteja sempre ativo no BI. |
 | `OrigemDadosService` | `OrigemDadosService` | Scoped | Catálogo de origens, modelo de entidades e execução de cargas no EDW (API ou SQL local). |
 | `DwConsultaService` | `DwConsultaService` | Scoped | Consultas agregadas e amostras somente leitura sobre `Fato_{TabelaOrigem}`. |
 | `IndicadorDashboardService` | `IndicadorDashboardService` | Scoped | Cálculo de indicadores, painéis e séries a partir das origens EDW. |
@@ -294,7 +322,7 @@ O serviço de dashboards é o núcleo de estado do módulo:
 - **Cache preguiçoso:** os arquivos só são lidos na primeira operação de cada coleção.
 - **Concorrência controlada:** um `SemaphoreSlim(1,1)` serializa leituras de carga e escritas.
 - **Seed inicial:** quando `dashboards.json` não existe, dois painéis demonstrativos são criados (`Visão Executiva 360°` e `Performance Restaurante & Food`).
-- **Sanitização:** ao carregar, textos com problemas de encoding são normalizados e larguras de colunas incompatíveis são corrigidas conforme o tipo do widget.
+- **Sanitização Inteligente:** normaliza encoding de caracteres e sincroniza colunas de layout sem sobrescrever configurações válidas já definidas no construtor do widget.
 - **Resiliência:** falhas de escrita são registradas no console sem derrubar a aplicação, preservando o cache em memória.
 - **Ownership:** as operações recebem um `BIUsuarioContexto` (ID/UID/nome e flag de acesso total). As listagens retornam apenas dashboards/datasets do próprio usuário ou sem dono; `Administrador` e `Supervisor` enxergam todos. Ao salvar, o dono original é preservado (impedindo troca de propriedade pela edição), e a duplicação atribui a cópia a quem duplicou. A edição de dataset de outro dono lança `UnauthorizedAccessException`.
 - **Isolamento do cache:** leituras e gravações trabalham com cópias serializadas do dashboard, evitando que mutações da UI em um circuito alterem o cache global antes do salvamento.
@@ -327,32 +355,33 @@ Após qualquer criação, edição, exclusão ou carga, o modal dispara `OnChang
 
 ### 5.3. `BIImportService`
 
-O importador aceita dois formatos:
+O importador aceita dois formatos e processa arquivos de **até 5 GB**:
 
 - **CSV:** detecta automaticamente o delimitador (`;`, `,` ou tabulação), lê o cabeçalho, converte as linhas e infere colunas numéricas quando mais de 70% de uma amostra de 20 registros é numérica.
 - **JSON:** espera um array de objetos e infere tipo por valor (`Number` ou texto).
 
 A entrada pode vir de três origens no modal de importação:
 
-- **Arquivo:** `InputFile` com limite de 10 MB; o nome do arquivo sugere o nome do dataset.
-- **Link (URL):** download via `IHttpClientFactory`, restrito a HTTP/HTTPS e também limitado a 10 MB. Requisições externas não recebem o token JWT.
+- **Arquivo:** `InputFile` com suporte a arquivos de **até 5 GB** via streaming em chunks; o nome do arquivo sugere o nome do dataset.
+- **Link (URL):** download via `IHttpClientFactory`, restrito a HTTP/HTTPS e também suportando grandes arquivos. Requisições externas não recebem o token JWT.
 - **Colar:** textarea para CSV/JSON, com detecção automática do formato.
 
 Após a importação, `GerarDashboardAutomatico` cria um painel com cinco widgets: três KPIs (total, média e contagem) e dois gráficos (barras e pizza), vinculados ao dataset pelo identificador `dataset_{Guid}`. O dataset e o dashboard são salvos com o `BIUsuarioContexto` do usuário atual, respeitando o ownership.
 
 O modal é único e global: `BILayout` hospeda `BIImportHost`, controlado por `BIImportUiService`. Assim, tanto os botões das páginas quanto o botão de importação do assistente de IA abrem o mesmo `BIImportModal`. Para isso, `ChatInstrutor` consulta `IImportacaoDadosProvider` e o JT_BI registra `BIImportacaoProvider`.
 
-### 5.4. `BIDataMiningService`
+### 5.4. `BIDataMiningService` e `BIMineracaoAgenteService`
 
-O laboratório de mineração implementa algoritmos diretamente em C#, sem dependências externas e alimentado por amostras reais do EDW:
+O laboratório de mineração implementa o ciclo analítico CRISP-DM com **ML.NET** e algoritmos avançados em C#:
 
-- **Entrada:** o Studio carrega até 5.000 linhas via `IBIDataSourceService.ObterAmostraAsync`, a partir da origem e das colunas escolhidas no modal de mineração.
-- **K-Means:** clusterização em duas dimensões numéricas normalizadas por z-score; `k` limitado entre 2 e 5 (e ao tamanho da amostra), sementes determinísticas (`Random(42)`) e no máximo 50 iterações. Os grupos são renomeados por valor médio conforme `k` (por exemplo, `Alto Valor / VIP`, `Médio Potencial`, `Baixo Valor / Risco`).
-- **Curva ABC:** ordenação decrescente por valor e classificação acumulada em A (até 80%), B (até 95%) e C (restante). O item que cruza uma faixa pertence à classe que ele completou.
-- **Score de Risco/Churn:** combina dias sem comprar (`dias × 0,8`, limitado a 60 pontos) e quantidade de cancelamentos (`× 20`, até 40 pontos), resultando em categorias `Baixo`, `Médio` ou `Crítico`.
-- **Geração de widgets:** converte os resultados em KPIs, pizza, barras e tabela, gravando `FonteDadosId = "mineracao"` e `DadosEstaticos` no widget, sem persistir os dados de origem.
+- **Entrada & Tratamento:** Carrega registros do EDW ou Datasets, aplicando limpeza e deduplicação de chaves agregadas para evitar colisões.
+- **K-Means Multidimensional:** Clusterização em $N$ dimensões normalizadas por z-score com suporte a escala logarítmica (`log1p`), cálculo do coeficiente de silhueta médio e rotulagem contextual dos grupos.
+- **Curva ABC (Pareto 80/95):** Ordenação decrescente por valor monetário acumulado e classificação em classes A, B e C.
+- **Previsão de Churn com ML.NET (FastTree):** Treinamento e inferência supervisionada baseada em recência, frequência e valor monetário, gerando probabilidade de cancelamento, categorização de risco e cálculo da receita exposta.
+- **Agente LLM & Revisor Metodológico:** Integração com provedores Google Gemini e OpenAI-compatible via `ConfiguracaoIA` (com fallback heurístico determinístico), gerando parecer executivo e pontos críticos de atenção.
+- **Geração de Widgets:** Injeta 10 widgets no Canvas com larguras Bootstrap de 12 colunas coordenadas em pares e larguras totais.
 
-O detalhamento dos algoritmos, limites e casos de teste está em [MINERACAO_DE_DADOS.md](MINERACAO_DE_DADOS.md).
+O detalhamento completo dos algoritmos, fórmulas e casos de teste está em [MINERACAO_DE_DADOS.md](MINERACAO_DE_DADOS.md).
 
 ### 5.5. `DwConsultaService` e os Endpoints `/api/dw`
 
@@ -404,25 +433,26 @@ flowchart LR
     Canvas -->|"salvar"| Persistencia["Dashboards JSON"]
 ```
 
-### 6.1. Canvas e Drag-and-Drop
+### 6.1. Canvas, Drag-and-Drop e Layout com Laterais Fixas
 
-- Cada widget pode ser inserido por clique ou arrastado da toolbox para a área central.
-- O posicionamento é percentual, permitindo que o layout se adapte a diferentes resoluções.
-- O editor dedicado (`/dashboards/editor/{Id}`) adiciona movimentação, redimensionamento, duplicação, exclusão e reorganização automática dos widgets.
+- O layout do Studio fixa as barras laterais esquerda (Toolbox) e direita (Inspector) via CSS sticky (`top: 0; max-height: calc(100vh - 120px)`), isolando a rolagem vertical exclusivamente dentro do container central do Canvas (`#biCanvasArea`).
+- A seleção e edição de qualquer widget destaca sua borda em tempo real e sincroniza os campos de propriedade imediatamente.
+- Os painéis contam com **renomeação rápida**: o título e descrição podem ser alterados diretamente pelo cabeçalho do Canvas, pela aba de propriedades do Inspector ou pelo modal `BIEditDashboardModal.razor`.
+- O editor dedicado (`/dashboards/editor/{Id}`) oferece movimentação, redimensionamento, duplicação, exclusão e reorganização automática dos widgets.
 
 ### 6.2. Templates
 
-O Studio oferece três modelos prontos:
+O Studio oferece modelos pré-configurados:
 
 1. **Executivo:** KPIs financeiros e evolução temporal.
 2. **Operacional:** comparativos por categoria, canais e visão de vendas.
-3. **Mineração & IA:** estrutura voltada a clusterização, Curva ABC e indicadores de risco.
+3. **Mineração & IA:** estrutura completa voltada a clusterização K-Means, Curva ABC e indicadores de risco Churn FastTree.
 
-Os templates podem ser aplicados pelo modal ou acionados pelo Consultor de IA.
+### 6.3. Consultor de IA e Agente CRISP-DM
 
-### 6.3. Consultor de IA
-
-O consultor do Studio é um **motor local de intenção baseado em palavras-chave**, não uma chamada a um LLM externo. Ele interpreta comandos como `kmeans`, `abc`, `executivo`, `operacional`, `barra`, `linha`, `pizza`, `kpi` e `limpar`, executa a ação correspondente no canvas e responde no histórico do chat. Essa decisão mantém o módulo autônomo e sem custo de inferência, deixando a integração com provedores de IA como ponto de extensão.
+O Studio dispõe de dois níveis de inteligência:
+1. **Comandos Locais Rápidos**: Motor local de intenções para comandos de manipulação rápida (`kmeans`, `abc`, `executivo`, `operacional`, `barra`, `linha`, `pizza`, `kpi`).
+2. **Agente CRISP-DM & LLM**: Executa mineração de dados em lote com K-Means, Curva ABC e ML.NET FastTree, gerando diagnósticos via **Google Gemini** ou **OpenAI-compatible**, acompanhado de crítica metodológica do Revisor Científico.
 
 ### 6.4. Exportação
 
@@ -434,7 +464,7 @@ No inspector do editor dedicado, a escolha da fonte define `OrigemId` e libera a
 
 ---
 
-## 7. Renderização de Widgets e Fluxo de Dados
+## 7. Renderização de Widgets e Grade Bootstrap
 
 O componente `BIWidgetView` é o renderizador único de todos os tipos de widget:
 
@@ -454,39 +484,45 @@ sequenceDiagram
     Widget-->>Pagina: Card, gráfico ou tabela formatados
 ```
 
-- **KPIs:** exibem valor formatado (`Moeda`, `Numero`, `Percentual`, `Decimal`), variação percentual e, quando configurada, barra de progresso de meta.
-- **Gráficos:** barras em CSS, linhas em SVG com gradiente e pizza via `conic-gradient`, sem biblioteca gráfica externa.
-- **Tabelas:** listam dimensão, métrica e percentual.
-- **Formatação:** centralizada no componente, garantindo consistência entre Studio e visualizador público.
+- **Grade Responsiva Bootstrap (12 Colunas):** Renderização coordenada via `ObterClasseGridWidget(w)` mapeando `col-12` (largura total), `col-12 col-xl-8` (2/3), `col-12 col-lg-6` (1/2), `col-12 col-sm-6 col-lg-4` (1/3) e `col-12 col-sm-6 col-lg-3` (1/4).
+- **KPIs:** exibem valor formatado (`Moeda`, `Numero`, `Percentual`, `Decimal`), variação percentual e barra de progresso de meta.
+- **Gráficos:** barras em CSS, linhas em SVG com gradiente e pizza via `conic-gradient`, sem bibliotecas externas pesadas.
+- **Tabelas:** listam dimensão, métrica, percentual e barras de proporção.
 
 ---
 
-## 8. Compartilhamento Público
+## 8. Compartilhamento Público & Consultor Executivo IA
 
 O compartilhamento é baseado em **link opaco com token**, e não em autenticação do visitante:
 
-1. Cada dashboard nasce com `PublicToken`, mas `PermiteAcessoPublico = false`: o compartilhamento é **privado por padrão** e precisa ser habilitado explicitamente.
+1. Cada dashboard nasce com `PublicToken`, com compartilhamento desativado por padrão (`PermiteAcessoPublico = false`).
 2. O `BIShareModal` permite habilitar/revogar o acesso, copiar o link e definir o intervalo de auto-refresh.
 3. `ObterPorTokenPublicoAsync` só retorna o painel quando o token existe **e** o compartilhamento está habilitado.
-4. O `VisualizadorPublico` usa o `PublicLayout`, sem o menu lateral ou o cabeçalho da aplicação: a página exibe apenas o cabeçalho configurado no dashboard (ícone, cor, nome e descrição), a alternância claro/escuro e a atualização automática por timer. Não há atalho de edição na visão pública, e somente os datasets vinculados ao painel (`DatasetsVinculadosIds`) são carregados, sem aplicar filtro de dono — o token público concede leitura exclusivamente desses vínculos.
+4. O `VisualizadorPublico` utiliza o `PublicLayout` com suporte a alternância claro/escuro, atualização periódica por timer e **rolagem vertical livre** em toda a extensão do painel.
+5. **Consultor Executivo IA Embutido**: O componente `BIPainelRelatorioIA.razor` exibe um cabeçalho executivo no topo do painel público com três abas navegáveis (*Diagnóstico 360°*, *Segmentação & Pareto* e *Previsão de Riscos & Churn*), oferecendo insights consolidados em tempo real aos tomadores de decisão.
 
 ```mermaid
 flowchart LR
     Editor["Editor / Studio"] -->|"PublicToken"| Link["/compartilhado/{Token}"]
     Link --> Viewer["VisualizadorPublico"]
-    Viewer -->|"token válido + público"| Dashboard["Dashboard renderizado"]
+    Viewer -->|"token válido + público"| Relatorio["BIPainelRelatorioIA<br/>Consultor Executivo 360°"]
+    Relatorio --> Dashboard["Grade de Widgets Renderizada"]
     Viewer -->|"token inválido ou privado"| Erro["Painel não encontrado ou privado"]
     Viewer -->|"AutoRefreshSegundos > 0"| Timer["Atualização periódica"]
 ```
 
-> [!IMPORTANT]
-> O link público concede leitura do painel a qualquer pessoa que possua o token, **independentemente do dono** do dashboard. Não há expiração automática ou auditoria de acesso no modelo atual. Desativar `PermiteAcessoPublico` revoga o link imediatamente.
-
 ---
 
-## 9. Segurança e Controle de Acesso
+## 9. Segurança, Configurações e Governança
 
-### 9.1. Acesso ao Studio
+### 9.1. Configurações de IA na Interface (`/configuracoes`)
+
+A página de configurações do sistema (`Components/Pages/Configuracoes.razor`) expõe a aba padronizada **Inteligência Artificial (Gemini / LLM)**:
+- Habilitada pelo serviço `BIModuloVerificacaoService`, que declara `eModuloSistema.IA` ativo no DI.
+- Utiliza o componente compartilhado `IAConfigTab.razor` para cadastro de chaves de API do Google AI Studio, teste de conexão imediato, listagem de modelos habilitados e parâmetros de temperatura e tokens.
+- Suporta persistência automática com `ConfiguracaoIAService`.
+
+### 9.2. Acesso ao Studio
 
 O acesso ao painel principal é validado no componente `BIDashboardPage`:
 
@@ -495,18 +531,12 @@ O acesso ao painel principal é validado no componente `BIDashboardPage`:
 - Os demais perfis dependem de `AcessoService.TemPermissaoAsync(eModuloSistema.Gestao, eAcaoPermissao.Ler)`.
 - O estado de autenticação é observado por `CurrentUserState.OnStateChanged`, permitindo revalidar o acesso quando a sessão muda.
 
-O `Program.cs` não registra `UseAuthentication`/`UseAuthorization`; a proteção é aplicada na camada de componente. O visualizador público é deliberadamente anônimo.
+### 9.3. Ownership dos Dashboards
 
-### 9.2. Ownership dos Dashboards
-
-A propriedade é aplicada pelo `BIDashboardService` por meio de `BIUsuarioContexto`, derivado de `CurrentUserState`:
-
-- `ObterVisiveisAsync`/`ObterDatasetsVisiveisAsync` filtram as listagens; `ObterAcessivelAsync` e `PodeAcessarAsync` validam um painel específico antes de abrir o editor.
-- `SalvarAsync` e `SalvarDatasetAsync` lançam `UnauthorizedAccessException` quando o usuário tenta alterar item de outro dono; `ExcluirAsync` retorna `false` no mesmo cenário.
-- `DuplicarAsync` exige acesso ao original e define o dono da cópia como o usuário atual.
-- Painéis e datasets sem dono (seed inicial e arquivos legados) permanecem compartilhados; a primeira edição **não** assume a propriedade.
-- `Administrador` e `Supervisor` têm acesso total (leitura, edição, exclusão e duplicação).
-- A visão pública usa `ObterDatasetsPorIdsAsync`: valida o token do painel e retorna somente os datasets vinculados, independentemente do dono.
+A propriedade é aplicada pelo `BIDashboardService` por meio de `BIUsuarioContexto`:
+- Listagens filtram painéis e datasets por usuário ou itens compartilhados; Administrador e Supervisor possuem visão global.
+- A duplicação transfere a posse da nova cópia ao criador.
+- A visualização pública carrega apenas os datasets associados explicitamente ao painel pelo token.
 
 ### 9.3. Tokens e Armazenamento
 
