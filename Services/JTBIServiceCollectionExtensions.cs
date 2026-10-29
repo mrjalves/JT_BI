@@ -17,6 +17,7 @@ public static class JTBIServiceCollectionExtensions
                 "Seção 'Config' não encontrada. Configure appsettings.{Environment}.json, User Secrets ou variáveis de ambiente (Config__*).");
 
         Config.SetInstancia(dadosConfig);
+        Config.Instancia.ClientId = "JT_BI";
 
         var secaoFConfig = configuration.GetSection("Config:FirebaseConfig");
         var dadosFConfig = secaoFConfig.Get<FirebaseConfig>() ?? new FirebaseConfig();
