@@ -58,6 +58,42 @@ public class BIDashboardOwnershipTests
     }
 
     [Test]
+    public async Task Salvar_AlteracaoNomeEDados_AtualizaPropriedadesComSucesso()
+    {
+        var dash = new BIDashboard
+        {
+            Nome = "Nome Original",
+            Descricao = "Descricao Original",
+            Categoria = "Personalizado",
+            Icone = "bi-speedometer2"
+        };
+        await _service.SalvarAsync(dash, Alice);
+
+        var salvo = await _service.ObterPorIdAsync(dash.Id);
+        Assert.That(salvo, Is.Not.Null);
+        Assert.That(salvo!.Nome, Is.EqualTo("Nome Original"));
+
+        // Modifica o nome e detalhes
+        salvo.Nome = "Novo Nome do Painel Executivo";
+        salvo.Descricao = "Nova Descricao Detalhada";
+        salvo.Categoria = "Vendas e Retenção";
+        salvo.Icone = "bi-pie-chart-fill";
+
+        await _service.SalvarAsync(salvo, Alice);
+
+        var atualizado = await _service.ObterPorIdAsync(dash.Id);
+        Assert.That(atualizado, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(atualizado!.Nome, Is.EqualTo("Novo Nome do Painel Executivo"));
+            Assert.That(atualizado.Descricao, Is.EqualTo("Nova Descricao Detalhada"));
+            Assert.That(atualizado.Categoria, Is.EqualTo("Vendas e Retenção"));
+            Assert.That(atualizado.Icone, Is.EqualTo("bi-pie-chart-fill"));
+            Assert.That(atualizado.UsuarioId, Is.EqualTo(Alice.UsuarioId));
+        });
+    }
+
+    [Test]
     public async Task ObterVisiveis_FiltraDashboardsDeOutrosUsuarios()
     {
         var daAlice = new BIDashboard { Nome = "Painel da Alice" };

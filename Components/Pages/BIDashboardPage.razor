@@ -101,6 +101,11 @@ else
                                     }
                                 </select>
                             }
+                            <button class="btn btn-sm btn-outline-secondary rounded-3 px-2 shadow-xs d-flex align-items-center gap-1"
+                                    @onclick="() => isEditDashboardModalOpen = true" title="Renomear / Editar Dados do Painel">
+                                <i class="bi bi-pencil-square text-primary"></i>
+                                <span class="d-none d-xl-inline">Renomear</span>
+                            </button>
                             <button class="btn btn-sm btn-outline-primary rounded-3 px-2 shadow-xs d-flex align-items-center gap-1"
                                     @onclick="NovoDashboardAsync" title="Criar Novo Painel">
                                 <i class="bi bi-plus-circle"></i>
@@ -326,16 +331,31 @@ else
                 <!-- COLUNA CENTRAL: Canvas Interativo do BI (Drag-and-Drop Dropzone) -->
                 <main class="col-12 col-lg-7 d-flex flex-column">
                     <div class="card card-modern border-0 h-100 overflow-hidden d-flex flex-column" data-tutorial="bi-canvas">
-                        <div class="card-header border-bottom py-2 px-3 d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="badge bg-primary text-white rounded-pill px-3 py-1 fw-semibold">
-                                    <i class="bi bi-bounding-box-circles me-1"></i> Canvas Central
+                        <div class="card-header border-bottom py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width: 65%;">
+                                <span class="badge bg-primary text-white rounded-pill px-2 py-1 fw-semibold flex-shrink-0">
+                                    <i class="bi bi-bounding-box-circles me-1"></i> Painel
                                 </span>
-                                <span class="text-muted small">
-                                    @((DashboardAtivo?.Widgets?.Count ?? 0) == 0 ? "Nenhum widget ativo" : $"{DashboardAtivo?.Widgets?.Count} widgets no painel")
-                                </span>
+                                @if (DashboardAtivo != null)
+                                {
+                                    <div class="input-group input-group-sm flex-nowrap align-items-center" style="max-width: 340px;">
+                                        <input type="text"
+                                               class="form-control form-control-sm fw-bold border-0 bg-transparent px-2 text-body"
+                                               style="font-size: 0.95rem; border-bottom: 1px dashed var(--bs-border-color) !important;"
+                                               placeholder="Nome do Painel..."
+                                               @bind="DashboardAtivo.Nome"
+                                               @bind:after="SalvarNomePainelRapidoAsync"
+                                               title="Clique para editar o nome do painel (salva automaticamente ao sair do campo)" />
+                                        <button type="button" class="btn btn-xs btn-outline-secondary border-0 ms-1" title="Editar Informações Completas do Painel" @onclick="() => isEditDashboardModalOpen = true">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                    </div>
+                                    <span class="text-muted small flex-shrink-0 d-none d-md-inline">
+                                        (@((DashboardAtivo?.Widgets?.Count ?? 0) == 0 ? "0 widgets" : $"{DashboardAtivo?.Widgets?.Count} widgets"))
+                                    </span>
+                                }
                             </div>
-                            <div class="d-flex align-items-center gap-1">
+                            <div class="d-flex align-items-center gap-1 flex-shrink-0">
                                 <button class="btn btn-xs btn-outline-info rounded-3 py-1 px-2 border-0"
                                         @onclick="AbrirTutorialPagina" title="Instruções da Página / Ajuda">
                                     <i class="bi bi-question-circle me-1"></i> Ajuda
@@ -509,10 +529,73 @@ else
                                 <!-- Painel de Propriedades do Widget Selecionado (Inspector) -->
                                 @if (WidgetSelecionado == null)
                                 {
-                                    <div class="text-center text-muted p-4">
-                                        <i class="bi bi-cursor fs-1 opacity-25 d-block mb-2"></i>
-                                        <span class="small">Selecione um widget no Canvas para editar título, métricas, cores e largura de colunas.</span>
-                                    </div>
+                                    @if (DashboardAtivo != null)
+                                    {
+                                        <div class="d-flex flex-column gap-3">
+                                            <div class="p-2 rounded-3 bg-body-tertiary border">
+                                                <div class="d-flex align-items-center gap-2 mb-1">
+                                                    <i class="bi bi-speedometer2 text-primary fs-5"></i>
+                                                    <span class="fw-bold small text-body">Propriedades do Painel</span>
+                                                </div>
+                                                <p class="text-muted small mb-0" style="font-size: 0.72rem;">
+                                                    Configure o nome e os dados gerais deste dashboard.
+                                                </p>
+                                            </div>
+
+                                            <div>
+                                                <label class="form-label small fw-semibold text-secondary">Nome do Painel</label>
+                                                <input type="text"
+                                                       class="form-control form-control-sm rounded-3 fw-bold"
+                                                       @bind="DashboardAtivo.Nome"
+                                                       @bind:after="SalvarNomePainelRapidoAsync"
+                                                       placeholder="Nome do Painel..." />
+                                            </div>
+
+                                            <div>
+                                                <label class="form-label small fw-semibold text-secondary">Descrição</label>
+                                                <textarea class="form-control form-control-sm rounded-3"
+                                                          rows="2"
+                                                          @bind="DashboardAtivo.Descricao"
+                                                          @bind:after="SalvarNomePainelRapidoAsync"
+                                                          placeholder="Descrição do painel..."></textarea>
+                                            </div>
+
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <label class="form-label small fw-semibold text-secondary">Categoria</label>
+                                                    <input type="text"
+                                                           class="form-control form-control-sm rounded-3"
+                                                           @bind="DashboardAtivo.Categoria"
+                                                           @bind:after="SalvarNomePainelRapidoAsync"
+                                                           placeholder="Ex: Comercial" />
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label small fw-semibold text-secondary">Acesso Público</label>
+                                                    <button type="button"
+                                                            class="btn btn-sm btn-outline-secondary rounded-3 w-100 text-truncate"
+                                                            @onclick="() => isShareModalOpen = true"
+                                                            title="Configurar Compartilhamento">
+                                                        <i class="bi bi-share me-1"></i> @(DashboardAtivo.PermiteAcessoPublico ? "Ativo" : "Privado")
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <button type="button" class="btn btn-sm btn-primary rounded-3 w-100 shadow-sm" @onclick="SalvarDashboardAtualAsync" disabled="@IsSalvando">
+                                                <i class="bi bi-check2-circle me-1"></i> Salvar Painel
+                                            </button>
+
+                                            <div class="p-2 rounded-3 bg-light text-muted small mt-2" style="font-size: 0.72rem;">
+                                                <i class="bi bi-info-circle me-1"></i> Dica: Clique em qualquer widget no Canvas para inspecionar e editar suas métricas específicas.
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="text-center text-muted p-4">
+                                            <i class="bi bi-cursor fs-1 opacity-25 d-block mb-2"></i>
+                                            <span class="small">Selecione um painel ou widget no Canvas para editar suas propriedades.</span>
+                                        </div>
+                                    }
                                 }
                                 else
                                 {
@@ -1466,6 +1549,9 @@ else
 
         <!-- Modal Compartilhar Link Público (Fase 5) -->
         <BIShareModal @bind-IsOpen="isShareModalOpen" Dashboard="DashboardAtivo" />
+
+        <!-- Modal Editar Nome e Dados do Painel -->
+        <BIEditDashboardModal @bind-IsOpen="isEditDashboardModalOpen" Dashboard="DashboardAtivo" OnSaved="OnDashboardNomeAlteradoAsync" />
 }
 
 @code {
@@ -1493,6 +1579,7 @@ else
     private bool isTemplatesModalOpen = false;
     private bool isDataMiningModalOpen = false;
     private bool isShareModalOpen = false;
+    private bool isEditDashboardModalOpen = false;
     private bool isFontesModalOpen = false;
     private int kMeansK = 3;
     private List<FonteDadosInfo> fontesMineracao = new();
@@ -2767,6 +2854,40 @@ else
         {
             IsSalvando = false;
         }
+    }
+
+    private async Task SalvarNomePainelRapidoAsync()
+    {
+        if (DashboardAtivo == null) return;
+        if (string.IsNullOrWhiteSpace(DashboardAtivo.Nome))
+        {
+            DashboardAtivo.Nome = "Painel sem título";
+        }
+
+        // Atualiza a referência correspondente na lista para refletir no select imediatamente
+        var itemLista = ListaDashboards.FirstOrDefault(d => d.Id == DashboardAtivo.Id);
+        if (itemLista != null)
+        {
+            itemLista.Nome = DashboardAtivo.Nome;
+            itemLista.Descricao = DashboardAtivo.Descricao;
+            itemLista.Categoria = DashboardAtivo.Categoria;
+        }
+
+        await SalvarDashboardAtualAsync();
+    }
+
+    private async Task OnDashboardNomeAlteradoAsync(BIDashboard d)
+    {
+        var itemLista = ListaDashboards.FirstOrDefault(item => item.Id == d.Id);
+        if (itemLista != null)
+        {
+            itemLista.Nome = d.Nome;
+            itemLista.Descricao = d.Descricao;
+            itemLista.Categoria = d.Categoria;
+            itemLista.Icone = d.Icone;
+        }
+        await InvokeAsync(StateHasChanged);
+        ExibirFeedback("Informações do painel atualizadas com sucesso!", "alert-success");
     }
 
     private void AdicionarWidgetRapido(BIWidgetTipo tipo)

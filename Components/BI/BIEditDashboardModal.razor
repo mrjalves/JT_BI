@@ -1,0 +1,203 @@
+@using JT_BI.Models
+@using JT_BI.Services
+@using JT_Classes.Acessos
+@inject IBIDashboardService DashboardService
+@inject CurrentUserState UserState
+
+@if (IsOpen && Dashboard != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 1055;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-2xl rounded-4 overflow-hidden">
+                <div class="modal-header bi-modal-header p-3 border-0" style="background: linear-gradient(135deg, #1e293b, #0f172a);">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="p-2 bg-primary rounded-3 text-white">
+                            <i class="bi bi-pencil-square"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title fw-bold mb-0 text-white" style="color: #ffffff !important;">Editar Nome e Dados do Painel</h5>
+                            <small style="color: rgba(241, 245, 249, 0.88) !important;">Personalize o título, descrição e identificação visual</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" @onclick="Fechar"></button>
+                </div>
+
+                <div class="modal-body p-4">
+                    @if (!string.IsNullOrEmpty(mensagemErro))
+                    {
+                        <div class="alert alert-danger py-2 small rounded-3 mb-3" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i> @mensagemErro
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-body">
+                            Nome do Painel <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-body-tertiary border-end-0">
+                                <i class="bi @(string.IsNullOrWhiteSpace(iconeSelecionado) ? "bi-speedometer2" : iconeSelecionado) text-primary"></i>
+                            </span>
+                            <input type="text"
+                                   class="form-control fw-bold border-start-0"
+                                   placeholder="Ex: Painel Executivo de Vendas 2026"
+                                   @bind="nome"
+                                   @bind:event="oninput"
+                                   @onkeydown="TratarKeyDown"
+                                   maxlength="120"
+                                   autofocus />
+                        </div>
+                        <div class="form-text small text-muted">
+                            Este é o nome principal exibido no cabeçalho do BI, na Central e nas apresentações compartilhadas.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted">Descrição do Painel:</label>
+                        <textarea class="form-control rounded-3"
+                                  rows="2"
+                                  placeholder="Descreva o propósito deste painel analítico..."
+                                  @bind="descricao"
+                                  maxlength="300"></textarea>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold small text-muted">Categoria:</label>
+                            <input type="text"
+                                   class="form-control form-control-sm rounded-3"
+                                   list="categoriasSugeridas"
+                                   placeholder="Ex: Comercial, Financeiro..."
+                                   @bind="categoria" />
+                            <datalist id="categoriasSugeridas">
+                                <option value="Comercial" />
+                                <option value="Financeiro" />
+                                <option value="Operações" />
+                                <option value="Retenção / Churn" />
+                                <option value="Marketing" />
+                                <option value="Executivo" />
+                                <option value="Personalizado" />
+                            </datalist>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold small text-muted">Ícone Representativo:</label>
+                            <select class="form-select form-select-sm rounded-3" @bind="iconeSelecionado">
+                                <option value="bi-speedometer2">Indicador / Velocímetro</option>
+                                <option value="bi-pie-chart-fill">Gráfico Pizza</option>
+                                <option value="bi-bar-chart-fill">Gráfico de Barras</option>
+                                <option value="bi-graph-up">Gráfico de Linha / Tendência</option>
+                                <option value="bi-cash-coin">Financeiro / Moedas</option>
+                                <option value="bi-cart-check-fill">Vendas / Carrinho</option>
+                                <option value="bi-people-fill">Clientes / Segmentação</option>
+                                <option value="bi-cpu-fill">Inteligência Artificial / Mineração</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-body-tertiary p-3 border-top d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-3 px-3" @onclick="Fechar" disabled="@isSalvando">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary rounded-3 px-4 fw-semibold shadow-sm" @onclick="SalvarAsync" disabled="@isSalvando">
+                        @if (isSalvando)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>Salvando...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-lg me-1"></i>
+                            <span>Salvar Alterações</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BIDashboard? Dashboard { get; set; }
+    [Parameter] public EventCallback<BIDashboard> OnSaved { get; set; }
+
+    private string nome = string.Empty;
+    private string descricao = string.Empty;
+    private string categoria = string.Empty;
+    private string iconeSelecionado = "bi-speedometer2";
+    private string? mensagemErro;
+    private bool isSalvando = false;
+
+    protected override void OnParametersSet()
+    {
+        if (Dashboard != null)
+        {
+            nome = Dashboard.Nome ?? string.Empty;
+            descricao = Dashboard.Descricao ?? string.Empty;
+            categoria = string.IsNullOrWhiteSpace(Dashboard.Categoria) ? "Personalizado" : Dashboard.Categoria;
+            iconeSelecionado = string.IsNullOrWhiteSpace(Dashboard.Icone) ? "bi-speedometer2" : Dashboard.Icone;
+            mensagemErro = null;
+        }
+    }
+
+    private async Task TratarKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SalvarAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            await Fechar();
+        }
+    }
+
+    private async Task SalvarAsync()
+    {
+        if (Dashboard == null) return;
+
+        if (string.IsNullOrWhiteSpace(nome))
+        {
+            mensagemErro = "O nome do painel não pode ficar em branco.";
+            return;
+        }
+
+        isSalvando = true;
+        mensagemErro = null;
+
+        try
+        {
+            Dashboard.Nome = nome.Trim();
+            Dashboard.Descricao = descricao.Trim();
+            Dashboard.Categoria = string.IsNullOrWhiteSpace(categoria) ? "Personalizado" : categoria.Trim();
+            Dashboard.Icone = string.IsNullOrWhiteSpace(iconeSelecionado) ? "bi-speedometer2" : iconeSelecionado.Trim();
+
+            await DashboardService.SalvarAsync(Dashboard, BIUsuarioContexto.De(UserState));
+
+            if (OnSaved.HasDelegate)
+            {
+                await OnSaved.InvokeAsync(Dashboard);
+            }
+
+            await Fechar();
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = $"Erro ao salvar: {ex.Message}";
+        }
+        finally
+        {
+            isSalvando = false;
+        }
+    }
+
+    private async Task Fechar()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
+}
+

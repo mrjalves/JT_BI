@@ -148,7 +148,12 @@
                                 }
                             </div>
 
-                            <h5 class="fw-bold text-body mb-1">@dash.Nome</h5>
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                <h5 class="fw-bold text-body mb-0 text-truncate" title="@dash.Nome">@dash.Nome</h5>
+                                <button type="button" class="btn btn-xs btn-outline-secondary border-0 rounded-2 py-0 px-1" title="Renomear Painel" @onclick="() => AbrirRenomearModal(dash)">
+                                    <i class="bi bi-pencil" style="font-size: 0.8rem;"></i>
+                                </button>
+                            </div>
                             <p class="text-muted small mb-2 text-truncate-2" style="min-height: 40px;">@dash.Descricao</p>
                             <div class="small text-muted mb-2">
                                 <i class="bi bi-person-circle me-1"></i>
@@ -167,6 +172,9 @@
                                 <a href="/compartilhado/@dash.PublicToken" target="_blank" class="btn btn-sm btn-outline-secondary rounded-3" title="Visualizar Apresentação">
                                     <i class="bi bi-eye"></i>
                                 </a>
+                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-3" @onclick="() => AbrirRenomearModal(dash)" title="Renomear / Editar Dados do Painel">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary rounded-3" @onclick="() => AbrirCompartilhar(dash)" title="Compartilhar Link">
                                     <i class="bi bi-share"></i>
                                 </button>
@@ -189,12 +197,21 @@
 </div>
 
 <BIShareModal @bind-IsOpen="isShareModalOpen" Dashboard="dashboardParaCompartilhar" OnSaved="CarregarDashboardsAsync" />
+<BIEditDashboardModal @bind-IsOpen="isModalRenomearOpen" Dashboard="dashboardParaRenomear" OnSaved="CarregarDashboardsAsync" />
 
 @code {
     private List<BIDashboard> dashboards = new();
     private int datasetsCount = 0;
     private bool isLoading = true;
     private bool isShareModalOpen = false;
+    private bool isModalRenomearOpen = false;
+    private BIDashboard? dashboardParaRenomear;
+
+    private void AbrirRenomearModal(BIDashboard d)
+    {
+        dashboardParaRenomear = d;
+        isModalRenomearOpen = true;
+    }
     private BIDashboard? dashboardParaCompartilhar;
     private string? mensagemErro;
     private Action? _stateChangedHandler;
