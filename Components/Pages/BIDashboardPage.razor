@@ -746,6 +746,12 @@ else
                                         }
                                     </div>
                                     <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-xs @(registrosTratadosEmMemoria != null ? "btn-success" : (fonteTransacionalDetectada ? "btn-warning" : "btn-outline-warning")) rounded-3 py-1 px-2 small"
+                                                @onclick="() => isTratamentoDadosAberto = !isTratamentoDadosAberto"
+                                                title="Configurar tratamento e agregação (RFM) para dados transacionais">
+                                            <i class="bi bi-funnel-fill me-1"></i>
+                                            @(registrosTratadosEmMemoria != null ? "Base Tratada Ativa (RFM)" : "Tratar Fonte para IA")
+                                        </button>
                                         <button type="button" class="btn btn-xs btn-outline-primary rounded-3 py-1 px-2 small"
                                                 @onclick="AbrirGerenciadorFontesDaMineracao">
                                             <i class="bi bi-hdd-network me-1"></i> Conectar Tabela do Servidor
@@ -794,6 +800,133 @@ else
                                         </div>
                                     </div>
                                 </div>
+
+                                @if (fonteTransacionalDetectada && registrosTratadosEmMemoria == null)
+                                {
+                                    <div class="alert alert-warning py-1 px-2 mt-2 mb-0 d-flex align-items-center justify-content-between flex-wrap gap-2" style="font-size: 0.74rem;">
+                                        <div>
+                                            <i class="bi bi-exclamation-triangle-fill me-1 text-warning"></i>
+                                            <strong>Fonte Transacional Detectada:</strong> Contém múltiplas linhas por entidade. Trate a base (RFM) para agrupar clientes antes de minerar.
+                                        </div>
+                                        <button type="button" class="btn btn-xs btn-warning text-dark fw-bold rounded-2 py-0 px-2" @onclick="() => isTratamentoDadosAberto = true">
+                                            <i class="bi bi-magic me-1"></i> Abrir Tratamento
+                                        </button>
+                                    </div>
+                                }
+
+                                @if (registrosTratadosEmMemoria != null)
+                                {
+                                    <div class="alert alert-success py-1 px-2 mt-2 mb-0 d-flex align-items-center justify-content-between flex-wrap gap-2" style="font-size: 0.74rem;">
+                                        <div>
+                                            <i class="bi bi-check-circle-fill me-1 text-success"></i>
+                                            <strong>Base Tratada Ativa:</strong> @(ultimoResultadoTratamento?.Mensagem ?? $"{registrosTratadosEmMemoria.Count} registros tratados.")
+                                        </div>
+                                        <div class="d-flex gap-1">
+                                            <button type="button" class="btn btn-xs btn-success rounded-2 py-0 px-2" @onclick="SalvarBaseTratadaComoFonteAsync">
+                                                <i class="bi bi-save me-1"></i> Salvar como Fonte de Dados
+                                            </button>
+                                            <button type="button" class="btn btn-xs btn-outline-secondary rounded-2 py-0 px-2" @onclick="DesfazerTratamentoDados">
+                                                <i class="bi bi-arrow-counterclockwise me-1"></i> Desfazer
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+
+                                @if (isTratamentoDadosAberto)
+                                {
+                                    <div class="card border-warning border-opacity-50 bg-warning bg-opacity-10 rounded-3 p-3 mt-3 shadow-xs">
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="bi bi-funnel-fill text-warning fs-5"></i>
+                                                <div>
+                                                    <h6 class="fw-bold mb-0 text-warning-emphasis">Tratamento e Engenharia de Features (RFM / Limpeza)</h6>
+                                                    <small class="text-muted" style="font-size: 0.72rem;">Transforma dados de transações em métricas agregadas por cliente para K-Means e Churn.</small>
+                                                </div>
+                                            </div>
+                                            <button type="button" class="btn-close btn-sm" @onclick="() => isTratamentoDadosAberto = false"></button>
+                                        </div>
+
+                                        <div class="row g-2 mb-2">
+                                            <div class="col-12 col-md-4">
+                                                <label class="form-label small fw-bold mb-1">Campo ID (Cliente / Item):</label>
+                                                <select class="form-select form-select-sm" @bind="configTratamento.CampoId">
+                                                    @foreach (var col in ColunasMineracao)
+                                                    {
+                                                        <option value="@col">@col</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div class="col-12 col-md-4">
+                                                <label class="form-label small fw-bold mb-1">Campo Data (Transação):</label>
+                                                <select class="form-select form-select-sm" @bind="configTratamento.CampoData">
+                                                    <option value="">(Nenhum / Não calcular recência)</option>
+                                                    @foreach (var col in ColunasMineracao)
+                                                    {
+                                                        <option value="@col">@col</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div class="col-12 col-md-4">
+                                                <label class="form-label small fw-bold mb-1">Campo Quantidade:</label>
+                                                <select class="form-select form-select-sm" @bind="configTratamento.CampoQuantidade">
+                                                    <option value="">(Nenhum)</option>
+                                                    @foreach (var col in ColunasMineracao)
+                                                    {
+                                                        <option value="@col">@col</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div class="col-12 col-md-4">
+                                                <label class="form-label small fw-bold mb-1">Campo Preço Unitário:</label>
+                                                <select class="form-select form-select-sm" @bind="configTratamento.CampoPrecoUnitario">
+                                                    <option value="">(Nenhum)</option>
+                                                    @foreach (var col in ColunasMineracao)
+                                                    {
+                                                        <option value="@col">@col</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div class="col-12 col-md-4">
+                                                <label class="form-label small fw-bold mb-1">Campo Valor Direto (se não houver Preço):</label>
+                                                <select class="form-select form-select-sm" @bind="configTratamento.CampoValor">
+                                                    <option value="">(Usar Quantidade * Preço)</option>
+                                                    @foreach (var col in ColunasMineracao)
+                                                    {
+                                                        <option value="@col">@col</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div class="col-12 col-md-4 d-flex align-items-center gap-3 pt-3">
+                                                <div class="form-check form-switch mb-0">
+                                                    <input class="form-check-input" type="checkbox" id="chkNegativos" @bind="configTratamento.FiltrarValoresNegativos">
+                                                    <label class="form-check-label small fw-semibold" for="chkNegativos">Filtrar Devoluções (&le; 0)</label>
+                                                </div>
+                                                <div class="form-check form-switch mb-0">
+                                                    <input class="form-check-input" type="checkbox" id="chkIdsVazios" @bind="configTratamento.FiltrarIdsVazios">
+                                                    <label class="form-check-label small fw-semibold" for="chkIdsVazios">Remover IDs Vazios</label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-3" @onclick="() => isTratamentoDadosAberto = false">
+                                                Fechar
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-warning text-dark fw-bold rounded-3" disabled="@isProcessandoTratamento" @onclick="ExecutarTratamentoNaSessaoAsync">
+                                                @if (isProcessandoTratamento)
+                                                {
+                                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                                    <span>Tratando Dados...</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-magic me-1"></i>
+                                                    <span>Aplicar Tratamento na Sessão</span>
+                                                }
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
 
                                 @if (ColunasMineracao.Count > 0)
                                 {
@@ -1374,6 +1507,14 @@ else
     private string? mensagemMineracaoModal;
     private string classeMensagemMineracaoModal = "alert-info";
 
+    // Tratamento de Dados para IA / RFM
+    private bool isTratamentoDadosAberto = false;
+    private bool isProcessandoTratamento = false;
+    private bool fonteTransacionalDetectada = false;
+    private TratamentoDadosConfig configTratamento = new();
+    private ResultadoTratamentoDados? ultimoResultadoTratamento;
+    private List<Dictionary<string, string>>? registrosTratadosEmMemoria;
+
     // Drag and Drop (Fase 2)
     private BIWidgetTipo? tipoWidgetArrastando;
     private bool IsDragOverCanvas = false;
@@ -1554,14 +1695,28 @@ else
         resultadoAnaliseIa = null;
         recomendacaoIa = null;
         mensagemMineracaoModal = null;
+        registrosTratadosEmMemoria = null;
+        ultimoResultadoTratamento = null;
 
         var colunas = ColunasMineracao;
         var metricas = MetricasMineracao;
+        fonteTransacionalDetectada = DataMiningService.EhFonteTransacional(colunas);
         if (colunas.Count == 0) return;
 
         campoMineracaoNome = FonteMineracao?.Dimensoes.FirstOrDefault()
-            ?? colunas.FirstOrDefault(c => c.Contains("id", StringComparison.OrdinalIgnoreCase) || c.Contains("cliente", StringComparison.OrdinalIgnoreCase) || c.Contains("item", StringComparison.OrdinalIgnoreCase) || c.Contains("nome", StringComparison.OrdinalIgnoreCase))
+            ?? colunas.FirstOrDefault(c => c.Contains("CustomerID", StringComparison.OrdinalIgnoreCase) || c.Contains("Cliente", StringComparison.OrdinalIgnoreCase) || c.Contains("item", StringComparison.OrdinalIgnoreCase) || c.Contains("nome", StringComparison.OrdinalIgnoreCase) || c.Contains("id", StringComparison.OrdinalIgnoreCase))
             ?? colunas[0];
+
+        if (fonteTransacionalDetectada)
+        {
+            configTratamento.CampoId = campoMineracaoNome;
+            configTratamento.CampoData = colunas.FirstOrDefault(c => c.Contains("InvoiceDate", StringComparison.OrdinalIgnoreCase) || c.Contains("Date", StringComparison.OrdinalIgnoreCase) || c.Contains("Data", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
+            configTratamento.CampoQuantidade = colunas.FirstOrDefault(c => c.Contains("Quantity", StringComparison.OrdinalIgnoreCase) || c.Contains("Qtd", StringComparison.OrdinalIgnoreCase) || c.Contains("Quantidade", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
+            configTratamento.CampoPrecoUnitario = colunas.FirstOrDefault(c => c.Contains("UnitPrice", StringComparison.OrdinalIgnoreCase) || c.Contains("Unit_Price", StringComparison.OrdinalIgnoreCase) || c.Contains("Preco", StringComparison.OrdinalIgnoreCase) || c.Contains("ValorUnitario", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
+            configTratamento.CampoValor = colunas.FirstOrDefault(c => c.Contains("Total", StringComparison.OrdinalIgnoreCase) || c.Contains("Valor", StringComparison.OrdinalIgnoreCase) || c.Contains("Faturamento", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
+            configTratamento.FiltrarValoresNegativos = true;
+            configTratamento.FiltrarIdsVazios = true;
+        }
 
         campoMineracaoValor1 = metricas.Count > 0 ? metricas[0] : (colunas.Count > 1 ? colunas[1] : colunas[0]);
         campoMineracaoValor2 = metricas.Count > 1 ? metricas[1] : campoMineracaoValor1;
@@ -1873,6 +2028,110 @@ else
         await AbrirImportacaoAsync();
     }
 
+    private async Task ExecutarTratamentoNaSessaoAsync()
+    {
+        isProcessandoTratamento = true;
+        mensagemMineracaoModal = null;
+        try
+        {
+            var registrosOriginais = await DataSourceService.ObterAmostraPorFonteAsync(
+                fonteMineracaoSelecionadaId, ColunasMineracao, datasetsDisponiveis, 50000);
+
+            if (registrosOriginais.Count == 0)
+            {
+                mensagemMineracaoModal = "Nenhum registro encontrado na fonte selecionada para tratamento.";
+                classeMensagemMineracaoModal = "alert-warning";
+                return;
+            }
+
+            var resultado = DataMiningService.ExecutarTratamentoDados(registrosOriginais, configTratamento);
+            if (!resultado.Sucesso || resultado.RegistrosTratados.Count == 0)
+            {
+                mensagemMineracaoModal = $"Falha no tratamento: {resultado.Mensagem}";
+                classeMensagemMineracaoModal = "alert-warning";
+                return;
+            }
+
+            ultimoResultadoTratamento = resultado;
+            registrosTratadosEmMemoria = resultado.RegistrosTratados;
+            isTratamentoDadosAberto = false;
+
+            campoMineracaoNome = configTratamento.CampoId;
+            campoMineracaoValor1 = "recencia";
+            campoMineracaoValor2 = "frequencia";
+            campoMineracaoValor3 = "monetario";
+            campoMineracaoValorAbc = "monetario";
+
+            DataMiningService.RegistrarLog("INFO", $"Tratamento executado na sessão: {resultado.Mensagem}");
+            mensagemMineracaoModal = resultado.Mensagem;
+            classeMensagemMineracaoModal = "alert-success";
+        }
+        catch (Exception ex)
+        {
+            DataMiningService.RegistrarLog("ERROR", "Erro ao executar tratamento de dados na sessão", ex);
+            mensagemMineracaoModal = $"Erro no tratamento: {DataMiningService.TraduzirMensagemErro(ex)}";
+            classeMensagemMineracaoModal = "alert-danger";
+        }
+        finally
+        {
+            isProcessandoTratamento = false;
+        }
+    }
+
+    private void DesfazerTratamentoDados()
+    {
+        registrosTratadosEmMemoria = null;
+        ultimoResultadoTratamento = null;
+        AjustarCamposMineracao();
+        mensagemMineracaoModal = "Tratamento de dados removido da sessão. Retornado aos registros originais.";
+        classeMensagemMineracaoModal = "alert-info";
+    }
+
+    private async Task SalvarBaseTratadaComoFonteAsync()
+    {
+        if (registrosTratadosEmMemoria == null || registrosTratadosEmMemoria.Count == 0) return;
+
+        try
+        {
+            var contexto = BIUsuarioContexto.De(UserState);
+            var colunas = registrosTratadosEmMemoria[0].Keys.ToList();
+            var nomeOriginal = FonteMineracao?.Nome ?? DatasetMineracao?.Nome ?? "Fonte";
+            var novoDataset = new BIDataset
+            {
+                Nome = $"[Tratado RFM] {nomeOriginal}",
+                Origem = "Mineração RFM",
+                DataImportacao = DateTime.Now,
+                QtdLinhas = registrosTratadosEmMemoria.Count,
+                UsuarioId = contexto.UsuarioId,
+                UsuarioUid = contexto.UsuarioUid,
+                UsuarioNome = contexto.UsuarioNome,
+                Colunas = colunas.Select(c => new BIDatasetColuna
+                {
+                    Nome = c,
+                    TipoDado = c.Equals(configTratamento.CampoId, StringComparison.OrdinalIgnoreCase) ? "Texto" : "Numero"
+                }).ToList(),
+                Linhas = registrosTratadosEmMemoria.Select(r => r.ToDictionary(k => k.Key, v => (object)v.Value)).ToList()
+            };
+
+            await DashboardService.SalvarDatasetAsync(novoDataset);
+            await DataSourceService.RegistrarDatasetComoFonteAsync(novoDataset);
+            await RecarregarFontesAsync();
+
+            fonteMineracaoSelecionadaId = $"dataset_{novoDataset.Id}";
+            AjustarCamposMineracao();
+
+            mensagemMineracaoModal = $"Base tratada salva como fonte '{novoDataset.Nome}' ({novoDataset.QtdLinhas} clientes únicos)!";
+            classeMensagemMineracaoModal = "alert-success";
+            ExibirFeedback(mensagemMineracaoModal, "alert-success");
+        }
+        catch (Exception ex)
+        {
+            DataMiningService.RegistrarLog("ERROR", "Erro ao salvar base tratada como fonte", ex);
+            mensagemMineracaoModal = $"Erro ao salvar fonte: {DataMiningService.TraduzirMensagemErro(ex)}";
+            classeMensagemMineracaoModal = "alert-danger";
+        }
+    }
+
     private async Task SugerirParametrosIaAsync()
     {
         isProcessandoMineracaoIa = true;
@@ -1914,7 +2173,8 @@ else
         }
         catch (Exception ex)
         {
-            mensagemMineracaoModal = $"Aviso ao consultar IA: {ex.Message}";
+            DataMiningService.RegistrarLog("WARN", $"Falha ao sugerir parâmetros de IA para a fonte {fonteMineracaoSelecionadaId}", ex);
+            mensagemMineracaoModal = $"Aviso ao consultar IA: {DataMiningService.TraduzirMensagemErro(ex)}";
             classeMensagemMineracaoModal = "alert-warning";
         }
         finally
@@ -1947,7 +2207,8 @@ else
         }
         catch (Exception ex)
         {
-            mensagemMineracaoModal = $"Erro na execução da análise com IA: {ex.Message}";
+            DataMiningService.RegistrarLog("ERROR", $"Falha ao executar análise de IA para a fonte {fonteMineracaoSelecionadaId}", ex);
+            mensagemMineracaoModal = $"Erro na execução da análise com IA: {DataMiningService.TraduzirMensagemErro(ex)}";
             classeMensagemMineracaoModal = "alert-danger";
         }
         finally
@@ -1990,7 +2251,8 @@ else
         }
         catch (Exception ex)
         {
-            ExibirFeedback($"Erro ao salvar base enriquecida: {ex.Message}", "alert-danger");
+            DataMiningService.RegistrarLog("ERROR", "Erro ao salvar base enriquecida", ex);
+            ExibirFeedback($"Erro ao salvar base enriquecida: {DataMiningService.TraduzirMensagemErro(ex)}", "alert-danger");
         }
     }
 
@@ -1998,182 +2260,235 @@ else
     {
         previewCurvaAbc = null;
         previewChurn = null;
-        var campos = new[] { campoMineracaoValor1, campoMineracaoValor2, campoMineracaoValor3 }
-            .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var cols = new List<string> { campoMineracaoNome };
-        cols.AddRange(campos);
-
-        var registros = await ObterRegistrosMineracaoAsync(cols);
-        if (registros.Count < 2)
+        try
         {
-            mensagemMineracaoModal = "São necessários ao menos 2 registros na fonte vinculada para executar o K-Means.";
-            classeMensagemMineracaoModal = "alert-warning";
-            return;
+            var campos = new[] { campoMineracaoValor1, campoMineracaoValor2, campoMineracaoValor3 }
+                .Where(c => !string.IsNullOrWhiteSpace(c))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var cols = new List<string> { campoMineracaoNome };
+            cols.AddRange(campos);
+
+            var registros = await ObterRegistrosMineracaoAsync(cols);
+            if (registros.Count < 2)
+            {
+                mensagemMineracaoModal = "São necessários ao menos 2 registros na fonte vinculada para executar o K-Means.";
+                classeMensagemMineracaoModal = "alert-warning";
+                return;
+            }
+
+            previewKMeans = DataMiningService.ExecutarKMeans(registros, new KMeansParametros
+            {
+                CampoId = campoMineracaoNome,
+                Campos = campos,
+                K = kMeansK,
+                Log1p = aplicarLog1pKMeans,
+                NomesPorRanking = recomendacaoIa?.NomesSugeridosSegmentos
+            });
+
+            mensagemMineracaoModal = previewKMeans.ResumoExecutivo;
+            classeMensagemMineracaoModal = "alert-success";
         }
-
-        previewKMeans = DataMiningService.ExecutarKMeans(registros, new KMeansParametros
+        catch (Exception ex)
         {
-            CampoId = campoMineracaoNome,
-            Campos = campos,
-            K = kMeansK,
-            Log1p = aplicarLog1pKMeans,
-            NomesPorRanking = recomendacaoIa?.NomesSugeridosSegmentos
-        });
-
-        mensagemMineracaoModal = previewKMeans.ResumoExecutivo;
-        classeMensagemMineracaoModal = "alert-success";
+            DataMiningService.RegistrarLog("ERROR", "Erro na prévia K-Means", ex);
+            mensagemMineracaoModal = $"Erro no K-Means: {DataMiningService.TraduzirMensagemErro(ex)}";
+            classeMensagemMineracaoModal = "alert-danger";
+        }
     }
 
     private async Task PrevisualizarCurvaAbcAsync()
     {
         previewKMeans = null;
         previewChurn = null;
-        var registros = await ObterRegistrosMineracaoAsync(
-            new[] { campoMineracaoNome, campoMineracaoValorAbc });
-
-        if (registros.Count == 0)
+        try
         {
-            mensagemMineracaoModal = "Nenhum registro disponível na fonte vinculada para calcular a Curva ABC.";
-            classeMensagemMineracaoModal = "alert-warning";
-            return;
+            var registros = await ObterRegistrosMineracaoAsync(
+                new[] { campoMineracaoNome, campoMineracaoValorAbc });
+
+            if (registros.Count == 0)
+            {
+                mensagemMineracaoModal = "Nenhum registro disponível na fonte vinculada para calcular a Curva ABC.";
+                classeMensagemMineracaoModal = "alert-warning";
+                return;
+            }
+
+            previewCurvaAbc = DataMiningService.CalcularCurvaAbc(registros, new CurvaAbcParametros
+            {
+                CampoId = campoMineracaoNome,
+                CampoValor = campoMineracaoValorAbc,
+                LimiarA = limiarAbcA,
+                LimiarB = limiarAbcB
+            });
+
+            mensagemMineracaoModal = $"Curva ABC calculada: {previewCurvaAbc.QtdClasseA} item(ns) na Classe A ({limiarAbcA:N0}% do volume).";
+            classeMensagemMineracaoModal = "alert-success";
         }
-
-        previewCurvaAbc = DataMiningService.CalcularCurvaAbc(registros, new CurvaAbcParametros
+        catch (Exception ex)
         {
-            CampoId = campoMineracaoNome,
-            CampoValor = campoMineracaoValorAbc,
-            LimiarA = limiarAbcA,
-            LimiarB = limiarAbcB
-        });
-
-        mensagemMineracaoModal = $"Curva ABC calculada: {previewCurvaAbc.QtdClasseA} item(ns) na Classe A ({limiarAbcA:N0}% do volume).";
-        classeMensagemMineracaoModal = "alert-success";
+            DataMiningService.RegistrarLog("ERROR", "Erro na prévia Curva ABC", ex);
+            mensagemMineracaoModal = $"Erro na Curva ABC: {DataMiningService.TraduzirMensagemErro(ex)}";
+            classeMensagemMineracaoModal = "alert-danger";
+        }
     }
 
     private async Task PrevisualizarChurnAsync()
     {
         previewKMeans = null;
         previewCurvaAbc = null;
-        var colunas = new[] { campoMineracaoNome, campoMineracaoValor1, campoMineracaoValor2, campoMineracaoValorAbc }
-            .Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
-
-        var registros = await ObterRegistrosMineracaoAsync(colunas);
-        if (registros.Count < 5)
+        try
         {
-            mensagemMineracaoModal = "São necessários ao menos 5 registros na fonte vinculada para treinar o modelo de Churn.";
-            classeMensagemMineracaoModal = "alert-warning";
-            return;
+            var colunas = new[] { campoMineracaoNome, campoMineracaoValor1, campoMineracaoValor2, campoMineracaoValorAbc }
+                .Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+
+            var registros = await ObterRegistrosMineracaoAsync(colunas);
+            if (registros.Count < 5)
+            {
+                mensagemMineracaoModal = "São necessários ao menos 5 registros na fonte vinculada para treinar o modelo de Churn.";
+                classeMensagemMineracaoModal = "alert-warning";
+                return;
+            }
+
+            previewChurn = DataMiningService.TreinarPreverChurn(registros, new ChurnParametros
+            {
+                CampoId = campoMineracaoNome,
+                CampoRecencia = campoMineracaoValor1,
+                CampoFrequencia = campoMineracaoValor2,
+                CampoMonetario = campoMineracaoValorAbc
+            });
+
+            mensagemMineracaoModal = previewChurn.ResumoExecutivo;
+            classeMensagemMineracaoModal = "alert-success";
         }
-
-        previewChurn = DataMiningService.TreinarPreverChurn(registros, new ChurnParametros
+        catch (Exception ex)
         {
-            CampoId = campoMineracaoNome,
-            CampoRecencia = campoMineracaoValor1,
-            CampoFrequencia = campoMineracaoValor2,
-            CampoMonetario = campoMineracaoValorAbc
-        });
-
-        mensagemMineracaoModal = previewChurn.ResumoExecutivo;
-        classeMensagemMineracaoModal = "alert-success";
+            DataMiningService.RegistrarLog("ERROR", "Erro na prévia Churn", ex);
+            mensagemMineracaoModal = $"Erro na Previsão de Churn: {DataMiningService.TraduzirMensagemErro(ex)}";
+            classeMensagemMineracaoModal = "alert-danger";
+        }
     }
 
     private async Task ExecutarKMeansNoCanvasAsync()
     {
         if (DashboardAtivo == null) return;
-
-        var campos = new[] { campoMineracaoValor1, campoMineracaoValor2, campoMineracaoValor3 }
-            .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var cols = new List<string> { campoMineracaoNome };
-        cols.AddRange(campos);
-
-        var registros = await ObterRegistrosMineracaoAsync(cols);
-        if (registros.Count < 2) return;
-
-        var resultado = DataMiningService.ExecutarKMeans(registros, new KMeansParametros
+        try
         {
-            CampoId = campoMineracaoNome,
-            Campos = campos,
-            K = kMeansK,
-            Log1p = aplicarLog1pKMeans,
-            NomesPorRanking = recomendacaoIa?.NomesSugeridosSegmentos
-        });
+            var campos = new[] { campoMineracaoValor1, campoMineracaoValor2, campoMineracaoValor3 }
+                .Where(c => !string.IsNullOrWhiteSpace(c))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-        var widgets = DataMiningService.GerarWidgetsKMeans(resultado);
-        foreach (var w in widgets)
-        {
-            DashboardAtivo.Widgets.Add(w);
+            var cols = new List<string> { campoMineracaoNome };
+            cols.AddRange(campos);
+
+            var registros = await ObterRegistrosMineracaoAsync(cols);
+            if (registros.Count < 2) return;
+
+            var resultado = DataMiningService.ExecutarKMeans(registros, new KMeansParametros
+            {
+                CampoId = campoMineracaoNome,
+                Campos = campos,
+                K = kMeansK,
+                Log1p = aplicarLog1pKMeans,
+                NomesPorRanking = recomendacaoIa?.NomesSugeridosSegmentos
+            });
+
+            var widgets = DataMiningService.GerarWidgetsKMeans(resultado);
+            foreach (var w in widgets)
+            {
+                DashboardAtivo.Widgets.Add(w);
+            }
+
+            isDataMiningModalOpen = false;
+            await SalvarDashboardAtualAsync();
+            ExibirFeedback(resultado.ResumoExecutivo, "alert-success");
         }
-
-        isDataMiningModalOpen = false;
-        await SalvarDashboardAtualAsync();
-        ExibirFeedback(resultado.ResumoExecutivo, "alert-success");
+        catch (Exception ex)
+        {
+            DataMiningService.RegistrarLog("ERROR", "Erro ao executar K-Means no Canvas", ex);
+            ExibirFeedback($"Erro no K-Means: {DataMiningService.TraduzirMensagemErro(ex)}", "alert-danger");
+        }
     }
 
     private async Task ExecutarCurvaAbcNoCanvasAsync()
     {
         if (DashboardAtivo == null) return;
-
-        var registros = await ObterRegistrosMineracaoAsync(
-            new[] { campoMineracaoNome, campoMineracaoValorAbc });
-
-        if (registros.Count == 0) return;
-
-        var resultado = DataMiningService.CalcularCurvaAbc(registros, new CurvaAbcParametros
+        try
         {
-            CampoId = campoMineracaoNome,
-            CampoValor = campoMineracaoValorAbc,
-            LimiarA = limiarAbcA,
-            LimiarB = limiarAbcB
-        });
+            var registros = await ObterRegistrosMineracaoAsync(
+                new[] { campoMineracaoNome, campoMineracaoValorAbc });
 
-        var widgets = DataMiningService.GerarWidgetsCurvaAbc(resultado);
-        foreach (var w in widgets)
-        {
-            DashboardAtivo.Widgets.Add(w);
+            if (registros.Count == 0) return;
+
+            var resultado = DataMiningService.CalcularCurvaAbc(registros, new CurvaAbcParametros
+            {
+                CampoId = campoMineracaoNome,
+                CampoValor = campoMineracaoValorAbc,
+                LimiarA = limiarAbcA,
+                LimiarB = limiarAbcB
+            });
+
+            var widgets = DataMiningService.GerarWidgetsCurvaAbc(resultado);
+            foreach (var w in widgets)
+            {
+                DashboardAtivo.Widgets.Add(w);
+            }
+
+            isDataMiningModalOpen = false;
+            await SalvarDashboardAtualAsync();
+            ExibirFeedback($"Curva ABC calculada: {resultado.QtdClasseA} itens na Classe A ({limiarAbcA:N0}% da receita).", "alert-success");
         }
-
-        isDataMiningModalOpen = false;
-        await SalvarDashboardAtualAsync();
-        ExibirFeedback($"Curva ABC calculada: {resultado.QtdClasseA} itens na Classe A ({limiarAbcA:N0}% da receita).", "alert-success");
+        catch (Exception ex)
+        {
+            DataMiningService.RegistrarLog("ERROR", "Erro ao executar Curva ABC no Canvas", ex);
+            ExibirFeedback($"Erro na Curva ABC: {DataMiningService.TraduzirMensagemErro(ex)}", "alert-danger");
+        }
     }
 
     private async Task ExecutarChurnNoCanvasAsync()
     {
         if (DashboardAtivo == null) return;
-
-        var colunas = new[] { campoMineracaoNome, campoMineracaoValor1, campoMineracaoValor2, campoMineracaoValorAbc }
-            .Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
-
-        var registros = await ObterRegistrosMineracaoAsync(colunas);
-        if (registros.Count < 5) return;
-
-        var resultado = DataMiningService.TreinarPreverChurn(registros, new ChurnParametros
+        try
         {
-            CampoId = campoMineracaoNome,
-            CampoRecencia = campoMineracaoValor1,
-            CampoFrequencia = campoMineracaoValor2,
-            CampoMonetario = campoMineracaoValorAbc
-        });
+            var colunas = new[] { campoMineracaoNome, campoMineracaoValor1, campoMineracaoValor2, campoMineracaoValorAbc }
+                .Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
 
-        var widgets = DataMiningService.GerarWidgetsChurn(resultado);
-        foreach (var w in widgets)
-        {
-            DashboardAtivo.Widgets.Add(w);
+            var registros = await ObterRegistrosMineracaoAsync(colunas);
+            if (registros.Count < 5) return;
+
+            var resultado = DataMiningService.TreinarPreverChurn(registros, new ChurnParametros
+            {
+                CampoId = campoMineracaoNome,
+                CampoRecencia = campoMineracaoValor1,
+                CampoFrequencia = campoMineracaoValor2,
+                CampoMonetario = campoMineracaoValorAbc
+            });
+
+            var widgets = DataMiningService.GerarWidgetsChurn(resultado);
+            foreach (var w in widgets)
+            {
+                DashboardAtivo.Widgets.Add(w);
+            }
+
+            isDataMiningModalOpen = false;
+            await SalvarDashboardAtualAsync();
+            ExibirFeedback(resultado.ResumoExecutivo, "alert-success");
         }
-
-        isDataMiningModalOpen = false;
-        await SalvarDashboardAtualAsync();
-        ExibirFeedback(resultado.ResumoExecutivo, "alert-success");
+        catch (Exception ex)
+        {
+            DataMiningService.RegistrarLog("ERROR", "Erro ao executar Churn no Canvas", ex);
+            ExibirFeedback($"Erro no Churn: {DataMiningService.TraduzirMensagemErro(ex)}", "alert-danger");
+        }
     }
 
     private async Task<List<Dictionary<string, string>>> ObterRegistrosMineracaoAsync(IEnumerable<string> colunas)
     {
+        if (registrosTratadosEmMemoria != null && registrosTratadosEmMemoria.Count > 0)
+        {
+            return registrosTratadosEmMemoria;
+        }
+
         var listaColunas = colunas
             .Where(c => !string.IsNullOrWhiteSpace(c))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -2192,7 +2507,7 @@ else
         }
 
         var registros = await DataSourceService.ObterAmostraPorFonteAsync(
-            fonteMineracaoSelecionadaId, listaColunas, datasetsDisponiveis, 5000);
+            fonteMineracaoSelecionadaId, listaColunas, datasetsDisponiveis, 50000);
 
         if (registros.Count == 0)
         {

@@ -218,60 +218,107 @@ RESPONDA APENAS UM JSON VÁLIDO (sem markdown ou texto extra), neste formato exa
             return res;
         }
 
-        var perfil = _miningService.ObterPerfil(registros);
-        var rec = await RecomendarParametrosAsync(perfil, objetivoUsuario, userId);
-        res.Recomendacao = rec;
-
-        // 1. Executar K-Means
-        var kMeans = _miningService.ExecutarKMeans(registros, new KMeansParametros
+        try
         {
-            CampoId = rec.CampoIdKMeans,
-            Campos = rec.CamposKMeans,
-            K = rec.KRecomendado,
-            Log1p = rec.AplicarLog1p,
-            NomesPorRanking = rec.NomesSugeridosSegmentos.Count > 0 ? rec.NomesSugeridosSegmentos : null
-        });
-        res.KMeans = kMeans;
+            _miningService.RegistrarLog("INFO", $"Executando análise completa com IA na base '{nomeBase}' ({registros.Count:N0} registros amostrados).");
 
-        // 2. Executar Curva ABC
-        var abc = _miningService.CalcularCurvaAbc(registros, new CurvaAbcParametros
+            var registrosParaMinerar = registros;
+            string? notaTratamento = null;
+
+            // Auto-detecção de fonte transacional: se houver IDs repetidos por cliente e colunas de transação/preço/data,
+            // aplica o tratamento RFM para gerar uma linha única por cliente, garantindo a integridade dos modelos.
+            if (_miningService.EhFonteTransacional(registros, out var idSug, out var dataSug, out var valSug, out var qtdSug, out var precoSug))
+            {
+                _miningService.RegistrarLog("INFO", $"Base transacional detectada em '{nomeBase}'. Aplicando tratamento RFM automático (ID: {idSug}, Data: {dataSug}, Qtd: {qtdSug}, Preço: {precoSug}, Valor: {valSug}).");
+
+                var configTratamento = new TratamentoDadosConfig
+                {
+                    TipoTratamento = "RFM",
+                    CampoId = idSug ?? "",
+                    CampoData = dataSug,
+                    CampoValor = valSug,
+                    CampoQuantidade = qtdSug,
+                    CampoPrecoUnitario = precoSug,
+                    RemoverNulosOuVazios = true,
+                    RemoverNegativosZero = true
+                };
+
+                var resTratamento = _miningService.ExecutarTratamentoDados(registros, configTratamento);
+                if (resTratamento.Sucesso && resTratamento.RegistrosTratados.Count > 0)
+                {
+                    registrosParaMinerar = resTratamento.RegistrosTratados;
+                    notaTratamento = resTratamento.Mensagem;
+                }
+            }
+
+            var perfil = _miningService.ObterPerfil(registrosParaMinerar);
+            var rec = await RecomendarParametrosAsync(perfil, objetivoUsuario, userId);
+            res.Recomendacao = rec;
+
+            // 1. Executar K-Means
+            var kMeans = _miningService.ExecutarKMeans(registrosParaMinerar, new KMeansParametros
+            {
+                CampoId = rec.CampoIdKMeans,
+                Campos = rec.CamposKMeans,
+                K = rec.KRecomendado,
+                Log1p = rec.AplicarLog1p,
+                NomesPorRanking = rec.NomesSugeridosSegmentos.Count > 0 ? rec.NomesSugeridosSegmentos : null
+            });
+            res.KMeans = kMeans;
+
+            // 2. Executar Curva ABC
+            var abc = _miningService.CalcularCurvaAbc(registrosParaMinerar, new CurvaAbcParametros
+            {
+                CampoId = rec.CampoIdAbc,
+                CampoValor = rec.CampoValorAbc,
+                LimiarA = rec.LimiarA,
+                LimiarB = rec.LimiarB
+            });
+            res.CurvaAbc = abc;
+
+            // 3. Executar Churn (FastTree ML.NET)
+            var churn = _miningService.TreinarPreverChurn(registrosParaMinerar, new ChurnParametros
+            {
+                CampoId = rec.CampoIdChurn,
+                CampoRecencia = rec.CampoRecencia,
+                CampoFrequencia = rec.CampoFrequencia,
+                CampoMonetario = rec.CampoMonetario,
+                CampoChurnAlvo = rec.CampoAlvoChurn
+            });
+            res.Churn = churn;
+
+            // 4. Síntese Executiva via LLM (ou geração heurística estruturada)
+            await GerarSinteseEAcoesAsync(res, objetivoUsuario);
+
+            if (!string.IsNullOrWhiteSpace(notaTratamento))
+            {
+                res.ResumoExecutivo = $"[Tratamento de Dados Aplicado: {notaTratamento}]\n\n" + res.ResumoExecutivo;
+            }
+
+            // 5. Revisor Metodológico (Segunda fase do notebook)
+            await ExecutarRevisorMetodologicoAsync(res);
+
+            // 6. Gerar Widgets para o Canvas
+            var widgets = new List<BIWidget>();
+            widgets.AddRange(_miningService.GerarWidgetsKMeans(kMeans));
+            widgets.AddRange(_miningService.GerarWidgetsCurvaAbc(abc));
+            widgets.AddRange(_miningService.GerarWidgetsChurn(churn));
+            widgets.Add(_miningService.GerarWidgetResumoIa("Parecer Executivo & Metodológico da IA", res.ResumoExecutivo, res.AcoesRecomendadas, res.Revisor));
+            res.WidgetsSugeridos = widgets;
+
+            // 7. Gerar Dataset Enriquecido (pronto para virar nova fonte de dados)
+            res.DatasetEnriquecido = _miningService.EnriquecerDataset(registrosParaMinerar, nomeBase, kMeans, abc, churn);
+
+            _miningService.RegistrarLog("SUCESSO", $"Análise com IA finalizada com sucesso para base '{nomeBase}'. {widgets.Count} widgets gerados.");
+            return res;
+        }
+        catch (Exception ex)
         {
-            CampoId = rec.CampoIdAbc,
-            CampoValor = rec.CampoValorAbc,
-            LimiarA = rec.LimiarA,
-            LimiarB = rec.LimiarB
-        });
-        res.CurvaAbc = abc;
-
-        // 3. Executar Churn (FastTree ML.NET)
-        var churn = _miningService.TreinarPreverChurn(registros, new ChurnParametros
-        {
-            CampoId = rec.CampoIdChurn,
-            CampoRecencia = rec.CampoRecencia,
-            CampoFrequencia = rec.CampoFrequencia,
-            CampoMonetario = rec.CampoMonetario,
-            CampoChurnAlvo = rec.CampoAlvoChurn
-        });
-        res.Churn = churn;
-
-        // 4. Síntese Executiva via LLM (ou geração heurística estruturada)
-        await GerarSinteseEAcoesAsync(res, objetivoUsuario);
-
-        // 5. Revisor Metodológico (Segunda fase do notebook)
-        await ExecutarRevisorMetodologicoAsync(res);
-
-        // 6. Gerar Widgets para o Canvas
-        var widgets = new List<BIWidget>();
-        widgets.AddRange(_miningService.GerarWidgetsKMeans(kMeans));
-        widgets.AddRange(_miningService.GerarWidgetsCurvaAbc(abc));
-        widgets.AddRange(_miningService.GerarWidgetsChurn(churn));
-        widgets.Add(_miningService.GerarWidgetResumoIa("Parecer Executivo & Metodológico da IA", res.ResumoExecutivo, res.AcoesRecomendadas, res.Revisor));
-        res.WidgetsSugeridos = widgets;
-
-        // 7. Gerar Dataset Enriquecido (pronto para virar nova fonte de dados)
-        res.DatasetEnriquecido = _miningService.EnriquecerDataset(registros, nomeBase, kMeans, abc, churn);
-
-        return res;
+            _miningService.RegistrarLog("ERRO", $"Falha em ExecutarAnaliseCompletaAsync para '{nomeBase}': {ex.Message}", ex);
+            res.Sucesso = false;
+            res.MensagemErro = _miningService.TraduzirMensagemErro(ex);
+            throw new InvalidOperationException(res.MensagemErro, ex);
+        }
     }
 
     private async Task GerarSinteseEAcoesAsync(ResultadoAnaliseCompletaIa res, string? objetivo)

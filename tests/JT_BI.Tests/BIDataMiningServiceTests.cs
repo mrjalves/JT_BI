@@ -281,4 +281,128 @@ public class BIDataMiningServiceTests
     {
         Assert.That(_service.GerarWidgetsCurvaAbc(null!), Is.Empty);
     }
+
+    [Test]
+    public void EnriquecerDataset_ComIdsDuplicados_NaoLancaArgumentExceptionChaveDuplicada()
+    {
+        var registros = new List<Dictionary<string, string>>
+        {
+            new() { ["CustomerID"] = "17850", ["Faturamento"] = "100" },
+            new() { ["CustomerID"] = "17850", ["Faturamento"] = "200" },
+            new() { ["CustomerID"] = "17850", ["Faturamento"] = "300" },
+            new() { ["CustomerID"] = "17851", ["Faturamento"] = "500" }
+        };
+
+        var kmeans = new KMeansResultado
+        {
+            Itens = new List<KMeansItem>
+            {
+                new() { Rotulo = "17850", ClusterIndex = 0, NomeCluster = "VIP" },
+                new() { Rotulo = "17850", ClusterIndex = 0, NomeCluster = "VIP" },
+                new() { Rotulo = "17851", ClusterIndex = 1, NomeCluster = "Regular" }
+            }
+        };
+
+        var abc = new ResultadoCurvaAbc
+        {
+            Itens = new List<ItemCurvaAbc>
+            {
+                new() { Rotulo = "17850", Classe = "A", Valor = 600m },
+                new() { Rotulo = "17850", Classe = "A", Valor = 600m },
+                new() { Rotulo = "17851", Classe = "B", Valor = 500m }
+            }
+        };
+
+        var churn = new ResultadoChurn
+        {
+            Previsoes = new List<PrevisaoChurnItem>
+            {
+                new() { Id = "17850", ProbabilidadeChurn = 0.15f, ClassificacaoRisco = "Baixo" },
+                new() { Id = "17850", ProbabilidadeChurn = 0.15f, ClassificacaoRisco = "Baixo" },
+                new() { Id = "17851", ProbabilidadeChurn = 0.75f, ClassificacaoRisco = "Alto" }
+            }
+        };
+
+        Assert.DoesNotThrow(() =>
+        {
+            var ds = _service.EnriquecerDataset(registros, "Online_Retail", kmeans, abc, churn);
+            Assert.That(ds, Is.Not.Null);
+            Assert.That(ds.Linhas, Has.Count.EqualTo(4));
+            Assert.That(ds.Linhas[0]["Cluster_Nome"], Is.EqualTo("VIP"));
+            Assert.That(ds.Linhas[0]["Curva_ABC"], Is.EqualTo("A"));
+            Assert.That(ds.Linhas[0]["Risco_Churn"], Is.EqualTo("Baixo"));
+        });
+    }
+
+    [Test]
+    public void ExecutarTratamentoDados_AgregaRfm_FiltraNegativosENulos()
+    {
+        var registros = new List<Dictionary<string, string>>
+        {
+            // Venda válida cliente 1
+            new() { ["CustomerID"] = "17850", ["InvoiceDate"] = "2026-01-01", ["Quantity"] = "10", ["UnitPrice"] = "2.5" },
+            // Segunda venda cliente 1
+            new() { ["CustomerID"] = "17850", ["InvoiceDate"] = "2026-01-10", ["Quantity"] = "4", ["UnitPrice"] = "5.0" },
+            // Devolução cliente 1 (negativo - deve ser filtrado)
+            new() { ["CustomerID"] = "17850", ["InvoiceDate"] = "2026-01-15", ["Quantity"] = "-1", ["UnitPrice"] = "10.0" },
+            // Venda válida cliente 2
+            new() { ["CustomerID"] = "17851", ["InvoiceDate"] = "2026-01-05", ["Quantity"] = "2", ["UnitPrice"] = "50.0" },
+            // Registro sem CustomerID (deve ser filtrado)
+            new() { ["CustomerID"] = "", ["InvoiceDate"] = "2026-01-05", ["Quantity"] = "10", ["UnitPrice"] = "10.0" }
+        };
+
+        var config = new TratamentoDadosConfig
+        {
+            CampoId = "CustomerID",
+            CampoData = "InvoiceDate",
+            CampoQuantidade = "Quantity",
+            CampoPrecoUnitario = "UnitPrice",
+            RemoverNegativosZero = true,
+            RemoverNulosOuVazios = true
+        };
+
+        var resultado = _service.ExecutarTratamentoDados(registros, config);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(resultado.Sucesso, Is.True);
+            Assert.That(resultado.LinhasOriginais, Is.EqualTo(5));
+            Assert.That(resultado.LinhasDescartadas, Is.EqualTo(2)); // 1 negativo + 1 vazio
+            Assert.That(resultado.LinhasResultantes, Is.EqualTo(2)); // clientes 17850 e 17851
+
+            var c1 = resultado.RegistrosTratados.FirstOrDefault(r => r["CustomerID"] == "17850");
+            Assert.That(c1, Is.Not.Null);
+            Assert.That(c1!["frequencia"], Is.EqualTo("2")); // 2 compras válidas
+            Assert.That(decimal.Parse(c1["monetario"], System.Globalization.CultureInfo.InvariantCulture), Is.EqualTo(45.0m)); // 10*2.5 + 4*5 = 25+20 = 45
+
+            var c2 = resultado.RegistrosTratados.FirstOrDefault(r => r["CustomerID"] == "17851");
+            Assert.That(c2, Is.Not.Null);
+            Assert.That(c2!["frequencia"], Is.EqualTo("1"));
+            Assert.That(decimal.Parse(c2["monetario"], System.Globalization.CultureInfo.InvariantCulture), Is.EqualTo(100.0m));
+        });
+    }
+
+    [Test]
+    public void EhFonteTransacional_DetectaCorretamente()
+    {
+        var colunasTransacionais = new[] { "InvoiceNo", "StockCode", "Description", "Quantity", "InvoiceDate", "UnitPrice", "CustomerID", "Country" };
+        var colunasNaoTransacionais = new[] { "ClienteID", "Faturamento", "TicketMedio", "Score" };
+
+        Assert.That(_service.EhFonteTransacional(colunasTransacionais), Is.True);
+        Assert.That(_service.EhFonteTransacional(colunasNaoTransacionais), Is.False);
+    }
+
+    [Test]
+    public void TraduzirMensagemErro_TraduzChaveDuplicadaEExcecoesComunsParaPtBr()
+    {
+        var exDup = new ArgumentException("An item with the same key has already been added. Key: 17850");
+        var traduzidaDup = _service.TraduzirMensagemErro(exDup);
+
+        Assert.That(traduzidaDup, Does.Contain("chave duplicada"));
+        Assert.That(traduzidaDup, Does.Contain("17850"));
+
+        var exOom = new OutOfMemoryException();
+        var traduzidaOom = _service.TraduzirMensagemErro(exOom);
+        Assert.That(traduzidaOom, Does.Contain("Memória insuficiente"));
+    }
 }

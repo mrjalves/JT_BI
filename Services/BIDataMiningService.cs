@@ -222,6 +222,43 @@ public class CurvaAbcParametros
     public decimal LimiarB { get; set; } = 95m;
 }
 
+public class TratamentoDadosConfig
+{
+    public string TipoTratamento { get; set; } = "RFM"; // "RFM", "Agrupamento"
+    public string CampoId { get; set; } = string.Empty;
+    public string? CampoData { get; set; }
+    public string? CampoValor { get; set; }
+    public string? CampoQuantidade { get; set; }
+    public string? CampoPrecoUnitario { get; set; }
+    public string? CampoPedido { get; set; }
+    public bool RemoverNulosOuVazios { get; set; } = true;
+    public bool RemoverNegativosZero { get; set; } = true;
+
+    // Aliases amigáveis
+    public bool FiltrarValoresNegativos
+    {
+        get => RemoverNegativosZero;
+        set => RemoverNegativosZero = value;
+    }
+
+    public bool FiltrarIdsVazios
+    {
+        get => RemoverNulosOuVazios;
+        set => RemoverNulosOuVazios = value;
+    }
+}
+
+public class ResultadoTratamentoDados
+{
+    public bool Sucesso { get; set; } = true;
+    public string Mensagem { get; set; } = string.Empty;
+    public int LinhasOriginais { get; set; }
+    public int LinhasDescartadas { get; set; }
+    public int LinhasResultantes { get; set; }
+    public List<Dictionary<string, string>> RegistrosTratados { get; set; } = new();
+    public List<string> ColunasGeradas { get; set; } = new();
+}
+
 public interface IBIDataMiningService
 {
     // API original (mantida por compatibilidade)
@@ -243,6 +280,13 @@ public interface IBIDataMiningService
     BIWidget GerarWidgetResumoIa(string titulo, string resumo, IEnumerable<string> acoes, RevisaoMetodologica? revisao = null);
     BIDataset EnriquecerDataset(List<Dictionary<string, string>> registros, string nomeBase, KMeansResultado? kmeans, ResultadoCurvaAbc? abc, ResultadoChurn? churn);
     int DirecaoDoCampo(string campo);
+
+    // Tratamento de Dados e Diagnóstico
+    ResultadoTratamentoDados ExecutarTratamentoDados(List<Dictionary<string, string>> registros, TratamentoDadosConfig config);
+    bool EhFonteTransacional(IEnumerable<string> colunas);
+    bool EhFonteTransacional(List<Dictionary<string, string>> registros, out string? campoIdSugerido, out string? campoDataSugerido, out string? campoValorSugerido, out string? campoQtdSugerido, out string? campoPrecoSugerido);
+    void RegistrarLog(string nivel, string mensagem, Exception? ex = null);
+    string TraduzirMensagemErro(Exception ex);
 }
 
 /// <summary>
@@ -263,6 +307,303 @@ public class BIDataMiningService : IBIDataMiningService
 
     private static readonly string[] TermosIdentificador =
         { "id", "codigo", "código", "cod", "cpf", "cnpj", "uid", "customerid", "clienteid", "chave", "key" };
+
+    private readonly string _logFilePath;
+
+    public BIDataMiningService(Microsoft.AspNetCore.Hosting.IWebHostEnvironment? env = null)
+    {
+        var basePath = env?.ContentRootPath ?? AppContext.BaseDirectory;
+        _logFilePath = Path.Combine(basePath, "Data", "Logs", "mineracao.log");
+    }
+
+    public void RegistrarLog(string nivel, string mensagem, Exception? ex = null)
+    {
+        var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        var linha = $"[{timestamp}] [{nivel}] {mensagem}" + (ex != null ? $" | Detalhes: {ex.Message}\nStack: {ex.StackTrace}" : string.Empty);
+
+        Console.WriteLine($"[JT_BI Mineração] {linha}");
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(_logFilePath))
+            {
+                var dir = Path.GetDirectoryName(_logFilePath);
+                if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+
+                File.AppendAllText(_logFilePath, linha + Environment.NewLine);
+            }
+        }
+        catch { }
+    }
+
+    public string TraduzirMensagemErro(Exception ex)
+    {
+        if (ex == null) return "Erro desconhecido na análise.";
+
+        var msg = ex.Message;
+        if (msg.Contains("An item with the same key has already been added", StringComparison.OrdinalIgnoreCase))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(msg, @"Key:\s*([^,\r\n]+)");
+            var chave = match.Success ? match.Groups[1].Value.Trim() : "";
+            return !string.IsNullOrWhiteSpace(chave)
+                ? $"Identificador repetido detectado na fonte de dados (Chave: '{chave}'). A fonte possui transações repetidas por cliente; aplique o 'Tratamento de Dados (RFM)' para consolidar os registros por cliente antes de executar os modelos."
+                : "Identificador repetido detectado na fonte. Aplique o 'Tratamento de Dados (RFM)' para consolidar os registros por cliente antes de executar os modelos.";
+        }
+
+        if (msg.Contains("Sequence contains no matching element", StringComparison.OrdinalIgnoreCase) ||
+            msg.Contains("Sequence contains no elements", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Nenhum registro correspondente foi encontrado para a operação analítica.";
+        }
+
+        if (msg.Contains("Input string was not in a correct format", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Formato numérico ou de texto inválido encontrado em uma das colunas selecionadas.";
+        }
+
+        if (msg.Contains("The operation was canceled", StringComparison.OrdinalIgnoreCase) ||
+            msg.Contains("Timeout", StringComparison.OrdinalIgnoreCase))
+        {
+            return "O processamento da IA excedeu o tempo limite da requisição. Tente reduzir o tamanho da amostra ou verificar a conexão.";
+        }
+
+        if (msg.Contains("Out of memory", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Memória insuficiente para processar o volume selecionado em memória. Reduza a amostra de registros.";
+        }
+
+        if (msg.Contains("Cannot access a closed file", StringComparison.OrdinalIgnoreCase) ||
+            msg.Contains("Stream was closed", StringComparison.OrdinalIgnoreCase))
+        {
+            return "O arquivo de dados foi encerrado inesperadamente durante o processamento.";
+        }
+
+        return msg;
+    }
+
+    public bool EhFonteTransacional(IEnumerable<string> colunas)
+    {
+        if (colunas == null) return false;
+        var lista = colunas.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c.Trim()).ToList();
+        var temId = lista.Any(c => c.Contains("CustomerID", StringComparison.OrdinalIgnoreCase) || c.Contains("Cliente", StringComparison.OrdinalIgnoreCase) || c.Contains("Id", StringComparison.OrdinalIgnoreCase));
+        var temQtdOuPreco = lista.Any(c => c.Contains("Quantity", StringComparison.OrdinalIgnoreCase) || c.Contains("Qtd", StringComparison.OrdinalIgnoreCase) || c.Contains("UnitPrice", StringComparison.OrdinalIgnoreCase) || c.Contains("Preco", StringComparison.OrdinalIgnoreCase));
+        var temData = lista.Any(c => c.Contains("Date", StringComparison.OrdinalIgnoreCase) || c.Contains("Data", StringComparison.OrdinalIgnoreCase));
+        var temItem = lista.Any(c => c.Contains("Invoice", StringComparison.OrdinalIgnoreCase) || c.Contains("Item", StringComparison.OrdinalIgnoreCase) || c.Contains("StockCode", StringComparison.OrdinalIgnoreCase) || c.Contains("Produto", StringComparison.OrdinalIgnoreCase));
+
+        return temId && ((temQtdOuPreco && temData) || temItem);
+    }
+
+    public bool EhFonteTransacional(
+        List<Dictionary<string, string>> registros,
+        out string? campoIdSugerido,
+        out string? campoDataSugerido,
+        out string? campoValorSugerido,
+        out string? campoQtdSugerido,
+        out string? campoPrecoSugerido)
+    {
+        campoIdSugerido = null;
+        campoDataSugerido = null;
+        campoValorSugerido = null;
+        campoQtdSugerido = null;
+        campoPrecoSugerido = null;
+
+        if (registros == null || registros.Count == 0) return false;
+
+        var colunas = registros[0].Keys.ToList();
+
+        // Procura ID
+        campoIdSugerido = colunas.FirstOrDefault(c =>
+            c.Equals("CustomerID", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("ClienteID", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("IdCliente", StringComparison.OrdinalIgnoreCase))
+            ?? colunas.FirstOrDefault(c => NomePareceIdentificador(c));
+
+        // Procura Data
+        campoDataSugerido = colunas.FirstOrDefault(c =>
+            c.Equals("InvoiceDate", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("DataVenda", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("DataEmissao", StringComparison.OrdinalIgnoreCase) ||
+            c.Contains("data", StringComparison.OrdinalIgnoreCase) ||
+            c.Contains("date", StringComparison.OrdinalIgnoreCase));
+
+        // Procura Quantidade e Preço
+        campoQtdSugerido = colunas.FirstOrDefault(c =>
+            c.Equals("Quantity", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("Quantidade", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("Qtd", StringComparison.OrdinalIgnoreCase));
+
+        campoPrecoSugerido = colunas.FirstOrDefault(c =>
+            c.Equals("UnitPrice", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("PrecoUnitario", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("Preco", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("ValorUnitario", StringComparison.OrdinalIgnoreCase));
+
+        // Procura Valor direto
+        campoValorSugerido = colunas.FirstOrDefault(c =>
+            c.Equals("Total", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("ValorTotal", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("Valor", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("Faturamento", StringComparison.OrdinalIgnoreCase) ||
+            PareceMonetario(c));
+
+        // Verifica se há IDs repetidos na amostra
+        var idCol = campoIdSugerido;
+        if (!string.IsNullOrWhiteSpace(idCol))
+        {
+            var ids = registros
+                .Select(r => r.TryGetValue(idCol, out var v) ? v?.Trim() : null)
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .ToList();
+
+            var distintos = ids.Distinct(StringComparer.OrdinalIgnoreCase).Count();
+            bool temRepeticao = ids.Count > 0 && distintos < ids.Count * 0.9;
+
+            if (temRepeticao && (!string.IsNullOrWhiteSpace(campoDataSugerido) || !string.IsNullOrWhiteSpace(campoQtdSugerido) || !string.IsNullOrWhiteSpace(campoValorSugerido)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public ResultadoTratamentoDados ExecutarTratamentoDados(
+        List<Dictionary<string, string>> registros,
+        TratamentoDadosConfig config)
+    {
+        var resultado = new ResultadoTratamentoDados
+        {
+            LinhasOriginais = registros?.Count ?? 0
+        };
+
+        if (registros == null || registros.Count == 0)
+        {
+            resultado.Sucesso = false;
+            resultado.Mensagem = "Nenhum registro para tratamento.";
+            return resultado;
+        }
+
+        RegistrarLog("INFO", $"Iniciando tratamento '{config.TipoTratamento}' em {registros.Count} registros. CampoId: '{config.CampoId}'");
+
+        var campoId = string.IsNullOrWhiteSpace(config.CampoId)
+            ? (registros[0].Keys.FirstOrDefault(k => NomePareceIdentificador(k)) ?? registros[0].Keys.First())
+            : config.CampoId;
+
+        var linhasValidas = new List<(string Id, DateTime Data, double Valor, string Pedido, double Quantidade)>();
+        DateTime? maxData = null;
+
+        for (int i = 0; i < registros.Count; i++)
+        {
+            var r = registros[i];
+
+            // ID
+            if (!r.TryGetValue(campoId, out var id) || string.IsNullOrWhiteSpace(id))
+            {
+                if (config.RemoverNulosOuVazios)
+                {
+                    resultado.LinhasDescartadas++;
+                    continue;
+                }
+                id = $"Desconhecido_{i + 1}";
+            }
+
+            // Quantidade e Preço ou Valor direto
+            double valorLinha = 0;
+            double quantidadeLinha = 1;
+
+            if (!string.IsNullOrWhiteSpace(config.CampoQuantidade) && r.TryGetValue(config.CampoQuantidade, out var qtdTxt) && TentarDouble(qtdTxt, out var qtd))
+            {
+                quantidadeLinha = qtd;
+                if (config.RemoverNegativosZero && quantidadeLinha <= 0)
+                {
+                    resultado.LinhasDescartadas++;
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(config.CampoPrecoUnitario) && r.TryGetValue(config.CampoPrecoUnitario, out var precoTxt) && TentarDouble(precoTxt, out var preco))
+                {
+                    valorLinha = quantidadeLinha * preco;
+                }
+                else
+                {
+                    valorLinha = quantidadeLinha;
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(config.CampoValor) && r.TryGetValue(config.CampoValor, out var valTxt) && TentarDouble(valTxt, out var val))
+            {
+                valorLinha = val;
+                if (config.RemoverNegativosZero && valorLinha <= 0)
+                {
+                    resultado.LinhasDescartadas++;
+                    continue;
+                }
+            }
+            else
+            {
+                valorLinha = 1.0;
+            }
+
+            // Data
+            DateTime data = DateTime.Today;
+            if (!string.IsNullOrWhiteSpace(config.CampoData) && r.TryGetValue(config.CampoData, out var dataTxt) && TentarData(dataTxt, out var d))
+            {
+                data = d;
+            }
+
+            if (maxData == null || data > maxData.Value)
+                maxData = data;
+
+            // Pedido / Transação
+            string pedido = !string.IsNullOrWhiteSpace(config.CampoPedido) && r.TryGetValue(config.CampoPedido, out var ped) && !string.IsNullOrWhiteSpace(ped)
+                ? ped.Trim()
+                : data.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+
+            linhasValidas.Add((id.Trim(), data, valorLinha, pedido, quantidadeLinha));
+        }
+
+        if (linhasValidas.Count == 0)
+        {
+            resultado.Sucesso = false;
+            resultado.Mensagem = "Todos os registros foram descartados pelos filtros de validação (IDs nulos ou valores/quantidades zerados ou negativos).";
+            RegistrarLog("AVISO", resultado.Mensagem);
+            return resultado;
+        }
+
+        var referencia = (maxData ?? DateTime.Today).Date.AddDays(1);
+
+        // Agrupamento RFM por ID
+        var agrupados = linhasValidas
+            .GroupBy(l => l.Id)
+            .Select(g =>
+            {
+                var pedidosUnicos = g.Select(x => x.Pedido).Distinct().Count();
+                var totalGasto = Math.Round(g.Sum(x => x.Valor), 2);
+                var ultData = g.Max(x => x.Data);
+                var recenciaDias = (int)Math.Max(0, (referencia - ultData).TotalDays);
+                var totalItens = (int)Math.Round(g.Sum(x => x.Quantidade));
+                var ticketMedio = pedidosUnicos > 0 ? Math.Round(totalGasto / pedidosUnicos, 2) : totalGasto;
+
+                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [campoId] = g.Key,
+                    ["recencia"] = recenciaDias.ToString(CultureInfo.InvariantCulture),
+                    ["frequencia"] = pedidosUnicos.ToString(CultureInfo.InvariantCulture),
+                    ["monetario"] = totalGasto.ToString("F2", CultureInfo.InvariantCulture),
+                    ["ticket_medio"] = ticketMedio.ToString("F2", CultureInfo.InvariantCulture),
+                    ["total_itens"] = totalItens.ToString(CultureInfo.InvariantCulture)
+                };
+            })
+            .ToList();
+
+        resultado.LinhasResultantes = agrupados.Count;
+        resultado.RegistrosTratados = agrupados;
+        resultado.ColunasGeradas = new List<string> { campoId, "recencia", "frequencia", "monetario", "ticket_medio", "total_itens" };
+        resultado.Mensagem = $"Tratamento RFM concluído com sucesso: {resultado.LinhasOriginais:N0} transações consolidadas em {resultado.LinhasResultantes:N0} clientes únicos ({resultado.LinhasDescartadas:N0} linhas inválidas ou canceladas descartadas).";
+
+        RegistrarLog("SUCESSO", resultado.Mensagem);
+        return resultado;
+    }
 
     // =========================================================================
     // PERFIL DA FONTE (o que o LLM enxerga — apenas agregados, sem dados brutos)
@@ -1099,14 +1440,42 @@ public class BIDataMiningService : IBIDataMiningService
             dataset.Colunas.Add(new BIDatasetColuna { Nome = "Risco_Churn", TipoDado = "Texto" });
         }
 
-        var mapKmeans = kmeans?.Itens.ToDictionary(it => it.Rotulo, it =>
+        var mapKmeans = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (kmeans?.Itens != null)
         {
-            var grupo = kmeans.Grupos.FirstOrDefault(g => g.Id == it.ClusterId);
-            return grupo?.Nome ?? $"Cluster {it.ClusterId + 1}";
-        }, StringComparer.OrdinalIgnoreCase);
+            foreach (var it in kmeans.Itens)
+            {
+                if (!string.IsNullOrWhiteSpace(it.Rotulo) && !mapKmeans.ContainsKey(it.Rotulo))
+                {
+                    var grupo = kmeans.Grupos.FirstOrDefault(g => g.Id == it.ClusterId);
+                    mapKmeans[it.Rotulo] = grupo?.Nome ?? $"Cluster {it.ClusterId + 1}";
+                }
+            }
+        }
 
-        var mapAbc = abc?.Itens.ToDictionary(it => it.Nome, it => it.Classe, StringComparer.OrdinalIgnoreCase);
-        var mapChurn = churn?.ClientesEmRisco.ToDictionary(c => c.Id, c => c, StringComparer.OrdinalIgnoreCase);
+        var mapAbc = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (abc?.Itens != null)
+        {
+            foreach (var it in abc.Itens)
+            {
+                if (!string.IsNullOrWhiteSpace(it.Nome) && !mapAbc.ContainsKey(it.Nome))
+                {
+                    mapAbc[it.Nome] = it.Classe;
+                }
+            }
+        }
+
+        var mapChurn = new Dictionary<string, ItemClienteRisco>(StringComparer.OrdinalIgnoreCase);
+        if (churn?.ClientesEmRisco != null)
+        {
+            foreach (var c in churn.ClientesEmRisco)
+            {
+                if (!string.IsNullOrWhiteSpace(c.Id) && !mapChurn.ContainsKey(c.Id))
+                {
+                    mapChurn[c.Id] = c;
+                }
+            }
+        }
 
         for (var i = 0; i < registros.Count; i++)
         {
