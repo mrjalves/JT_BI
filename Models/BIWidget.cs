@@ -2,6 +2,9 @@ namespace JT_BI.Models;
 
 public class BIWidget
 {
+    private int _larguraColunas = 6;
+    private double _largura = 50;
+
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Titulo { get; set; } = "Indicador";
     public string Subtitulo { get; set; } = "";
@@ -10,7 +13,28 @@ public class BIWidget
     // Posicionamento no Canvas Visual (%)
     public double PosX { get; set; } = 5;
     public double PosY { get; set; } = 5;
-    public double Largura { get; set; } = 25;
+
+    /// <summary>
+    /// Largura percentual no Canvas Visual (ex: 25% = 3 colunas, 33.3% = 4 colunas, 50% = 6 colunas, 66.7% = 8 colunas, 100% = 12 colunas).
+    /// Mantém sincronia automática com a grade de colunas.
+    /// </summary>
+    public double Largura
+    {
+        get => _largura;
+        set
+        {
+            _largura = value;
+            if (value > 0)
+            {
+                if (value <= 28) _larguraColunas = 3;
+                else if (value <= 38) _larguraColunas = 4;
+                else if (value <= 58) _larguraColunas = 6;
+                else if (value <= 78) _larguraColunas = 8;
+                else _larguraColunas = 12;
+            }
+        }
+    }
+
     public double Altura { get; set; } = 20;
 
     // Customizacao Visual
@@ -35,7 +59,29 @@ public class BIWidget
 
     // Helpers e Compatibilidade de Grid / UI
     public string CorDestaque { get => CorTema; set => CorTema = value; }
-    public int LarguraColunas { get; set; } = 6;
+
+    /// <summary>
+    /// Quantidade de colunas Bootstrap na grade de 12 colunas (3, 4, 6, 8, 12).
+    /// Mantém sincronia automática com a Largura percentual.
+    /// </summary>
+    public int LarguraColunas
+    {
+        get => _larguraColunas;
+        set
+        {
+            _larguraColunas = value;
+            _largura = value switch
+            {
+                <= 3 => 25,
+                4 => 33.3,
+                6 => 50,
+                8 => 66.7,
+                >= 12 => 100,
+                _ => Math.Round((value / 12.0) * 100.0, 1)
+            };
+        }
+    }
+
     public string? ValorKpiAtual { get; set; }
     public string? SubtituloKpi { get => Subtitulo; set => Subtitulo = value ?? string.Empty; }
 }

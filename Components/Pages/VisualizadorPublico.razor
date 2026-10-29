@@ -100,17 +100,7 @@ else
             <div class="row g-3">
                 @foreach (var w in dashboard.Widgets)
                 {
-                    // Mapear largura em classes responsivas Bootstrap
-                    string colClass = w.Largura switch
-                    {
-                        <= 25 => "col-12 col-sm-6 col-lg-3",
-                        <= 35 => "col-12 col-md-4",
-                        <= 55 => "col-12 col-lg-6",
-                        <= 70 => "col-12 col-lg-8",
-                        _ => "col-12"
-                    };
-
-                    <div class="@colClass">
+                    <div class="@ObterClasseGridWidget(w)">
                         <div class="rounded-4 overflow-hidden h-100 shadow-sm" style="min-height: 180px;">
                             <BIWidgetView Widget="w" IsEditor="false" Datasets="datasetsDisponiveis" />
                         </div>
@@ -184,6 +174,32 @@ else
     {
         var relative = Nav.ToBaseRelativePath(Nav.Uri);
         return $"/login?returnUrl={Uri.EscapeDataString("/" + relative)}";
+    }
+
+    private string ObterClasseGridWidget(BIWidget w)
+    {
+        int colunas = w.LarguraColunas;
+        if (colunas <= 0 || colunas > 12)
+        {
+            colunas = w.Largura switch
+            {
+                <= 28 => 3,
+                <= 38 => 4,
+                <= 58 => 6,
+                <= 78 => 8,
+                _ => 12
+            };
+        }
+
+        return colunas switch
+        {
+            12 => "col-12",
+            8 => "col-12 col-xl-8",
+            6 => "col-12 col-lg-6",
+            4 => "col-12 col-sm-6 col-lg-4",
+            3 => "col-12 col-sm-6 col-lg-3",
+            _ => "col-12 col-lg-6"
+        };
     }
 
     public void Dispose()

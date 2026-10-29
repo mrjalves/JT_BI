@@ -1,5 +1,8 @@
 @page "/configuracoes"
 @using JT_Classes.Comum
+@using JT_Classes.IA
+@using JT_UserInterface.Shared.Components.Core
+@using JT_UserInterface.Shared.Components.IA
 @inherits JT_UserInterface.Shared.Pages.Comum.ConfiguracoesBase
 
 <div data-tutorial="configuracoes-pagina">
@@ -8,5 +11,21 @@
 
 @code {
     public override string ObterTituloPagina() => "Configurações do Sistema & BI";
+
+    public override RenderFragment? TabsAdicionais => builder =>
+    {
+        // Fallback defensivo: se a aba de IA padrão não constar entre as abas injetadas, renderiza-a diretamente
+        if (InjectedTabs == null || !InjectedTabs.Any(t => t.Modulo == JT_Aplicacao.Classes.eModuloSistema.IA))
+        {
+            builder.OpenComponent<TabPage>(0);
+            builder.AddAttribute(1, "Title", "Inteligência Artificial (Gemini)");
+            builder.AddAttribute(2, "ChildContent", (RenderFragment)(content =>
+            {
+                content.OpenComponent<IAConfigTab>(10);
+                content.CloseComponent();
+            }));
+            builder.CloseComponent();
+        }
+    };
 }
 

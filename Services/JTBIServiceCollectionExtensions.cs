@@ -56,6 +56,23 @@ public static class JTBIServiceCollectionExtensions
             services.Remove(gestaoProviderDescriptor);
         }
 
+        // Assegura que o IModuloVerificacaoService retorne eModuloSistema.IA como ativo para carregar a aba padrão de IA
+        var moduloServiceDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IModuloVerificacaoService));
+        if (moduloServiceDescriptor != null)
+        {
+            services.Remove(moduloServiceDescriptor);
+            services.AddScoped<IModuloVerificacaoService>(sp =>
+            {
+                var implType = moduloServiceDescriptor.ImplementationType ?? typeof(JT_UserInterface.Shared.Services.Comum.ModuloVerificacaoService);
+                var inner = (IModuloVerificacaoService)ActivatorUtilities.CreateInstance(sp, implType);
+                return new BIModuloVerificacaoService(inner);
+            });
+        }
+        else
+        {
+            services.AddScoped<IModuloVerificacaoService, BIModuloVerificacaoService>();
+        }
+
         // Injetar HttpClient com JwtAuthorizationHandler registrado pelo AddJTUserInterface
         services.AddScoped(sp =>
         {

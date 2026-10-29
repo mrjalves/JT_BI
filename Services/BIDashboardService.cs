@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using JT_BI.Models;
 
 namespace JT_BI.Services;
@@ -711,17 +711,28 @@ public class BIDashboardService : IBIDashboardService
                 w.DimensaoCampo = SanitizarTexto(w.DimensaoCampo);
 
                 // Normalização de colunas para layout perfeito
-                if (w.Tipo == BIWidgetTipo.CardKpi && (w.LarguraColunas == 6 || w.LarguraColunas <= 0))
+                if (w.LarguraColunas <= 0)
                 {
-                    w.LarguraColunas = 3;
+                    w.LarguraColunas = w.Tipo switch
+                    {
+                        BIWidgetTipo.CardKpi => 3,
+                        BIWidgetTipo.GraficoLinhas => 8,
+                        BIWidgetTipo.GraficoPizza => 6,
+                        BIWidgetTipo.Tabela => 12,
+                        _ => 6
+                    };
                 }
-                else if (w.Tipo == BIWidgetTipo.GraficoLinhas && (w.LarguraColunas == 6 || w.LarguraColunas <= 0))
+                else
                 {
-                    w.LarguraColunas = 8;
-                }
-                else if (w.Tipo == BIWidgetTipo.GraficoPizza && (w.LarguraColunas == 6 || w.LarguraColunas <= 0))
-                {
-                    w.LarguraColunas = 4;
+                    w.Largura = w.LarguraColunas switch
+                    {
+                        <= 3 => 25,
+                        4 => 33.3,
+                        6 => 50,
+                        8 => 66.7,
+                        >= 12 => 100,
+                        _ => Math.Round((w.LarguraColunas / 12.0) * 100.0, 1)
+                    };
                 }
             }
         }
