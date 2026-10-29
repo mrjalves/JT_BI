@@ -1,10 +1,13 @@
 @using JT_BI.Models
 @using JT_BI.Services
+@using JT_Classes.DW
 @inject BIImportUiService ImportUi
 @inject NavigationManager Nav
 @implements IDisposable
 
-<BIImportModal @bind-IsOpen="aberto" OnDashboardCriado="TratarDashboardCriadoAsync" />
+<BIImportModal @bind-IsOpen="aberto"
+               OnDashboardCriado="TratarDashboardCriadoAsync"
+               OnFonteSalva="TratarFonteSalvaAsync" />
 
 @code {
     private bool aberto;
@@ -30,6 +33,11 @@
         }
 
         Nav.NavigateTo($"/dashboards/editor/{dashboard.Id}");
+    }
+
+    private async Task TratarFonteSalvaAsync(MOrigemDados origem)
+    {
+        await ImportUi.NotificarFonteImportadaAsync(origem);
     }
 
     public void Dispose()

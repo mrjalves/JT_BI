@@ -1,17 +1,19 @@
-<!--  -->@using System.Text
+@using System.Text
 @using JT_BI.Models
 @using JT_BI.Services
 @using JT_Classes.Acessos
+@using JT_Classes.DW
 @using Microsoft.AspNetCore.Components.Forms
 @inject IBIImportService ImportService
 @inject IBIDashboardService DashboardService
+@inject IBIDataSourceService DataSourceService
 @inject CurrentUserState UserState
 @inject IHttpClientFactory HttpClientFactory
 
 @if (IsOpen)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 1055;">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(15, 23, 42, 0.72); backdrop-filter: blur(4px); z-index: 1060;">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content border-0 shadow-2xl rounded-4 overflow-hidden">
                 <div class="modal-header bi-modal-header p-3 border-0">
                     <div class="d-flex align-items-center gap-2">
@@ -20,7 +22,7 @@
                         </div>
                         <div>
                             <h5 class="modal-title fw-bold mb-0 text-white" style="color: #ffffff !important;">Importar Dados Externos</h5>
-                            <small style="color: rgba(241, 245, 249, 0.88) !important;">Envie um arquivo CSV/JSON, informe um link público ou cole os dados</small>
+                            <small style="color: rgba(241, 245, 249, 0.88) !important;">Envie um arquivo CSV/JSON, informe um link público ou cole os dados para criar uma Fonte de Dados</small>
                         </div>
                     </div>
                     <button type="button" class="btn-close btn-close-white" @onclick="Fechar"></button>
@@ -29,8 +31,8 @@
                 <div class="modal-body p-4">
                     <div class="row g-3">
                         <div class="col-12 col-md-8">
-                            <label class="form-label fw-semibold small text-muted">Nome do Conjunto de Dados:</label>
-                            <input type="text" class="form-control form-control-sm" @bind="nomeDataset" placeholder="Ex: Vendas 2026, Clientes, Despesas Mensais..." />
+                            <label class="form-label fw-semibold small text-muted">Nome da Fonte / Conjunto de Dados:</label>
+                            <input type="text" class="form-control form-control-sm" @bind="nomeDataset" placeholder="Ex: clientes_para_power_bi, Vendas 2026..." />
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label fw-semibold small text-muted">Formato dos Dados:</label>
@@ -78,7 +80,7 @@
                                     </div>
                                 }
                                 <div class="small text-muted mt-1">
-                                    O formato é detectado automaticamente e o nome do arquivo sugere o nome do dataset.
+                                    O formato é detectado automaticamente e o arquivo ficará salvo como Fonte de Dados gerenciável no BI.
                                 </div>
                             </div>
                         }
@@ -120,7 +122,7 @@
                                         <i class="bi bi-magic me-1"></i> Preencher Exemplo de Vendas
                                     </button>
                                 </div>
-                                <textarea class="form-control font-monospace" rows="7" maxlength="500000" @bind="conteudoBruto" @bind:after="DetectarFormato" placeholder="Cole aqui o conteúdo CSV ou JSON..." style="font-size: 0.82rem;"></textarea>
+                                <textarea class="form-control font-monospace" rows="6" maxlength="500000" @bind="conteudoBruto" @bind:after="DetectarFormato" placeholder="Cole aqui o conteúdo CSV ou JSON..." style="font-size: 0.82rem;"></textarea>
                             </div>
                         }
 
@@ -128,13 +130,18 @@
                         {
                             <div class="col-12">
                                 <div class="card border border-success border-opacity-25 bg-success bg-opacity-10 rounded-3 p-3">
-                                    <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
                                         <div class="d-flex align-items-center gap-2">
                                             <i class="bi bi-check-circle-fill text-success fs-5"></i>
                                             <span class="fw-bold text-success">Dados identificados com sucesso!</span>
                                             <span class="badge bg-success">@datasetPreview.QtdLinhas linhas</span>
                                             <span class="badge bg-secondary">@datasetPreview.Colunas.Count colunas</span>
                                         </div>
+                                        <button type="button" class="btn btn-xs btn-link text-decoration-none p-0 small"
+                                                @onclick="() => exibirAmostraTabela = !exibirAmostraTabela">
+                                            <i class="bi @(exibirAmostraTabela ? "bi-chevron-up" : "bi-table") me-1"></i>
+                                            @(exibirAmostraTabela ? "Ocultar amostra de linhas" : "Ver amostra de linhas")
+                                        </button>
                                     </div>
                                     <div class="d-flex flex-wrap gap-2">
                                         @foreach (var col in datasetPreview.Colunas)
@@ -145,6 +152,33 @@
                                             </span>
                                         }
                                     </div>
+
+                                    @if (exibirAmostraTabela)
+                                    {
+                                        <div class="table-responsive mt-3 bg-body rounded-3 border" style="max-height: 170px;">
+                                            <table class="table table-sm table-striped small mb-0">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        @foreach (var col in datasetPreview.Colunas)
+                                                        {
+                                                            <th>@col.Nome</th>
+                                                        }
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var row in datasetPreview.Linhas.Take(5))
+                                                    {
+                                                        <tr>
+                                                            @foreach (var col in datasetPreview.Colunas)
+                                                            {
+                                                                <td>@(row.TryGetValue(col.Nome, out var v) ? v : "")</td>
+                                                            }
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    }
                                 </div>
                             </div>
                         }
@@ -160,14 +194,17 @@
                     </div>
                 </div>
 
-                <div class="modal-footer bg-light p-3 border-0 d-flex justify-content-between">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="Fechar">Cancelar</button>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="ProcessarPreview" disabled="@(string.IsNullOrWhiteSpace(conteudoBruto))">
+                <div class="modal-footer bg-light p-3 border-0 d-flex justify-content-between flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-3" @onclick="Fechar">Cancelar</button>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-3" @onclick="AlternarPreviewAmostra" disabled="@(string.IsNullOrWhiteSpace(conteudoBruto))">
                             <i class="bi bi-eye me-1"></i> Pré-visualizar
                         </button>
-                        <button type="button" class="btn btn-sm btn-primary" @onclick="SalvarEGerarDashboardAsync" disabled="@(string.IsNullOrWhiteSpace(conteudoBruto))">
-                            <i class="bi bi-speedometer2 me-1"></i> Gerar Dashboard Automático
+                        <button type="button" class="btn btn-sm btn-success rounded-3 fw-semibold" @onclick="SalvarApenasComoFonteAsync" disabled="@(salvando || string.IsNullOrWhiteSpace(conteudoBruto))">
+                            <i class="bi bi-database-fill-add me-1"></i> Salvar como Fonte de Dados
+                        </button>
+                        <button type="button" class="btn btn-sm btn-primary rounded-3 fw-semibold" @onclick="SalvarEGerarDashboardAsync" disabled="@(salvando || string.IsNullOrWhiteSpace(conteudoBruto))">
+                            <i class="bi bi-speedometer2 me-1"></i> Salvar Fonte e Gerar Painel
                         </button>
                     </div>
                 </div>
@@ -182,6 +219,7 @@
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
     [Parameter] public EventCallback<BIDashboard> OnDashboardCriado { get; set; }
+    [Parameter] public EventCallback<MOrigemDados> OnFonteSalva { get; set; }
 
     private string abaOrigem = "arquivo";
     private string nomeDataset = "Dataset Vendas 2026";
@@ -192,6 +230,8 @@
     private bool linkCarregado;
     private bool carregandoArquivo;
     private bool baixandoUrl;
+    private bool salvando;
+    private bool exibirAmostraTabela;
     private string? mensagemErro = null;
     private BIDataset? datasetPreview = null;
 
@@ -210,6 +250,7 @@
             "Abril;Loja Fisica;104500;1150;90.86\r\n" +
             "Abril;Ecommerce;81200;890;91.23";
         ProcessarPreview();
+        exibirAmostraTabela = true;
     }
 
     private void DetectarFormato()
@@ -225,6 +266,7 @@
         mensagemErro = null;
         datasetPreview = null;
         linkCarregado = false;
+        exibirAmostraTabela = false;
         arquivoNome = "";
 
         var arquivo = e.File;
@@ -244,12 +286,9 @@
             conteudoBruto = await reader.ReadToEndAsync();
 
             arquivoNome = arquivo.Name;
-            if (string.IsNullOrWhiteSpace(nomeDataset) || nomeDataset.StartsWith("Dataset ", StringComparison.OrdinalIgnoreCase))
-            {
-                var baseNome = System.IO.Path.GetFileNameWithoutExtension(arquivo.Name);
-                if (!string.IsNullOrWhiteSpace(baseNome))
-                    nomeDataset = baseNome;
-            }
+            var baseNome = System.IO.Path.GetFileNameWithoutExtension(arquivo.Name);
+            if (!string.IsNullOrWhiteSpace(baseNome))
+                nomeDataset = baseNome;
 
             DetectarFormato();
             ProcessarPreview();
@@ -269,6 +308,7 @@
         mensagemErro = null;
         datasetPreview = null;
         linkCarregado = false;
+        exibirAmostraTabela = false;
         urlOrigem = urlOrigem?.Trim() ?? string.Empty;
 
         if (!Uri.TryCreate(urlOrigem, UriKind.Absolute, out var uri) ||
@@ -303,13 +343,10 @@
             linkCarregado = true;
             arquivoNome = "";
 
-            if (string.IsNullOrWhiteSpace(nomeDataset) || nomeDataset.StartsWith("Dataset ", StringComparison.OrdinalIgnoreCase))
-            {
-                var nomeArquivo = System.IO.Path.GetFileName(uri.LocalPath);
-                var baseNome = System.IO.Path.GetFileNameWithoutExtension(nomeArquivo);
-                if (!string.IsNullOrWhiteSpace(baseNome))
-                    nomeDataset = baseNome;
-            }
+            var nomeArquivo = System.IO.Path.GetFileName(uri.LocalPath);
+            var baseNome = System.IO.Path.GetFileNameWithoutExtension(nomeArquivo);
+            if (!string.IsNullOrWhiteSpace(baseNome))
+                nomeDataset = baseNome;
 
             DetectarFormato();
             ProcessarPreview();
@@ -346,6 +383,15 @@
         return builder.ToString();
     }
 
+    private void AlternarPreviewAmostra()
+    {
+        ProcessarPreview();
+        if (datasetPreview != null && datasetPreview.QtdLinhas > 0)
+        {
+            exibirAmostraTabela = true;
+        }
+    }
+
     private void ProcessarPreview()
     {
         mensagemErro = null;
@@ -371,18 +417,62 @@
         }
     }
 
+    private async Task SalvarApenasComoFonteAsync()
+    {
+        if (datasetPreview == null)
+            ProcessarPreview();
+
+        if (datasetPreview == null || datasetPreview.QtdLinhas == 0)
+            return;
+
+        salvando = true;
+        try
+        {
+            datasetPreview.Nome = string.IsNullOrWhiteSpace(nomeDataset) ? datasetPreview.Nome : nomeDataset.Trim();
+            await DashboardService.SalvarDatasetAsync(datasetPreview, BIUsuarioContexto.De(UserState));
+            var origem = await DataSourceService.RegistrarDatasetComoFonteAsync(datasetPreview);
+            await Fechar();
+            if (OnFonteSalva.HasDelegate)
+                await OnFonteSalva.InvokeAsync(origem);
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = $"Erro ao salvar fonte de dados: {ex.Message}";
+        }
+        finally
+        {
+            salvando = false;
+        }
+    }
+
     private async Task SalvarEGerarDashboardAsync()
     {
         if (datasetPreview == null)
             ProcessarPreview();
 
-        if (datasetPreview != null && datasetPreview.QtdLinhas > 0)
+        if (datasetPreview == null || datasetPreview.QtdLinhas == 0)
+            return;
+
+        salvando = true;
+        try
         {
+            datasetPreview.Nome = string.IsNullOrWhiteSpace(nomeDataset) ? datasetPreview.Nome : nomeDataset.Trim();
             await DashboardService.SalvarDatasetAsync(datasetPreview, BIUsuarioContexto.De(UserState));
+            var origem = await DataSourceService.RegistrarDatasetComoFonteAsync(datasetPreview);
             var dash = ImportService.GerarDashboardAutomatico(datasetPreview);
             await DashboardService.SalvarAsync(dash, BIUsuarioContexto.De(UserState));
             await Fechar();
+            if (OnFonteSalva.HasDelegate)
+                await OnFonteSalva.InvokeAsync(origem);
             await OnDashboardCriado.InvokeAsync(dash);
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = $"Erro ao gerar painel: {ex.Message}";
+        }
+        finally
+        {
+            salvando = false;
         }
     }
 

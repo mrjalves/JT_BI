@@ -32,6 +32,7 @@ public interface IBIDataSourceService
     Task<List<EntidadeModeloDto>> ObterCatalogoEntidadesAsync();
     Task<List<MOrigemDados>> ObterOrigensConfiguradasAsync();
     Task<MOrigemDados> SalvarOrigemAsync(MOrigemDados origem);
+    Task<MOrigemDados> RegistrarDatasetComoFonteAsync(BIDataset dataset);
     Task<bool> ExcluirOrigemAsync(int origemId);
     Task<EdwExecucaoResultado> ExecutarCargaOrigemAsync(int origemId);
     Task<int> ConectarModuloServidorAsync(string categoriaModulo);
@@ -313,29 +314,51 @@ public class BIDataSourceService : IBIDataSourceService
         return locais.OrderBy(o => o.Nome).ToList();
     }
 
-    public async Task<MOrigemDados> SalvarOrigemAsync(MOrigemDados origem)
+    public static bool EhOrigemImportada(MOrigemDados? origem)
+        => origem != null &&
+           ((origem.ClasseOrigem?.StartsWith("Importado.", StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (origem.TabelaOrigem?.StartsWith("Arquivo ", StringComparison.OrdinalIgnoreCase) ?? false) ||
+            string.Equals(origem.TabelaOrigem, "CSV", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(origem.TabelaOrigem, "JSON", StringComparison.OrdinalIgnoreCase));
+
+    public async Task<MOrigemDados> RegistrarDatasetComoFonteAsync(BIDataset dataset)
     {
+        ArgumentNullException.ThrowIfNull(dataset);
+
         var locais = await LerOrigensLocaisAsync();
+        var classeImportada = $"Importado.{dataset.Origem}.{dataset.Id}";
+        var existente = locais.FirstOrDefault(o =>
+            string.Equals(o.ClasseOrigem, classeImportada, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(o.Nome, dataset.Nome, StringComparison.OrdinalIgnoreCase));
 
-        // Tenta sincronizar com a API se o endpoint existir
-        try
-        {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-            var resp = origem.Id <= 0
-                ? await _httpClient.PostAsJsonAsync(ConstruirUrlApi("/api/origemdados"), origem, cts.Token)
-                : await _httpClient.PutAsJsonAsync(ConstruirUrlApi($"/api/origemdados/{origem.Id}"), origem, cts.Token);
+        var colunas = dataset.Colunas
+            .Select(c => c.Nome)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-            if (resp.IsSuccessStatusCode && origem.Id <= 0)
-            {
-                var salvoRemoto = await resp.Content.ReadFromJsonAsync<MOrigemDados>(cancellationToken: cts.Token);
-                if (salvoRemoto is { Id: > 0 })
-                    origem.Id = salvoRemoto.Id;
-            }
-        }
-        catch
+        var linhasTexto = dataset.Linhas
+            .Select(row => row.ToDictionary(
+                kv => kv.Key,
+                kv => Convert.ToString(kv.Value, CultureInfo.InvariantCulture) ?? string.Empty,
+                StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        var origem = existente ?? new MOrigemDados();
+        origem.Nome = string.IsNullOrWhiteSpace(dataset.Nome) ? "Dataset Importado" : dataset.Nome.Trim();
+        origem.Descricao = $"Arquivo {dataset.Origem} importado ({linhasTexto.Count} registros, {colunas.Count} colunas)";
+        origem.ClasseOrigem = classeImportada;
+        origem.TabelaOrigem = $"Arquivo {dataset.Origem}";
+        origem.LinhasCarregadas = linhasTexto.Count;
+        origem.UltimaExecucao = DateTime.Now;
+        origem.UltimaMensagem = $"Importado ({linhasTexto.Count} registros prontos para uso)";
+        origem.Configuracao = new OrigemConfiguracao
         {
-            // Continua salvando localmente
-        }
+            ClasseOrigem = origem.ClasseOrigem,
+            TabelaOrigem = origem.TabelaOrigem,
+            Colunas = colunas,
+            Relacionamentos = new List<OrigemRelacionamentoConfig>()
+        };
 
         if (origem.Id <= 0)
         {
@@ -347,6 +370,60 @@ public class BIDataSourceService : IBIDataSourceService
             locais[idx] = origem;
         else
             locais.Add(origem);
+
+        await SalvarOrigensLocaisAsync(locais);
+        await SalvarCacheOrigemAsync(origem.Id, linhasTexto);
+        return origem;
+    }
+
+    public async Task<MOrigemDados> SalvarOrigemAsync(MOrigemDados origem)
+    {
+        var locais = await LerOrigensLocaisAsync();
+
+        // Tenta sincronizar com a API apenas se não for arquivo importado localmente
+        if (!EhOrigemImportada(origem))
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+                var resp = origem.Id <= 0
+                    ? await _httpClient.PostAsJsonAsync(ConstruirUrlApi("/api/origemdados"), origem, cts.Token)
+                    : await _httpClient.PutAsJsonAsync(ConstruirUrlApi($"/api/origemdados/{origem.Id}"), origem, cts.Token);
+
+                if (resp.IsSuccessStatusCode && origem.Id <= 0)
+                {
+                    var salvoRemoto = await resp.Content.ReadFromJsonAsync<MOrigemDados>(cancellationToken: cts.Token);
+                    if (salvoRemoto is { Id: > 0 })
+                        origem.Id = salvoRemoto.Id;
+                }
+            }
+            catch
+            {
+                // Continua salvando localmente
+            }
+        }
+
+        if (origem.Id <= 0)
+        {
+            origem.Id = locais.Count == 0 ? 1 : locais.Max(o => o.Id) + 1;
+        }
+
+        var idx = locais.FindIndex(o => o.Id == origem.Id);
+        if (idx >= 0)
+        {
+            if (origem.LinhasCarregadas <= 0 && locais[idx].LinhasCarregadas > 0)
+                origem.LinhasCarregadas = locais[idx].LinhasCarregadas;
+            if (origem.UltimaExecucao == null)
+                origem.UltimaExecucao = locais[idx].UltimaExecucao;
+            if (string.IsNullOrWhiteSpace(origem.UltimaMensagem))
+                origem.UltimaMensagem = locais[idx].UltimaMensagem;
+
+            locais[idx] = origem;
+        }
+        else
+        {
+            locais.Add(origem);
+        }
 
         await SalvarOrigensLocaisAsync(locais);
         return origem;
@@ -395,6 +472,27 @@ public class BIDataSourceService : IBIDataSourceService
             };
         }
 
+        // Se for uma fonte importada (CSV / JSON), revalida as linhas em cache local
+        if (EhOrigemImportada(origem))
+        {
+            var linhasImportadas = await ObterLinhasCacheOuApiAsync(origemId);
+            origem.UltimaExecucao = DateTime.Now;
+            origem.LinhasCarregadas = linhasImportadas.Count > 0 ? linhasImportadas.Count : origem.LinhasCarregadas;
+            origem.UltimaMensagem = $"Arquivo sincronizado ({origem.LinhasCarregadas} registros ativos)";
+            await SalvarOrigemAsync(origem);
+
+            return new EdwExecucaoResultado
+            {
+                Sucesso = true,
+                OrigemId = origemId,
+                OrigemNome = origem.Nome,
+                TabelaDestino = origem.TabelaOrigem,
+                LinhasCarregadas = origem.LinhasCarregadas,
+                DataCarregamento = origem.UltimaExecucao,
+                Mensagem = origem.UltimaMensagem
+            };
+        }
+
         // 1. Tenta carga oficial no EDW via API
         try
         {
@@ -412,13 +510,16 @@ public class BIDataSourceService : IBIDataSourceService
 
         // 2. Fallback direto na rota REST padrão da entidade na API (/api/{tabela})
         var linhas = await BaixarLinhasEntidadeApiAsync(origem);
-        await SalvarCacheOrigemAsync(origemId, linhas);
+        if (linhas.Count > 0)
+        {
+            await SalvarCacheOrigemAsync(origemId, linhas);
+        }
 
         origem.UltimaExecucao = DateTime.Now;
         origem.LinhasCarregadas = linhas.Count;
         origem.UltimaMensagem = linhas.Count > 0
-            ? $"Conectado ({linhas.Count} registros sincronizados)"
-            : "Fonte conectada (0 registros retornados pela API no momento)";
+            ? $"Conectado ao servidor ({linhas.Count} registros sincronizados)"
+            : "Fonte conectada ao servidor (pronta para consulta)";
 
         await SalvarOrigemAsync(origem);
 
@@ -452,20 +553,22 @@ public class BIDataSourceService : IBIDataSourceService
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            var importada = EhOrigemImportada(origem);
+
             fontes.Add(new FonteDadosInfo
             {
                 Id = $"origem_{origem.Id}",
                 OrigemId = origem.Id,
                 Nome = origem.Nome ?? $"Fonte #{origem.Id}",
                 Descricao = string.IsNullOrWhiteSpace(origem.Descricao)
-                    ? $"Conexão no Servidor · Tabela: {origem.TabelaOrigem}"
+                    ? (importada ? $"Arquivo importado ({origem.LinhasCarregadas} registros)" : $"Conexão no Servidor · Tabela: {origem.TabelaOrigem}")
                     : origem.Descricao,
-                Modulo = "Tabela do Servidor",
-                TipoConexao = "SERVIDOR",
-                Icone = "bi-hdd-network-fill",
-                Cor = Cores[indice++ % Cores.Length],
+                Modulo = importada ? "Arquivo Importado" : "Tabela do Servidor",
+                TipoConexao = importada ? "CSV / JSON" : "SERVIDOR",
+                Icone = importada ? "bi-file-earmark-spreadsheet-fill" : "bi-hdd-network-fill",
+                Cor = importada ? "info" : Cores[indice++ % Cores.Length],
                 Demonstrativa = false,
-                ConexaoServidor = true,
+                ConexaoServidor = !importada,
                 Metricas = colunas,
                 Dimensoes = colunas
             });

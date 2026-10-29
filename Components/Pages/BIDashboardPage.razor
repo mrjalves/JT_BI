@@ -268,7 +268,7 @@ else
                                     <span class="fw-bold small text-uppercase text-secondary" style="font-size: 0.72rem;">
                                         <i class="bi bi-hdd-network-fill me-1 text-success"></i> Fontes Conectadas
                                     </span>
-                                    <span class="badge bg-primary-subtle text-primary border">@(fontesMineracao.Count + datasetsDisponiveis.Count)</span>
+                                    <span class="badge bg-primary-subtle text-primary border">@fontesMineracao.Count</span>
                                 </div>
                                 <div class="mb-2">
                                     <span class="badge bg-success-subtle text-success border w-100 text-start py-1 px-2" style="font-size: 0.66rem;">
@@ -276,7 +276,7 @@ else
                                     </span>
                                 </div>
 
-                                @if (fontesMineracao.Count == 0 && datasetsDisponiveis.Count == 0)
+                                @if (fontesMineracao.Count == 0)
                                 {
                                     <p class="text-muted small mb-2">
                                         Nenhuma fonte disponível. Conecte uma tabela do servidor para começar.
@@ -285,32 +285,21 @@ else
                                 else
                                 {
                                     <div class="d-flex flex-column gap-1 small">
-                                        @foreach (var fonte in fontesMineracao.Take(5))
+                                        @foreach (var fonte in fontesMineracao.Take(6))
                                         {
                                             <div class="d-flex justify-content-between align-items-center text-muted gap-2" title="@fonte.Descricao">
                                                 <span class="text-truncate text-body">
                                                     <i class="bi @fonte.Icone me-1 text-@fonte.Cor"></i> @fonte.Nome
                                                 </span>
-                                                <span class="badge flex-shrink-0 bg-success-subtle text-success border" style="font-size: 0.62rem;">
-                                                    @(fonte.OrigemId.HasValue ? "TABELA" : "SERVIDOR")
+                                                <span class="badge flex-shrink-0 @(fonte.ConexaoServidor ? "bg-success-subtle text-success" : "bg-info-subtle text-info") border" style="font-size: 0.62rem;">
+                                                    @fonte.TipoConexao
                                                 </span>
                                             </div>
                                         }
-                                        @foreach (var ds in datasetsDisponiveis.Take(2))
-                                        {
-                                            <div class="d-flex justify-content-between align-items-center text-muted gap-2" title="Arquivo importado">
-                                                <span class="text-truncate text-body">
-                                                    <i class="bi bi-file-earmark-spreadsheet me-1 text-info"></i> @ds.Nome
-                                                </span>
-                                                <span class="badge flex-shrink-0 bg-info-subtle text-info border" style="font-size: 0.62rem;">
-                                                    @ds.Origem
-                                                </span>
-                                            </div>
-                                        }
-                                        @if (fontesMineracao.Count > 5)
+                                        @if (fontesMineracao.Count > 6)
                                         {
                                             <span class="text-muted" style="font-size: 0.72rem;">
-                                                + @(fontesMineracao.Count - 5) outra(s) fonte(s) no servidor
+                                                + @(fontesMineracao.Count - 6) outra(s) fonte(s)
                                             </span>
                                         }
                                     </div>
@@ -1308,6 +1297,14 @@ else
 
             var contexto = BIUsuarioContexto.De(UserState);
             datasetsDisponiveis = await DashboardService.ObterDatasetsVisiveisAsync(contexto);
+            var origensExistentes = await DataSourceService.ObterOrigensConfiguradasAsync();
+            foreach (var ds in datasetsDisponiveis)
+            {
+                if (!origensExistentes.Any(o => string.Equals(o.Nome, ds.Nome, StringComparison.OrdinalIgnoreCase)))
+                {
+                    await DataSourceService.RegistrarDatasetComoFonteAsync(ds);
+                }
+            }
             fontesMineracao = await DataSourceService.ObterFontesDisponiveisAsync();
 
             var fonteMineracaoInicial = fontesMineracao.FirstOrDefault(f => f.OrigemId.HasValue)
@@ -1681,11 +1678,22 @@ else
     }
 
     private Task AbrirImportacaoAsync()
-        => ImportUi.AbrirAsync(async dash =>
-        {
-            await TratarDashboardCriadoAsync(dash);
-            await InvokeAsync(StateHasChanged);
-        });
+        => ImportUi.AbrirAsync(
+            callback: async dash =>
+            {
+                await TratarDashboardCriadoAsync(dash);
+                await InvokeAsync(StateHasChanged);
+            },
+            callbackFonte: async fonte =>
+            {
+                var contexto = BIUsuarioContexto.De(UserState);
+                datasetsDisponiveis = await DashboardService.ObterDatasetsVisiveisAsync(contexto);
+                fontesMineracao = await DataSourceService.ObterFontesDisponiveisAsync(datasetsDisponiveis);
+                fonteMineracaoSelecionadaId = fonte.Id;
+                isFontesModalOpen = true;
+                ExibirFeedback($"Fonte de dados '{fonte.Nome}' ({fonte.LinhasCarregadas} linhas) salva! Gerencie colunas, amostra e sincronização na tela de Fontes de Dados.", "alert-success");
+                await InvokeAsync(StateHasChanged);
+            });
 
     private async Task TratarDashboardCriadoAsync(BIDashboard novo)
     {
@@ -1700,11 +1708,12 @@ else
             }
         }
 
+        fontesMineracao = await DataSourceService.ObterFontesDisponiveisAsync(datasetsDisponiveis);
         ListaDashboards.RemoveAll(d => d.Id == novo.Id);
         ListaDashboards.Insert(0, novo);
         DashboardAtivo = novo;
         WidgetSelecionado = null;
-        ExibirFeedback($"Dashboard '{novo.Nome}' importado com sucesso!", "alert-success");
+        ExibirFeedback($"Fonte e Dashboard '{novo.Nome}' criados com sucesso!", "alert-success");
     }
 
     // =========================================================================

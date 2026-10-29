@@ -23,11 +23,11 @@
                                     Fontes de Dados &amp; Conexão no Servidor
                                 </h5>
                                 <span class="badge bg-success text-white rounded-pill px-2 py-1" style="font-size: 0.7rem;">
-                                    <i class="bi bi-Broadcast me-1"></i>CONEXÃO NO SERVIDOR ATIVA
+                                    <i class="bi bi-broadcast me-1"></i>CONEXÃO NO SERVIDOR ATIVA
                                 </span>
                             </div>
                             <small class="d-block" style="color: rgba(241, 245, 249, 0.88) !important;">
-                                Selecione os módulos para buscar tabelas diretamente no banco de dados do servidor ou importe arquivos externos
+                                Gerencie tabelas conectadas no banco do servidor e arquivos CSV/JSON importados como fontes de dados
                             </small>
                         </div>
                     </div>
@@ -53,11 +53,11 @@
                             </div>
                         </div>
                         <div class="d-flex gap-2">
-                            <button class="btn btn-sm btn-outline-success rounded-3 bg-body" @onclick="AbrirImportacaoPlanilhaAsync" title="Importar arquivo CSV, JSON ou Link externo">
+                            <button class="btn btn-sm btn-success rounded-3 fw-semibold" @onclick="AbrirImportacaoPlanilhaAsync" title="Importar arquivo CSV, JSON ou Link externo como Fonte de Dados">
                                 <i class="bi bi-file-earmark-arrow-up me-1"></i> Importar CSV / JSON
                             </button>
                             <button class="btn btn-sm btn-outline-secondary rounded-3 bg-body" @onclick="CarregarAsync" disabled="@carregando" title="Recarregar catálogo do servidor">
-                                <i class="bi bi-arrow-clockwise me-1"></i> Atualizar Servidor
+                                <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
                             </button>
                         </div>
                     </div>
@@ -104,16 +104,16 @@
                     </div>
 
                     <div class="row g-4">
-                        <!-- Coluna Esquerda: Fontes Conectadas (Módulos do Servidor + Tabelas Sincronizadas + Datasets) -->
+                        <!-- Coluna Esquerda: Fontes Conectadas (Tabelas do Servidor + Arquivos CSV/JSON Importados + Módulos) -->
                         <div class="col-12 col-lg-7">
                             <div class="card border shadow-xs rounded-4 h-100">
                                 <div class="card-header bg-body-tertiary border-bottom py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
                                     <div class="d-flex align-items-center gap-2">
                                         <span class="fw-bold text-body">Fontes Vinculadas ao BI</span>
-                                        <span class="badge bg-primary text-white rounded-pill">@(fontesServidorPadrao.Count + origens.Count + datasets.Count)</span>
+                                        <span class="badge bg-primary text-white rounded-pill">@(fontesServidorPadrao.Count + origens.Count)</span>
                                     </div>
                                     <span class="badge bg-success-subtle text-success border border-success-subtle">
-                                        <i class="bi bi-hdd-network me-1"></i> Servidor + Arquivos
+                                        <i class="bi bi-hdd-network me-1"></i> Servidor + CSV/JSON
                                     </span>
                                 </div>
 
@@ -122,15 +122,15 @@
                                     {
                                         <div class="text-center p-5">
                                             <div class="spinner-border text-primary" role="status"></div>
-                                            <p class="text-muted small mt-2 mb-0">Consultando tabelas e módulos no servidor...</p>
+                                            <p class="text-muted small mt-2 mb-0">Consultando fontes conectadas e módulos no servidor...</p>
                                         </div>
                                     }
                                     else
                                     {
-                                        <!-- Tabelas Específicas do Banco no Servidor Conectadas -->
+                                        <!-- Fontes de Dados Ativas (Tabelas do Servidor + Arquivos CSV/JSON Importados) -->
                                         <div class="d-flex align-items-center justify-content-between mb-2">
                                             <div class="small fw-bold text-uppercase text-secondary" style="font-size: 0.74rem;">
-                                                <i class="bi bi-table me-1 text-primary"></i> Tabelas do Servidor Sincronizadas (@origens.Count)
+                                                <i class="bi bi-database-fill-check me-1 text-primary"></i> Fontes de Dados Sincronizadas (@origens.Count)
                                             </div>
                                             @if (!string.IsNullOrEmpty(moduloSelecionado))
                                             {
@@ -156,10 +156,10 @@
                                             <div class="p-3 border border-dashed rounded-3 mb-3 bg-body-tertiary d-flex align-items-center justify-content-between flex-wrap gap-2">
                                                 <div>
                                                     <div class="fw-semibold small text-body">
-                                                        <i class="bi bi-hdd-network text-primary me-1"></i> Nenhuma tabela individual fixada ainda
+                                                        <i class="bi bi-database-add text-primary me-1"></i> Nenhuma tabela ou CSV adicionado ainda
                                                     </div>
                                                     <div class="text-muted" style="font-size: 0.75rem;">
-                                                        Selecione um módulo acima e escolha uma tabela do servidor à direita para sincronizar registros específicos.
+                                                        Escolha uma tabela do servidor à direita ou clique em <strong>Importar CSV / JSON</strong> acima para gerenciar suas fontes aqui.
                                                     </div>
                                                 </div>
                                             </div>
@@ -170,8 +170,8 @@
                                                 <table class="table table-sm align-middle mb-0">
                                                     <thead class="table-light">
                                                         <tr>
-                                                            <th class="ps-2">Fonte / Conexão</th>
-                                                            <th>Tabela no Servidor</th>
+                                                            <th class="ps-2">Fonte de Dados</th>
+                                                            <th>Origem</th>
                                                             <th class="text-center">Registros</th>
                                                             <th class="text-end pe-2">Ações</th>
                                                         </tr>
@@ -179,25 +179,44 @@
                                                     <tbody>
                                                         @foreach (var origem in origens)
                                                         {
+                                                            var ehImportada = BIDataSourceService.EhOrigemImportada(origem);
                                                             <tr class="@(editando?.Id == origem.Id ? "table-primary" : "")">
                                                                 <td class="ps-2">
                                                                     <div class="d-flex align-items-center gap-1 flex-wrap">
                                                                         <span class="fw-semibold small text-body">@origem.Nome</span>
-                                                                        <span class="badge bg-success-subtle text-success border" style="font-size: 0.65rem;">
-                                                                            <i class="bi bi-hdd-network me-1"></i>SERVIDOR
-                                                                        </span>
+                                                                        @if (ehImportada)
+                                                                        {
+                                                                            <span class="badge bg-info-subtle text-info border" style="font-size: 0.65rem;">
+                                                                                <i class="bi bi-file-earmark-spreadsheet me-1"></i>CSV / JSON
+                                                                            </span>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="badge bg-success-subtle text-success border" style="font-size: 0.65rem;">
+                                                                                <i class="bi bi-hdd-network me-1"></i>SERVIDOR
+                                                                            </span>
+                                                                        }
                                                                     </div>
                                                                     <div class="text-muted" style="font-size: 0.72rem;">
-                                                                        @(string.IsNullOrWhiteSpace(origem.UltimaMensagem) ? (origem.Descricao ?? "Conectada ao banco no servidor") : origem.UltimaMensagem)
+                                                                        @(string.IsNullOrWhiteSpace(origem.UltimaMensagem) ? (origem.Descricao ?? "Pronta para consulta") : origem.UltimaMensagem)
                                                                     </div>
                                                                 </td>
-                                                                <td><code class="small">@origem.TabelaOrigem</code></td>
+                                                                <td>
+                                                                    <code class="small">@origem.TabelaOrigem</code>
+                                                                    <div class="text-muted" style="font-size: 0.68rem;">
+                                                                        @((origem.Configuracao?.Colunas?.Count ?? 0)) coluna(s)
+                                                                    </div>
+                                                                </td>
                                                                 <td class="text-center small">
                                                                     <span class="badge bg-body-secondary text-body border">@origem.LinhasCarregadas</span>
                                                                 </td>
                                                                 <td class="text-end pe-2">
                                                                     <div class="btn-group btn-group-sm">
-                                                                        <button class="btn btn-outline-success" title="Sincronizar dados com o servidor agora"
+                                                                        <button class="btn btn-outline-secondary" title="Visualizar amostra de registros desta fonte"
+                                                                                @onclick="() => VisualizarAmostraFonteAsync(origem)">
+                                                                            <i class="bi bi-table"></i>
+                                                                        </button>
+                                                                        <button class="btn btn-outline-success" title="Sincronizar / Revalidar dados da fonte"
                                                                                 disabled="@(executandoId == origem.Id)" @onclick="() => ExecutarAsync(origem)">
                                                                             @if (executandoId == origem.Id)
                                                                             {
@@ -208,11 +227,12 @@
                                                                                 <i class="bi bi-arrow-repeat"></i>
                                                                             }
                                                                         </button>
-                                                                        <button class="btn btn-outline-primary" title="Editar colunas e vínculos" @onclick="() => IniciarEdicao(origem)">
+                                                                        <button class="btn btn-outline-primary" title="Editar nome, descrição e colunas ativas"
+                                                                                @onclick="() => IniciarEdicao(origem)">
                                                                             <i class="bi bi-pencil-fill"></i>
                                                                         </button>
                                                                         <button class="btn @(pendenteExclusaoId == origem.Id ? "btn-danger" : "btn-outline-danger")"
-                                                                                title="@(pendenteExclusaoId == origem.Id ? "Confirmar exclusão" : "Remover fonte")"
+                                                                                title="@(pendenteExclusaoId == origem.Id ? "Confirmar exclusão" : "Remover fonte de dados")"
                                                                                 @onclick="() => SolicitarExclusaoAsync(origem)">
                                                                             <i class="bi @(pendenteExclusaoId == origem.Id ? "bi-check-lg" : "bi-trash")"></i>
                                                                         </button>
@@ -225,11 +245,59 @@
                                             </div>
                                         }
 
+                                        <!-- Pré-visualização de Amostra da Fonte Selecionada -->
+                                        @if (origemAmostraAberta != null)
+                                        {
+                                            <div class="border rounded-3 p-2 mb-3 bg-body-tertiary">
+                                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                                    <span class="fw-bold small text-primary">
+                                                        <i class="bi bi-table me-1"></i>Amostra de Dados: @origemAmostraAberta.Nome (@linhasAmostra.Count exibida(s))
+                                                    </span>
+                                                    <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" @onclick="() => origemAmostraAberta = null">
+                                                        Fechar amostra
+                                                    </button>
+                                                </div>
+                                                @if (linhasAmostra.Count == 0)
+                                                {
+                                                    <div class="text-muted small">Nenhum registro retornado na amostra.</div>
+                                                }
+                                                else
+                                                {
+                                                    var colsAmostra = (origemAmostraAberta.Configuracao?.Colunas?.Count > 0
+                                                        ? origemAmostraAberta.Configuracao.Colunas
+                                                        : linhasAmostra.First().Keys.ToList()).Take(6).ToList();
+                                                    <div class="table-responsive" style="max-height: 150px;">
+                                                        <table class="table table-sm table-striped small mb-0">
+                                                            <thead class="table-light">
+                                                                <tr>
+                                                                    @foreach (var c in colsAmostra)
+                                                                    {
+                                                                        <th>@c</th>
+                                                                    }
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                @foreach (var l in linhasAmostra.Take(5))
+                                                                {
+                                                                    <tr>
+                                                                        @foreach (var c in colsAmostra)
+                                                                        {
+                                                                            <td>@(l.TryGetValue(c, out var v) ? v : "")</td>
+                                                                        }
+                                                                    </tr>
+                                                                }
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+
                                         <!-- Módulos Integrados do Servidor -->
                                         <div class="small fw-bold text-uppercase text-secondary mb-2" style="font-size: 0.74rem;">
                                             <i class="bi bi-hdd-stack me-1 text-success"></i> Módulos Integrados no Servidor (@fontesServidorPadrao.Count)
                                         </div>
-                                        <div class="row g-2 mb-3">
+                                        <div class="row g-2">
                                             @foreach (var modFonte in fontesServidorPadrao)
                                             {
                                                 <div class="col-12 col-md-6">
@@ -259,44 +327,34 @@
                                                 </div>
                                             }
                                         </div>
-
-                                        <!-- Planilhas / Datasets Importados -->
-                                        @if (datasets.Count > 0)
-                                        {
-                                            <div class="small fw-bold text-uppercase text-secondary mb-2 mt-2" style="font-size: 0.74rem;">
-                                                <i class="bi bi-file-earmark-spreadsheet me-1 text-info"></i> Planilhas / Datasets Importados (@datasets.Count)
-                                            </div>
-                                            <div class="d-flex flex-column gap-2">
-                                                @foreach (var ds in datasets)
-                                                {
-                                                    <div class="d-flex align-items-center justify-content-between p-2 rounded-3 border bg-body-tertiary small">
-                                                        <div>
-                                                            <span class="fw-semibold text-body">@ds.Nome</span>
-                                                            <span class="badge bg-info-subtle text-info border ms-2">IMPORTADO (@ds.Origem)</span>
-                                                            <span class="text-muted ms-2">@ds.QtdLinhas linhas · @ds.Colunas.Count colunas</span>
-                                                        </div>
-                                                        <span class="text-muted" style="font-size: 0.72rem;">@ds.DataImportacao.ToString("dd/MM/yyyy HH:mm")</span>
-                                                    </div>
-                                                }
-                                            </div>
-                                        }
                                     }
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Coluna Direita: Busca por Módulo e Conexão de Tabela no Servidor -->
+                        <!-- Coluna Direita: Busca por Módulo / Conexão de Tabela no Servidor ou Edição de Fonte (Servidor ou CSV) -->
                         <div class="col-12 col-lg-5">
                             <div class="card border shadow-xs rounded-4 h-100">
                                 <div class="card-header bg-body-tertiary border-bottom py-2 px-3 d-flex align-items-center justify-content-between">
                                     <div>
                                         <span class="fw-bold text-body">
-                                            @(editando == null ? "2. Conectar Tabela do Banco no Servidor" : $"Editando Fonte: {editando.Nome}")
+                                            @(editando == null
+                                                ? "2. Conectar Tabela do Banco no Servidor"
+                                                : $"Editando Fonte: {editando.Nome}")
                                         </span>
                                         <div class="text-muted" style="font-size: 0.74rem;">
-                                            @(string.IsNullOrEmpty(moduloSelecionado)
-                                                ? "Exibindo todas as tabelas do servidor"
-                                                : $"Filtrando módulo do servidor: {moduloSelecionado}")
+                                            @if (editando != null && BIDataSourceService.EhOrigemImportada(editando))
+                                            {
+                                                <span>Personalize o nome, descrição e colunas ativas do arquivo importado</span>
+                                            }
+                                            else if (string.IsNullOrEmpty(moduloSelecionado))
+                                            {
+                                                <span>Exibindo todas as tabelas do servidor</span>
+                                            }
+                                            else
+                                            {
+                                                <span>Filtrando módulo do servidor: @moduloSelecionado</span>
+                                            }
                                         </div>
                                     </div>
                                     @if (editando != null)
@@ -308,52 +366,65 @@
                                 </div>
 
                                 <div class="card-body p-3">
-                                    <div class="mb-2">
-                                        <label class="form-label fw-semibold small text-body mb-1">
-                                            <i class="bi bi-funnel me-1 text-primary"></i> Filtrar busca no servidor por nome da tabela:
-                                        </label>
-                                        <div class="input-group input-group-sm">
-                                            <span class="input-group-text bg-body-tertiary"><i class="bi bi-search"></i></span>
-                                            <input type="text" class="form-control"
-                                                   placeholder="Ex: Conta, Comanda, Cliente, Produto, Despesa..."
-                                                   @bind="termoBuscaTabela"
-                                                   @bind:event="oninput"
-                                                   disabled="@(editando != null)" />
-                                            @if (!string.IsNullOrWhiteSpace(termoBuscaTabela))
-                                            {
-                                                <button class="btn btn-outline-secondary" type="button" @onclick='() => termoBuscaTabela = ""'>
-                                                    <i class="bi bi-x"></i>
-                                                </button>
-                                            }
+                                    @if (editando == null || !BIDataSourceService.EhOrigemImportada(editando))
+                                    {
+                                        <div class="mb-2">
+                                            <label class="form-label fw-semibold small text-body mb-1">
+                                                <i class="bi bi-funnel me-1 text-primary"></i> Filtrar busca no servidor por nome da tabela:
+                                            </label>
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text bg-body-tertiary"><i class="bi bi-search"></i></span>
+                                                <input type="text" class="form-control"
+                                                       placeholder="Ex: Conta, Comanda, Cliente, Produto, Despesa..."
+                                                       @bind="termoBuscaTabela"
+                                                       @bind:event="oninput"
+                                                       disabled="@(editando != null)" />
+                                                @if (!string.IsNullOrWhiteSpace(termoBuscaTabela))
+                                                {
+                                                    <button class="btn btn-outline-secondary" type="button" @onclick='() => termoBuscaTabela = ""'>
+                                                        <i class="bi bi-x"></i>
+                                                    </button>
+                                                }
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div class="mb-3">
-                                        <label class="form-label fw-semibold small text-body mb-1">
-                                            <i class="bi bi-hdd-network me-1 text-success"></i> Tabela do Servidor (@EntidadesFiltradas.Count encontrada(s)):
-                                        </label>
-                                        <select class="form-select form-select-sm" @bind="classeSelecionada" @bind:after="AoSelecionarClasse" disabled="@(editando != null)">
-                                            <option value="">Selecione uma tabela do banco no servidor...</option>
-                                            @foreach (var grupo in EntidadesFiltradas.GroupBy(m => BIDataSourceService.ObterCategoriaModulo(m)))
-                                            {
-                                                <optgroup label="Módulo no Servidor: @grupo.Key">
-                                                    @foreach (var entidade in grupo.OrderBy(e => e.Tabela))
-                                                    {
-                                                        <option value="@entidade.Classe">@entidade.Tabela (@entidade.Colunas.Count colunas)</option>
-                                                    }
-                                                </optgroup>
-                                            }
-                                        </select>
-                                    </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold small text-body mb-1">
+                                                <i class="bi bi-hdd-network me-1 text-success"></i> Tabela do Servidor (@EntidadesFiltradas.Count encontrada(s)):
+                                            </label>
+                                            <select class="form-select form-select-sm" @bind="classeSelecionada" @bind:after="AoSelecionarClasse" disabled="@(editando != null)">
+                                                <option value="">Selecione uma tabela do banco no servidor...</option>
+                                                @foreach (var grupo in EntidadesFiltradas.GroupBy(m => BIDataSourceService.ObterCategoriaModulo(m)))
+                                                {
+                                                    <optgroup label="Módulo no Servidor: @grupo.Key">
+                                                        @foreach (var entidade in grupo.OrderBy(e => e.Tabela))
+                                                        {
+                                                            <option value="@entidade.Classe">@entidade.Tabela (@entidade.Colunas.Count colunas)</option>
+                                                        }
+                                                    </optgroup>
+                                                }
+                                            </select>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="p-2 rounded-3 bg-info-subtle text-info border mb-3 small d-flex align-items-center gap-2">
+                                            <i class="bi bi-file-earmark-spreadsheet-fill fs-5"></i>
+                                            <div>
+                                                <div class="fw-bold">Fonte de Dados de Arquivo (@editando.TabelaOrigem)</div>
+                                                <div style="font-size: 0.72rem;">@editando.LinhasCarregadas registros carregados na fonte</div>
+                                            </div>
+                                        </div>
+                                    }
 
                                     <div class="mb-3">
                                         <label class="form-label fw-semibold small text-body mb-1">Nome de exibição no BI:</label>
-                                        <input class="form-control form-control-sm" @bind="nome" placeholder="Ex: Financeiro — Contas a Pagar" />
+                                        <input class="form-control form-control-sm" @bind="nome" placeholder="Ex: clientes_para_power_bi, Financeiro — Contas..." />
                                     </div>
 
                                     <div class="mb-3">
                                         <label class="form-label fw-semibold small text-body mb-1">Descrição (opcional):</label>
-                                        <input class="form-control form-control-sm" @bind="descricao" placeholder="Resumo do que esta tabela do servidor representa" />
+                                        <input class="form-control form-control-sm" @bind="descricao" placeholder="Resumo do que esta fonte de dados representa" />
                                     </div>
 
                                     @if (entidadeSelecionada != null)
@@ -361,9 +432,18 @@
                                         <div class="border rounded-3 bg-body-tertiary p-3 mb-3">
                                             <div class="d-flex align-items-center justify-content-between mb-2">
                                                 <div class="d-flex flex-wrap gap-1">
-                                                    <span class="badge bg-success-subtle text-success border">
-                                                        <i class="bi bi-hdd-network me-1"></i>@BIDataSourceService.ObterCategoriaModulo(entidadeSelecionada)
-                                                    </span>
+                                                    @if (editando != null && BIDataSourceService.EhOrigemImportada(editando))
+                                                    {
+                                                        <span class="badge bg-info-subtle text-info border">
+                                                            <i class="bi bi-file-earmark-spreadsheet me-1"></i>CSV / JSON
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-success-subtle text-success border">
+                                                            <i class="bi bi-hdd-network me-1"></i>@BIDataSourceService.ObterCategoriaModulo(entidadeSelecionada)
+                                                        </span>
+                                                    }
                                                     <span class="badge bg-primary-subtle text-primary border">
                                                         <i class="bi bi-columns-gap me-1"></i>@colunasMarcadas.Count/@entidadeSelecionada.Colunas.Count colunas
                                                     </span>
@@ -395,7 +475,7 @@
                                             {
                                                 <div class="mt-2 pt-2 border-top" style="max-height: 170px; overflow-y: auto;">
                                                     <div class="d-flex justify-content-between align-items-center mb-1">
-                                                        <span class="text-muted" style="font-size: 0.72rem;">Colunas disponíveis na tabela do servidor:</span>
+                                                        <span class="text-muted" style="font-size: 0.72rem;">Colunas habilitadas nesta fonte:</span>
                                                         <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" style="font-size: 0.72rem;"
                                                                 @onclick="SelecionarTodasColunas">
                                                             Marcar todas
@@ -432,9 +512,9 @@
                                             }
                                             else
                                             {
-                                                <i class="bi bi-hdd-network me-1"></i>
+                                                <i class="bi bi-check2-circle me-1"></i>
                                             }
-                                            @(editando == null ? "Conectar e Sincronizar no Servidor" : "Salvar e Sincronizar no Servidor")
+                                            @(editando == null ? "Conectar e Sincronizar no Servidor" : "Salvar Alterações da Fonte")
                                         </button>
 
                                         @if (editando != null)
@@ -450,7 +530,7 @@
 
                 <div class="modal-footer bg-light border-0 p-3 d-flex justify-content-between align-items-center">
                     <span class="text-muted small">
-                        <i class="bi bi-shield-check text-success me-1"></i> As fontes conectadas ficam disponíveis nos gráficos, KPIs e no Laboratório de Mineração.
+                        <i class="bi bi-shield-check text-success me-1"></i> As fontes conectadas e os arquivos CSV/JSON ficam disponíveis nos gráficos, KPIs e no Laboratório de Mineração.
                     </span>
                     <button type="button" class="btn btn-sm btn-secondary rounded-3 px-4" @onclick="Fechar">Concluir</button>
                 </div>
@@ -484,6 +564,9 @@
     private string classeMensagem = "alert-info";
 
     private MOrigemDados? editando;
+    private EntidadeModeloDto? entidadeVirtualEdicao;
+    private MOrigemDados? origemAmostraAberta;
+    private List<Dictionary<string, string>> linhasAmostra = new();
     private string classeSelecionada = string.Empty;
     private string nome = string.Empty;
     private string descricao = string.Empty;
@@ -504,7 +587,7 @@
         .ToList();
 
     private EntidadeModeloDto? entidadeSelecionada
-        => modelo.FirstOrDefault(m => string.Equals(m.Classe, classeSelecionada, StringComparison.Ordinal));
+        => entidadeVirtualEdicao ?? modelo.FirstOrDefault(m => string.Equals(m.Classe, classeSelecionada, StringComparison.Ordinal));
 
     private bool PodeSalvar
         => !string.IsNullOrWhiteSpace(classeSelecionada)
@@ -545,18 +628,52 @@
         try
         {
             modelo = await DataSourceService.ObterCatalogoEntidadesAsync();
+            datasets = await DashboardService.ObterDatasetsVisiveisAsync(BIUsuarioContexto.De(UserState));
             origens = await DataSourceService.ObterOrigensConfiguradasAsync();
+
+            // Garante que qualquer arquivo CSV/JSON importado também esteja registrado como Fonte de Dados gerenciável
+            var sincronizouDataset = false;
+            foreach (var ds in datasets)
+            {
+                var classeDs = $"Importado.{ds.Origem}.{ds.Id}";
+                if (!origens.Any(o =>
+                        string.Equals(o.ClasseOrigem, classeDs, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(o.Nome, ds.Nome, StringComparison.OrdinalIgnoreCase)))
+                {
+                    await DataSourceService.RegistrarDatasetComoFonteAsync(ds);
+                    sincronizouDataset = true;
+                }
+            }
+
+            if (sincronizouDataset)
+            {
+                origens = await DataSourceService.ObterOrigensConfiguradasAsync();
+            }
+
             var todasFontes = await DataSourceService.ObterFontesDisponiveisAsync();
             fontesServidorPadrao = todasFontes.Where(f => !f.OrigemId.HasValue).ToList();
-            datasets = await DashboardService.ObterDatasetsVisiveisAsync(BIUsuarioContexto.De(UserState));
         }
         catch (Exception ex)
         {
-            DefinirMensagem($"Falha ao carregar catálogo do servidor: {ex.Message}", "alert-danger");
+            DefinirMensagem($"Falha ao carregar catálogo de fontes: {ex.Message}", "alert-danger");
         }
         finally
         {
             carregando = false;
+        }
+    }
+
+    private async Task VisualizarAmostraFonteAsync(MOrigemDados origem)
+    {
+        try
+        {
+            origemAmostraAberta = origem;
+            var cols = origem.Configuracao?.Colunas ?? new List<string>();
+            linhasAmostra = await DataSourceService.ObterAmostraAsync(origem.Id, cols, 10);
+        }
+        catch (Exception ex)
+        {
+            DefinirMensagem($"Não foi possível carregar amostra: {ex.Message}", "alert-warning");
         }
     }
 
@@ -604,6 +721,7 @@
     private void IniciarNova()
     {
         editando = null;
+        entidadeVirtualEdicao = null;
         classeSelecionada = string.Empty;
         nome = string.Empty;
         descricao = string.Empty;
@@ -622,6 +740,29 @@
         incluirRelacionamentos = (origem.Configuracao?.Relacionamentos?.Count ?? 0) > 0;
         pendenteExclusaoId = null;
 
+        var doCatalogo = modelo.FirstOrDefault(m => string.Equals(m.Classe, classeSelecionada, StringComparison.Ordinal));
+        if (doCatalogo != null)
+        {
+            entidadeVirtualEdicao = null;
+        }
+        else
+        {
+            var colsOrigem = origem.Configuracao?.Colunas ?? new List<string>();
+            entidadeVirtualEdicao = new EntidadeModeloDto
+            {
+                Classe = origem.ClasseOrigem ?? $"Importado.CSV.{origem.Id}",
+                Tabela = origem.TabelaOrigem ?? "Arquivo CSV",
+                Colunas = colsOrigem.Select(c => new ColunaModeloDto
+                {
+                    NomeColuna = c,
+                    Propriedade = c,
+                    TipoClr = "String"
+                }).ToList(),
+                Relacionamentos = new List<RelacionamentoModeloDto>()
+            };
+            exibirColunasAvancadas = true;
+        }
+
         colunasMarcadas = new HashSet<string>(
             origem.Configuracao?.Colunas
                 ?? entidadeSelecionada?.Colunas?.Select(c => c.NomeColuna)
@@ -636,6 +777,7 @@
 
     private void AoSelecionarClasse()
     {
+        entidadeVirtualEdicao = null;
         var entidade = entidadeSelecionada;
         if (entidade == null)
         {
@@ -695,13 +837,13 @@
             {
                 var resultado = await DataSourceService.ExecutarCargaOrigemAsync(origem.Id);
                 DefinirMensagem(
-                    $"Fonte '{origem.Nome}' {(eraEdicao ? "atualizada" : "conectada ao servidor")}! {resultado.Mensagem}",
+                    $"Fonte '{origem.Nome}' {(eraEdicao ? "atualizada" : "conectada")}! {resultado.Mensagem}",
                     "alert-success");
             }
             else
             {
                 DefinirMensagem(
-                    eraEdicao ? $"Fonte '{origem.Nome}' atualizada." : $"Fonte '{origem.Nome}' conectada ao servidor.",
+                    eraEdicao ? $"Fonte '{origem.Nome}' atualizada." : $"Fonte '{origem.Nome}' conectada.",
                     "alert-success");
             }
 
@@ -726,7 +868,7 @@
         {
             var resultado = await DataSourceService.ExecutarCargaOrigemAsync(origem.Id);
             DefinirMensagem(
-                $"Sincronização com o servidor para '{origem.Nome}': {resultado.Mensagem}",
+                $"Sincronização de '{origem.Nome}': {resultado.Mensagem}",
                 resultado.Sucesso ? "alert-success" : "alert-warning");
 
             await CarregarAsync();
@@ -753,6 +895,12 @@
 
         try
         {
+            if (BIDataSourceService.EhOrigemImportada(origem))
+            {
+                await DashboardService.ExcluirDatasetPorReferenciaAsync(origem.ClasseOrigem);
+                await DashboardService.ExcluirDatasetPorReferenciaAsync(origem.Nome);
+            }
+
             var removido = await DataSourceService.ExcluirOrigemAsync(origem.Id);
             DefinirMensagem(
                 removido ? $"Fonte '{origem.Nome}' removida." : "Não foi possível remover a fonte.",
@@ -761,6 +909,8 @@
             pendenteExclusaoId = null;
             if (editando?.Id == origem.Id)
                 IniciarNova();
+            if (origemAmostraAberta?.Id == origem.Id)
+                origemAmostraAberta = null;
 
             await CarregarAsync();
             await NotificarAlteracaoAsync();
@@ -774,7 +924,17 @@
     private async Task AbrirImportacaoPlanilhaAsync()
     {
         await Fechar();
-        await ImportUi.AbrirAsync();
+        await ImportUi.AbrirAsync(
+            callback: null,
+            callbackFonte: async origemImportada =>
+            {
+                IsOpen = true;
+                await IsOpenChanged.InvokeAsync(true);
+                await CarregarAsync();
+                DefinirMensagem($"Arquivo '{origemImportada.Nome}' importado como Fonte de Dados ({origemImportada.LinhasCarregadas} registros)! Use as ações abaixo para gerenciar.", "alert-success");
+                await NotificarAlteracaoAsync();
+                await InvokeAsync(StateHasChanged);
+            });
     }
 
     private async Task NotificarAlteracaoAsync()

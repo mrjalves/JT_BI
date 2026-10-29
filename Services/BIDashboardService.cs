@@ -32,6 +32,7 @@ public interface IBIDashboardService
     Task<List<BIDataset>> ObterDatasetsPorIdsAsync(IEnumerable<Guid> ids);
     Task SalvarDatasetAsync(BIDataset dataset);
     Task SalvarDatasetAsync(BIDataset dataset, BIUsuarioContexto? usuario);
+    Task<bool> ExcluirDatasetPorReferenciaAsync(string? classeOuNome);
 }
 
 public class BIDashboardService : IBIDashboardService
@@ -313,6 +314,31 @@ public class BIDashboardService : IBIDashboardService
             }
 
             await SalvarDatasetsEmArquivoAsync();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<bool> ExcluirDatasetPorReferenciaAsync(string? classeOuNome)
+    {
+        if (string.IsNullOrWhiteSpace(classeOuNome))
+            return false;
+
+        await _lock.WaitAsync();
+        try
+        {
+            await GarantirCacheDatasetsAsync();
+            var lista = _cacheDatasets!;
+            var removidos = lista.RemoveAll(d =>
+                string.Equals(d.Nome, classeOuNome, StringComparison.OrdinalIgnoreCase) ||
+                classeOuNome.EndsWith(d.Id.ToString(), StringComparison.OrdinalIgnoreCase));
+
+            if (removidos > 0)
+                await SalvarDatasetsEmArquivoAsync();
+
+            return removidos > 0;
         }
         finally
         {
