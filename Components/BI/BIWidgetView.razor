@@ -2,7 +2,7 @@
 @using JT_BI.Services
 @inject IBIDataSourceService DataSourceService
 
-<div class="card card-modern h-100 w-100 d-flex flex-column rounded-4 shadow-sm @(IsSelected ? "ring-2 border-primary shadow" : "") overflow-hidden position-relative">
+<div class="card card-modern h-100 w-100 d-flex flex-column rounded-4 shadow-sm @(IsSelected ? "card-widget-selected border-primary shadow" : "") overflow-hidden position-relative @(IsEditor ? "cursor-pointer" : "")" @onclick="TratarCliqueCard">
     <!-- Header do Widget -->
     <div class="card-header border-bottom py-2.5 px-3 d-flex align-items-center justify-content-between cursor-pointer" @onclick="() => OnEdit.InvokeAsync(Widget)">
         <div class="d-flex align-items-center gap-2 text-truncate me-2">
@@ -258,6 +258,14 @@
         finally
         {
             isLoading = false;
+        }
+    }
+
+    private async Task TratarCliqueCard()
+    {
+        if (IsEditor && OnEdit.HasDelegate)
+        {
+            await OnEdit.InvokeAsync(Widget);
         }
     }
 

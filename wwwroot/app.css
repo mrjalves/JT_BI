@@ -131,6 +131,143 @@ main.content-body {
     box-shadow: var(--shadow-hover) !important;
 }
 
+.card-widget-selected {
+    border: 2px solid var(--primary-color, #4f46e5) !important;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25), 0 8px 16px -2px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* =========================================================================
+   Studio BI - Layout SPA Fixo (Painéis Laterais Sempre Visíveis)
+   ========================================================================= */
+@media (min-width: 992px) {
+    /* No Studio BI, impede rolagem externa na viewport inteira */
+    main.content-body:has(.bi-spa-wrapper) {
+        overflow: hidden !important;
+        height: calc(100vh - 56px) !important;
+        max-height: calc(100vh - 56px) !important;
+        padding: 0.5rem 1rem !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .bi-spa-wrapper {
+        height: 100% !important;
+        max-height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+        min-height: 0 !important;
+    }
+
+    .bi-spa-wrapper > .bi-header {
+        flex-shrink: 0 !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    .bi-spa-row {
+        flex: 1 1 0 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+        overflow: hidden !important;
+    }
+
+    /* Coluna Esquerda: Toolbox de Widgets */
+    .bi-col-toolbox {
+        height: 100% !important;
+        max-height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .bi-col-toolbox > .card {
+        height: 100% !important;
+        max-height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+    }
+
+    .bi-col-toolbox .card-header {
+        flex-shrink: 0 !important;
+    }
+
+    .bi-col-toolbox .card-body {
+        flex: 1 1 0 !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+    }
+
+    /* Coluna Central: Canvas Interativo */
+    .bi-col-canvas {
+        height: 100% !important;
+        max-height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .bi-col-canvas > .card {
+        height: 100% !important;
+        max-height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+    }
+
+    .bi-col-canvas .card-header {
+        flex-shrink: 0 !important;
+    }
+
+    #biCanvasArea {
+        flex: 1 1 0 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+    }
+
+    /* Coluna Direita: Inspetor e Consultor IA */
+    .bi-col-inspector {
+        height: 100% !important;
+        max-height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .bi-col-inspector > .card {
+        height: 100% !important;
+        max-height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+    }
+
+    .bi-col-inspector .card-header {
+        flex-shrink: 0 !important;
+    }
+
+    .bi-col-inspector .card-body {
+        flex: 1 1 0 !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+    }
+}
+
+/* Fallback Sticky caso haja rolagem externa em qualquer resolução */
+.bi-sticky-sidebar {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0.5rem;
+    align-self: flex-start;
+}
+
+@media (max-width: 991.98px) {
+    .bi-sticky-sidebar {
+        position: static;
+    }
+}
+
 .card-clickable {
     cursor: pointer;
     transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;

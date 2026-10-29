@@ -65,7 +65,7 @@
 }
 else
 {
-    <div class="bi-spa-wrapper d-flex flex-column h-100">
+    <div class="bi-spa-wrapper d-flex flex-column h-100" style="height: calc(100vh - 5rem); max-height: calc(100vh - 5rem); overflow: hidden;">
             <!-- Barra Superior Executiva SPA -->
             <header class="bi-header card card-modern border-0 mb-3" data-tutorial="bi-header">
                 <div class="card-body py-2 px-3">
@@ -199,10 +199,10 @@ else
             }
 
             <!-- Área Central SPA Tripartite -->
-            <div class="row g-3 flex-grow-1">
+            <div class="row g-3 flex-grow-1 bi-spa-row" style="flex: 1 1 0; min-height: 0; overflow: hidden;">
                 <!-- COLUNA ESQUERDA: Barra de Ferramentas / Widgets & Datasets (Fase 2 Drag & Drop) -->
-                <aside class="col-12 col-lg-2 d-flex flex-column">
-                    <div class="card card-modern border-0 h-100 overflow-hidden" data-tutorial="bi-toolbox">
+                <aside class="col-12 col-lg-2 d-flex flex-column bi-col-toolbox bi-sticky-sidebar" style="height: 100%; max-height: 100%;">
+                    <div class="card card-modern border-0 h-100 overflow-hidden d-flex flex-column" data-tutorial="bi-toolbox">
                         <div class="card-header border-bottom py-2 px-3 d-flex align-items-center justify-content-between">
                             <span class="fw-bold small text-uppercase text-secondary" style="letter-spacing: 0.5px;">
                                 <i class="bi bi-tools me-1 text-primary"></i> Widgets
@@ -329,7 +329,7 @@ else
                 </aside>
 
                 <!-- COLUNA CENTRAL: Canvas Interativo do BI (Drag-and-Drop Dropzone) -->
-                <main class="col-12 col-lg-7 d-flex flex-column">
+                <main class="col-12 col-lg-7 d-flex flex-column bi-col-canvas" style="height: 100%; max-height: 100%;">
                     <div class="card card-modern border-0 h-100 overflow-hidden d-flex flex-column" data-tutorial="bi-canvas">
                         <div class="card-header border-bottom py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
                             <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width: 65%;">
@@ -375,7 +375,7 @@ else
                         <div class="card-body p-3 bg-body-tertiary overflow-y-auto flex-grow-1 position-relative transition-all @(IsDragOverCanvas ? "border border-primary border-3 bg-primary-subtle" : "")"
                              id="biCanvasArea"
                              data-tutorial="bi-canvas-body"
-                             style="min-height: 480px;"
+                             style="flex: 1 1 0; min-height: 0; overflow-y: auto !important;"
                              @ondragover="TratarDragOver"
                              @ondragover:preventDefault="true"
                              @ondrop="TratarDrop">
@@ -441,7 +441,7 @@ else
                 </main>
 
                 <!-- COLUNA DIREITA: Inspetor de Propriedades & Agente IA (Fase 4) -->
-                <aside class="col-12 col-lg-3 d-flex flex-column">
+                <aside class="col-12 col-lg-3 d-flex flex-column bi-col-inspector bi-sticky-sidebar" style="height: 100%; max-height: 100%;">
                     <div class="card card-modern border-0 h-100 overflow-hidden d-flex flex-column">
                         <div class="card-header border-bottom py-2 px-3 d-flex align-items-center justify-content-between">
                             <ul class="nav nav-pills card-header-pills gap-1">
@@ -2927,6 +2927,7 @@ else
     {
         WidgetSelecionado = widget;
         AbaDireitaAtiva = "propriedades";
+        StateHasChanged();
     }
 
     private void AjustarFonteWidgetSelecionado()
