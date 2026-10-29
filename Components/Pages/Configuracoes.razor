@@ -12,6 +12,53 @@
 @code {
     public override string ObterTituloPagina() => "Configurações do Sistema & BI";
 
+    protected override async Task CarregarConfiguracoes()
+    {
+        Configuracao? configuracaoUsuario = null;
+        if (UserState != null && UserState.Autenticado && UserState.UsuarioID > 0)
+        {
+            try
+            {
+                configuracaoUsuario = await ConfiguracaoServiceBase.GetByUsuarioIdAsync(UserState.UsuarioID);
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine($"[Configuracoes] Aviso: API retornou {(int?)ex.StatusCode} ao buscar configurações do usuário {UserState.UsuarioID}. Utilizando configuração padrão.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Configuracoes] Erro ao carregar configurações remotas do usuário: {ex.Message}");
+            }
+        }
+
+        configuracaoAtual = configuracaoUsuario ?? CriarNovaConfiguracao();
+
+        if (UserState != null && UserState.UsuarioID > 0)
+        {
+            configuracaoAtual.IdUsuario = UserState.UsuarioID;
+        }
+
+        await CarregarConfiguracoesModularesAsync();
+    }
+
+    protected override async Task<bool> SalvarConfiguracao(Configuracao configuracao)
+    {
+        try
+        {
+            return await base.SalvarConfiguracao(configuracao);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden || ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Console.WriteLine($"[Configuracoes] Aviso: Usuário sem permissão para persistir configuração comum global ({ex.StatusCode}). Prosseguindo com módulos específicos.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Configuracoes] Erro ao salvar configuração: {ex.Message}");
+            return false;
+        }
+    }
+
     public override RenderFragment? TabsAdicionais => builder =>
     {
         // Fallback defensivo: se a aba de IA padrão não constar entre as abas injetadas, renderiza-a diretamente
