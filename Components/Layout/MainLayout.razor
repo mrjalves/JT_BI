@@ -1,24 +1,6 @@
 @inherits LayoutComponentBase
+@layout JT_UserInterface.Shared.Layout.MainLayout
 
-<div class="page">
- 
+@Body
 
-    <main>
-        <div class="top-row px-4 d-flex justify-content-end align-items-center">
-            <a href="/login" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm d-inline-flex align-items-center gap-1 text-decoration-none">
-                <i class="bi bi-box-arrow-in-right"></i>
-                <span class="fw-semibold">Entrar</span>
-            </a>
-        </div>
-
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
-
-<div id="blazor-error-ui" data-nosnippet>
-    Ocorreu um erro inesperado.
-    <a href="." class="reload">Recarregar</a>
-    <span class="dismiss">🗙</span>
-</div>
+<JT_BI.Components.BI.BIImportHost />

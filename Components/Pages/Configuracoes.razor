@@ -1,0 +1,13 @@
+@page "/configuracoes"
+@using JT_Classes.Gestao
+@using JT_Servicos.Interfaces
+@inherits JT_UserInterface.Shared.Pages.Comum.ConfiguracoesBase<MGestaoConfiguracao, IMGestaoConfiguracaoService>
+
+<div data-tutorial="configuracoes-pagina">
+    @RenderizarFormularioConfiguracoes()
+</div>
+
+@code {
+    public override string ObterTituloPagina() => "Configurações do Sistema & BI";
+}
+
