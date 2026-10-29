@@ -25,6 +25,7 @@
 @inject IBIDataSourceService DataSourceService
 @inject IBIImportService ImportService
 @inject IBIDataMiningService DataMiningService
+@inject IBIMineracaoAgenteService MineracaoAgenteService
 @inject BIImportUiService ImportUi
 @inject ITutorialService TutorialService
 @inject ToastService ToastService
@@ -809,15 +810,99 @@ else
                             @if (!string.IsNullOrEmpty(mensagemMineracaoModal))
                             {
                                 <div class="alert @classeMensagemMineracaoModal py-2 px-3 small rounded-3 mb-3 d-flex align-items-center justify-content-between">
-                                    <span><i class="bi bi-check2-circle me-1"></i> @mensagemMineracaoModal</span>
+                                    <span><i class="bi bi-info-circle me-1"></i> @mensagemMineracaoModal</span>
                                     <button type="button" class="btn-close btn-sm" @onclick="() => mensagemMineracaoModal = null"></button>
                                 </div>
                             }
 
+                            <!-- Seção IA: Agente de Mineração de Dados (LLM + ML.NET) -->
+                            <div class="card border-primary border-opacity-25 bg-primary bg-opacity-10 rounded-4 p-3 mb-3 shadow-xs">
+                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="p-2 bg-primary text-white rounded-3 d-flex align-items-center justify-content-center" style="width: 34px; height: 34px;">
+                                            <i class="bi bi-robot fs-5"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="fw-bold mb-0 text-primary">Agente de IA para Mineração de Dados (CRISP-DM)</h6>
+                                            <small class="text-muted" style="font-size: 0.74rem;">
+                                                Integração com LLM (Gemini / OpenAI) e modelos supervisionados (ML.NET FastTree) para análise aumentada
+                                            </small>
+                                        </div>
+                                    </div>
+                                    @if (recomendacaoIa != null)
+                                    {
+                                        <span class="badge bg-primary text-white">
+                                            <i class="bi bi-cpu me-1"></i>@recomendacaoIa.ProvedorUtilizado @(string.IsNullOrWhiteSpace(recomendacaoIa.ModeloUtilizado) ? "" : $"({recomendacaoIa.ModeloUtilizado})")
+                                        </span>
+                                    }
+                                </div>
+
+                                <div class="row g-2 align-items-center mb-2">
+                                    <div class="col-12 col-lg-8">
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-chat-left-dots text-primary"></i></span>
+                                            <input type="text" class="form-control border-start-0"
+                                                   placeholder="Objetivo da análise (ex: Segmentação RFM de clientes e previsão de churn)..."
+                                                   @bind="objetivoMineracaoIa" />
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-lg-4 d-flex gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary rounded-3 flex-fill text-nowrap"
+                                                disabled="@isProcessandoMineracaoIa"
+                                                @onclick="SugerirParametrosIaAsync">
+                                            @if (isProcessandoMineracaoIa)
+                                            {
+                                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                                <span>Analisando...</span>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-stars me-1 text-warning"></i>
+                                                <span>Definir Parâmetros com IA</span>
+                                            }
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-primary rounded-3 flex-fill text-nowrap fw-semibold"
+                                                disabled="@isProcessandoMineracaoIa"
+                                                @onclick="ExecutarAnaliseCompletaIaAsync">
+                                            @if (isProcessandoMineracaoIa)
+                                            {
+                                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                                <span>Minerando...</span>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-play-circle-fill me-1"></i>
+                                                <span>Executar Tudo com IA</span>
+                                            }
+                                        </button>
+                                    </div>
+                                </div>
+
+                                @if (recomendacaoIa != null)
+                                {
+                                    <div class="p-2 rounded-3 bg-white border small text-muted d-flex align-items-start gap-2" style="font-size: 0.76rem;">
+                                        <i class="bi bi-lightbulb-fill text-warning fs-6 mt-1"></i>
+                                        <div class="flex-grow-1">
+                                            <strong>Justificativa da IA:</strong> @recomendacaoIa.Justificativa
+                                            @if (recomendacaoIa.NomesSugeridosSegmentos.Count > 0)
+                                            {
+                                                <div class="mt-1">
+                                                    <span class="fw-semibold">Segmentos sugeridos:</span>
+                                                    @foreach (var s in recomendacaoIa.NomesSugeridosSegmentos)
+                                                    {
+                                                        <span class="badge bg-primary-subtle text-primary border me-1">@s</span>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+
                             <!-- Seção 2: Algoritmos de Mineração -->
                             <div class="row g-3">
                                 <!-- Clusterização K-Means -->
-                                <div class="col-12 col-lg-6">
+                                <div class="col-12 col-lg-4">
                                     <div class="bi-mining-card p-3 h-100 d-flex flex-column justify-content-between shadow-xs">
                                         <div>
                                             <div class="d-flex align-items-center justify-content-between mb-2">
@@ -827,24 +912,25 @@ else
                                                     </div>
                                                     <div>
                                                         <h6 class="fw-bold mb-0">Clusterização K-Means</h6>
-                                                        <small class="text-muted" style="font-size: 0.74rem;">Agrupamento multidimensional por similaridade (Z-Score)</small>
+                                                        <small class="text-muted" style="font-size: 0.72rem;">Agrupamento multidimensional</small>
                                                     </div>
                                                 </div>
-                                                <span class="badge bg-primary-subtle text-primary border">3 Widgets</span>
+                                                <span class="badge bg-primary-subtle text-primary border">Multidimensional</span>
                                             </div>
 
                                             <div class="mb-2">
                                                 <label class="form-label small fw-bold mb-1">Quantidade de Grupos (Clusters K):</label>
                                                 <select class="form-select form-select-sm" @bind="kMeansK">
-                                                    <option value="2">2 Grupos (Alto Valor vs Baixo Valor)</option>
-                                                    <option value="3">3 Grupos (Recomendado: VIP, Médio Potencial, Em Risco)</option>
-                                                    <option value="4">4 Grupos (Segmentação Detalhada)</option>
-                                                    <option value="5">5 Grupos (Micro-segmentação Executiva)</option>
+                                                    <option value="2">2 Grupos (Alto vs Baixo)</option>
+                                                    <option value="3">3 Grupos (Recomendado: VIP, Regular, Risco)</option>
+                                                    <option value="4">4 Grupos (Campeões, Fiéis, Esfriando, Risco)</option>
+                                                    <option value="5">5 Grupos (Segmentação detalhada)</option>
+                                                    <option value="6">6 Grupos (Micro-segmentação)</option>
                                                 </select>
                                             </div>
 
                                             <div class="mb-2">
-                                                <label class="form-label small fw-bold mb-1">Campo de Identificação (Dimensão / Rótulo):</label>
+                                                <label class="form-label small fw-bold mb-1">Campo de Identificação:</label>
                                                 <select class="form-select form-select-sm" @bind="campoMineracaoNome">
                                                     @foreach (var col in ColunasMineracao)
                                                     {
@@ -853,43 +939,58 @@ else
                                                 </select>
                                             </div>
 
-                                            <div class="row g-2 mb-3">
-                                                <div class="col-6">
-                                                    <label class="form-label small fw-bold mb-1">Métrica 1 (Eixo X / Valor):</label>
-                                                    <select class="form-select form-select-sm" @bind="campoMineracaoValor1">
-                                                        @foreach (var col in MetricasMineracao)
-                                                        {
-                                                            <option value="@col">@col</option>
-                                                        }
-                                                    </select>
+                                            <div class="mb-2">
+                                                <label class="form-label small fw-bold mb-1">Métricas (Dimensões do Cluster):</label>
+                                                <div class="row g-1 mb-1">
+                                                    <div class="col-6">
+                                                        <select class="form-select form-select-sm" @bind="campoMineracaoValor1">
+                                                            @foreach (var col in MetricasMineracao)
+                                                            {
+                                                                <option value="@col">1: @col</option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <select class="form-select form-select-sm" @bind="campoMineracaoValor2">
+                                                            @foreach (var col in MetricasMineracao)
+                                                            {
+                                                                <option value="@col">2: @col</option>
+                                                            }
+                                                        </select>
+                                                    </div>
                                                 </div>
-                                                <div class="col-6">
-                                                    <label class="form-label small fw-bold mb-1">Métrica 2 (Eixo Y / Volume):</label>
-                                                    <select class="form-select form-select-sm" @bind="campoMineracaoValor2">
-                                                        @foreach (var col in MetricasMineracao)
-                                                        {
-                                                            <option value="@col">@col</option>
-                                                        }
-                                                    </select>
-                                                </div>
+                                                <select class="form-select form-select-sm" @bind="campoMineracaoValor3">
+                                                    <option value="">(Opcional) 3: Nenhuma métrica extra</option>
+                                                    @foreach (var col in MetricasMineracao)
+                                                    {
+                                                        <option value="@col">3: @col (RFM Completo)</option>
+                                                    }
+                                                </select>
+                                            </div>
+
+                                            <div class="form-check form-switch mb-3 small">
+                                                <input class="form-check-input" type="checkbox" id="checkLog1p" @bind="aplicarLog1pKMeans" />
+                                                <label class="form-check-label text-muted" for="checkLog1p" style="font-size: 0.72rem;">
+                                                    Aplicar transformação Log1p + Z-Score
+                                                </label>
                                             </div>
                                         </div>
 
                                         <div class="d-flex gap-2">
                                             <button type="button" class="btn btn-sm btn-outline-primary rounded-3 flex-grow-1"
                                                     @onclick="PrevisualizarKMeansAsync">
-                                                <i class="bi bi-eye me-1"></i> Testar / Pré-visualizar
+                                                <i class="bi bi-eye me-1"></i> Testar
                                             </button>
                                             <button type="button" class="btn btn-sm btn-primary rounded-3 flex-grow-1 fw-semibold"
                                                     @onclick="ExecutarKMeansNoCanvasAsync">
-                                                <i class="bi bi-play-fill me-1"></i> Executar e Injetar no Canvas
+                                                <i class="bi bi-play-fill me-1"></i> Injetar Canvas
                                             </button>
                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- Classificação Curva ABC -->
-                                <div class="col-12 col-lg-6">
+                                <div class="col-12 col-lg-4">
                                     <div class="bi-mining-card p-3 h-100 d-flex flex-column justify-content-between shadow-xs">
                                         <div>
                                             <div class="d-flex align-items-center justify-content-between mb-2">
@@ -898,15 +999,15 @@ else
                                                         <i class="bi bi-pie-chart-fill fs-5"></i>
                                                     </div>
                                                     <div>
-                                                        <h6 class="fw-bold mb-0">Classificação Curva ABC (Pareto)</h6>
-                                                        <small class="text-muted" style="font-size: 0.74rem;">Classifica relevância em Classe A (80%), B (15%) e C (5%)</small>
+                                                        <h6 class="fw-bold mb-0">Classificação Curva ABC</h6>
+                                                        <small class="text-muted" style="font-size: 0.72rem;">Princípio de Pareto acumulado</small>
                                                     </div>
                                                 </div>
-                                                <span class="badge bg-success-subtle text-success border">2 Widgets</span>
+                                                <span class="badge bg-success-subtle text-success border">Pareto 80/95</span>
                                             </div>
 
                                             <div class="mb-2">
-                                                <label class="form-label small fw-bold mb-1">Campo de Identificação (Item / Cliente / Categoria):</label>
+                                                <label class="form-label small fw-bold mb-1">Campo de Identificação:</label>
                                                 <select class="form-select form-select-sm" @bind="campoMineracaoNome">
                                                     @foreach (var col in ColunasMineracao)
                                                     {
@@ -915,8 +1016,8 @@ else
                                                 </select>
                                             </div>
 
-                                            <div class="mb-3">
-                                                <label class="form-label small fw-bold mb-1">Campo de Valor (Faturamento / Volume para Ranking):</label>
+                                            <div class="mb-2">
+                                                <label class="form-label small fw-bold mb-1">Campo de Valor / Faturamento:</label>
                                                 <select class="form-select form-select-sm" @bind="campoMineracaoValorAbc">
                                                     @foreach (var col in MetricasMineracao)
                                                     {
@@ -925,25 +1026,173 @@ else
                                                 </select>
                                             </div>
 
-                                            <div class="p-2 rounded-3 bg-body-tertiary border small text-muted mb-3" style="font-size: 0.74rem;">
-                                                <i class="bi bi-lightbulb text-warning me-1"></i>
-                                                <strong>Regra de Pareto:</strong> Identifica automaticamente quais itens da fonte vinculada concentram 80% do resultado financeiro.
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-6">
+                                                    <label class="form-label small fw-bold mb-1">Limiar Classe A (%):</label>
+                                                    <input type="number" class="form-control form-control-sm" min="50" max="95" @bind="limiarAbcA" />
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label small fw-bold mb-1">Limiar Classe B (%):</label>
+                                                    <input type="number" class="form-control form-control-sm" min="70" max="99" @bind="limiarAbcB" />
+                                                </div>
+                                            </div>
+
+                                            <div class="p-2 rounded-3 bg-body-tertiary border small text-muted mb-3" style="font-size: 0.72rem;">
+                                                <i class="bi bi-lightbulb text-warning me-1"></i> Agrupa automaticamente por identificador e soma o valor de cada item.
                                             </div>
                                         </div>
 
                                         <div class="d-flex gap-2">
                                             <button type="button" class="btn btn-sm btn-outline-success rounded-3 flex-grow-1"
                                                     @onclick="PrevisualizarCurvaAbcAsync">
-                                                <i class="bi bi-eye me-1"></i> Testar / Pré-visualizar
+                                                <i class="bi bi-eye me-1"></i> Testar
                                             </button>
                                             <button type="button" class="btn btn-sm btn-success rounded-3 flex-grow-1 fw-semibold"
                                                     @onclick="ExecutarCurvaAbcNoCanvasAsync">
-                                                <i class="bi bi-play-fill me-1"></i> Calcular e Injetar no Canvas
+                                                <i class="bi bi-play-fill me-1"></i> Injetar Canvas
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Previsão de Churn (FastTree ML.NET) -->
+                                <div class="col-12 col-lg-4">
+                                    <div class="bi-mining-card p-3 h-100 d-flex flex-column justify-content-between shadow-xs border-danger border-opacity-25">
+                                        <div>
+                                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div class="p-2 bg-danger-subtle text-danger rounded-3">
+                                                        <i class="bi bi-tree-fill fs-5"></i>
+                                                    </div>
+                                                    <div>
+                                                        <h6 class="fw-bold mb-0">Previsão de Churn</h6>
+                                                        <small class="text-muted" style="font-size: 0.72rem;">FastTree (Árvore de Decisão ML.NET)</small>
+                                                    </div>
+                                                </div>
+                                                <span class="badge bg-danger-subtle text-danger border">ML.NET</span>
+                                            </div>
+
+                                            <div class="mb-2">
+                                                <label class="form-label small fw-bold mb-1">Identificador / Cliente:</label>
+                                                <select class="form-select form-select-sm" @bind="campoMineracaoNome">
+                                                    @foreach (var col in ColunasMineracao)
+                                                    {
+                                                        <option value="@col">@col</option>
+                                                    }
+                                                </select>
+                                            </div>
+
+                                            <div class="row g-1 mb-2">
+                                                <div class="col-4">
+                                                    <label class="form-label small fw-bold mb-1" style="font-size: 0.68rem;">Recência:</label>
+                                                    <select class="form-select form-select-sm" @bind="campoMineracaoValor1">
+                                                        @foreach (var col in MetricasMineracao)
+                                                        {
+                                                            <option value="@col">@col</option>
+                                                        }
+                                                    </select>
+                                                </div>
+                                                <div class="col-4">
+                                                    <label class="form-label small fw-bold mb-1" style="font-size: 0.68rem;">Frequência:</label>
+                                                    <select class="form-select form-select-sm" @bind="campoMineracaoValor2">
+                                                        @foreach (var col in MetricasMineracao)
+                                                        {
+                                                            <option value="@col">@col</option>
+                                                        }
+                                                    </select>
+                                                </div>
+                                                <div class="col-4">
+                                                    <label class="form-label small fw-bold mb-1" style="font-size: 0.68rem;">Monetário:</label>
+                                                    <select class="form-select form-select-sm" @bind="campoMineracaoValorAbc">
+                                                        @foreach (var col in MetricasMineracao)
+                                                        {
+                                                            <option value="@col">@col</option>
+                                                        }
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div class="p-2 rounded-3 bg-danger bg-opacity-10 border border-danger border-opacity-25 small text-muted mb-3" style="font-size: 0.72rem;">
+                                                <i class="bi bi-shield-exclamation text-danger me-1"></i> Treina modelo preditivo FastTree para calcular probabilidade e identificar clientes prioritários para retenção.
+                                            </div>
+                                        </div>
+
+                                        <div class="d-flex gap-2">
+                                            <button type="button" class="btn btn-sm btn-outline-danger rounded-3 flex-grow-1"
+                                                    @onclick="PrevisualizarChurnAsync">
+                                                <i class="bi bi-eye me-1"></i> Testar
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-danger rounded-3 flex-grow-1 fw-semibold"
+                                                    @onclick="ExecutarChurnNoCanvasAsync">
+                                                <i class="bi bi-play-fill me-1"></i> Injetar Canvas
                                             </button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Seção 3: Pré-visualização de Resultados da Mineração -->
+                            @if (resultadoAnaliseIa != null)
+                            {
+                                <div class="card border-primary rounded-4 p-3 mt-3 shadow-sm bg-white">
+                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2 pb-2 border-bottom">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="p-1 px-2 bg-primary text-white rounded-2 small fw-bold">PARECER IA</div>
+                                            <h6 class="fw-bold mb-0 text-primary">Síntese Executiva &amp; Revisor Científico</h6>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button type="button" class="btn btn-xs btn-success rounded-3 py-1 px-2 fw-semibold"
+                                                    @onclick="SalvarBaseEnriquecidaComoFonteAsync">
+                                                <i class="bi bi-database-add me-1"></i> Salvar Base Minerada como Fonte
+                                            </button>
+                                            <button type="button" class="btn btn-xs btn-primary rounded-3 py-1 px-2 fw-semibold"
+                                                    @onclick="InjetarAnaliseCompletaNoCanvasAsync">
+                                                <i class="bi bi-layout-text-window-reverse me-1"></i> Injetar Todos os Widgets no Canvas
+                                            </button>
+                                            <button type="button" class="btn btn-xs btn-outline-secondary" @onclick="() => resultadoAnaliseIa = null">Fechar</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-3">
+                                        <div class="col-12 col-lg-8">
+                                            <div class="p-3 rounded-3 bg-body-tertiary border mb-2">
+                                                <div class="fw-bold text-body small mb-1"><i class="bi bi-file-text me-1 text-primary"></i>Resumo Executivo:</div>
+                                                <p class="mb-2 small text-secondary" style="line-height: 1.45;">@resultadoAnaliseIa.ResumoExecutivo</p>
+
+                                                @if (resultadoAnaliseIa.AcoesRecomendadas.Count > 0)
+                                                {
+                                                    <div class="fw-bold text-body small mb-1"><i class="bi bi-check2-circle me-1 text-success"></i>Ações Práticas Recomendadas:</div>
+                                                    <ul class="mb-0 ps-3 small text-secondary">
+                                                        @foreach (var a in resultadoAnaliseIa.AcoesRecomendadas)
+                                                        {
+                                                            <li>@a</li>
+                                                        }
+                                                    </ul>
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="col-12 col-lg-4">
+                                            @if (resultadoAnaliseIa.Revisor != null)
+                                            {
+                                                <div class="p-3 rounded-3 bg-warning bg-opacity-10 border border-warning border-opacity-25 h-100">
+                                                    <div class="fw-bold text-dark small mb-1 d-flex align-items-center gap-1">
+                                                        <i class="bi bi-patch-check-fill text-warning"></i>
+                                                        <span>Auditoria / Revisor Metodológico:</span>
+                                                    </div>
+                                                    <p class="mb-2 small text-dark" style="font-size: 0.74rem;">@resultadoAnaliseIa.Revisor.ResumoCritico</p>
+                                                    <div class="fw-semibold text-dark small mb-1" style="font-size: 0.72rem;">Pontos de Atenção:</div>
+                                                    <ul class="mb-0 ps-3 small text-muted" style="font-size: 0.72rem;">
+                                                        @foreach (var p in resultadoAnaliseIa.Revisor.PontosAtencao)
+                                                        {
+                                                            <li>@p</li>
+                                                        }
+                                                    </ul>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
 
                             <!-- Seção 3: Pré-visualização de Resultados da Mineração -->
                             @if (previewKMeans != null && previewKMeans.Grupos.Count > 0)
@@ -1011,6 +1260,53 @@ else
                                     </div>
                                 </div>
                             }
+
+                            @if (previewChurn != null && previewChurn.ClientesEmRisco.Count > 0)
+                            {
+                                <div class="bi-mining-card p-3 mt-3 border-danger">
+                                    <div class="d-flex align-items-center justify-content-between mb-2">
+                                        <span class="fw-bold small text-danger">
+                                            <i class="bi bi-shield-exclamation me-1"></i>Resultado Previsão de Churn (FastTree ML.NET): @previewChurn.ResumoExecutivo
+                                        </span>
+                                        <button type="button" class="btn btn-xs btn-outline-secondary" @onclick="() => previewChurn = null">Fechar prévia</button>
+                                    </div>
+                                    <div class="d-flex flex-wrap gap-2 mb-2">
+                                        <span class="badge bg-danger text-white">Alto Risco (>70%): @previewChurn.QtdAltoRisco clientes</span>
+                                        <span class="badge bg-danger-subtle text-danger border">Receita sob Risco: R$ @previewChurn.ReceitaEmRisco.ToString("N2")</span>
+                                        <span class="badge bg-secondary-subtle text-body border">Acurácia: @previewChurn.Acuracia.ToString("P1")</span>
+                                        <span class="badge bg-secondary-subtle text-body border">F1 Score: @previewChurn.F1Score.ToString("P1")</span>
+                                    </div>
+                                    <div class="table-responsive" style="max-height: 160px;">
+                                        <table class="table table-sm table-hover small mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Cliente / ID</th>
+                                                    <th class="text-end">Recência</th>
+                                                    <th class="text-end">Frequência</th>
+                                                    <th class="text-end">Monetário</th>
+                                                    <th class="text-end">Prob. Churn</th>
+                                                    <th class="text-center">Risco</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var c in previewChurn.ClientesEmRisco.Take(8))
+                                                {
+                                                    <tr>
+                                                        <td class="fw-semibold text-body">@c.Nome</td>
+                                                        <td class="text-end">@c.Recencia.ToString("N0") dias</td>
+                                                        <td class="text-end">@c.Frequencia.ToString("N0")</td>
+                                                        <td class="text-end">R$ @c.Monetario.ToString("N2")</td>
+                                                        <td class="text-end fw-bold @(c.ProbabilidadeChurn >= 0.7 ? "text-danger" : "text-warning")">@c.ProbabilidadeChurn.ToString("P0")</td>
+                                                        <td class="text-center">
+                                                            <span class="badge @(c.CategoriaRisco == "Alto" ? "bg-danger" : (c.CategoriaRisco == "Médio" ? "bg-warning text-dark" : "bg-success"))">@c.CategoriaRisco</span>
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            }
                         </div>
 
                         <div class="modal-footer bg-light border-0 p-3 d-flex justify-content-between align-items-center">
@@ -1063,9 +1359,18 @@ else
     private string campoMineracaoNome = "Centro de Custo";
     private string campoMineracaoValor1 = "Faturamento";
     private string campoMineracaoValor2 = "Despesas";
+    private string campoMineracaoValor3 = string.Empty;
     private string campoMineracaoValorAbc = "Faturamento";
+    private bool aplicarLog1pKMeans = true;
+    private decimal limiarAbcA = 80m;
+    private decimal limiarAbcB = 95m;
+    private string objetivoMineracaoIa = string.Empty;
+    private bool isProcessandoMineracaoIa = false;
+    private RecomendacaoMineracaoIa? recomendacaoIa;
+    private ResultadoAnaliseCompletaIa? resultadoAnaliseIa;
     private KMeansResultado? previewKMeans;
     private ResultadoCurvaAbc? previewCurvaAbc;
+    private ResultadoChurn? previewChurn;
     private string? mensagemMineracaoModal;
     private string classeMensagemMineracaoModal = "alert-info";
 
@@ -1245,16 +1550,24 @@ else
     {
         previewKMeans = null;
         previewCurvaAbc = null;
+        previewChurn = null;
+        resultadoAnaliseIa = null;
+        recomendacaoIa = null;
         mensagemMineracaoModal = null;
 
         var colunas = ColunasMineracao;
         var metricas = MetricasMineracao;
         if (colunas.Count == 0) return;
 
-        campoMineracaoNome = FonteMineracao?.Dimensoes.FirstOrDefault() ?? colunas[0];
+        campoMineracaoNome = FonteMineracao?.Dimensoes.FirstOrDefault()
+            ?? colunas.FirstOrDefault(c => c.Contains("id", StringComparison.OrdinalIgnoreCase) || c.Contains("cliente", StringComparison.OrdinalIgnoreCase) || c.Contains("item", StringComparison.OrdinalIgnoreCase) || c.Contains("nome", StringComparison.OrdinalIgnoreCase))
+            ?? colunas[0];
+
         campoMineracaoValor1 = metricas.Count > 0 ? metricas[0] : (colunas.Count > 1 ? colunas[1] : colunas[0]);
         campoMineracaoValor2 = metricas.Count > 1 ? metricas[1] : campoMineracaoValor1;
-        campoMineracaoValorAbc = metricas.Count > 0 ? metricas[0] : campoMineracaoValor1;
+        campoMineracaoValor3 = metricas.Count > 2 ? metricas[2] : string.Empty;
+        campoMineracaoValorAbc = metricas.FirstOrDefault(m => m.Contains("monet", StringComparison.OrdinalIgnoreCase) || m.Contains("valor", StringComparison.OrdinalIgnoreCase) || m.Contains("fatur", StringComparison.OrdinalIgnoreCase))
+            ?? campoMineracaoValor1;
     }
 
     private async Task RecarregarFontesAsync()
@@ -1560,12 +1873,140 @@ else
         await AbrirImportacaoAsync();
     }
 
+    private async Task SugerirParametrosIaAsync()
+    {
+        isProcessandoMineracaoIa = true;
+        mensagemMineracaoModal = null;
+        try
+        {
+            var registros = await ObterRegistrosMineracaoAsync(ColunasMineracao);
+            if (registros.Count == 0) return;
+
+            var perfil = DataMiningService.ObterPerfil(registros, ColunasMineracao);
+            var rec = await MineracaoAgenteService.RecomendarParametrosAsync(perfil, objetivoMineracaoIa, UserState.UsuarioID);
+            recomendacaoIa = rec;
+
+            // Aplica os parâmetros sugeridos nos campos do modal
+            if (!string.IsNullOrWhiteSpace(rec.CampoIdKMeans) && ColunasMineracao.Contains(rec.CampoIdKMeans))
+                campoMineracaoNome = rec.CampoIdKMeans;
+
+            if (rec.CamposKMeans.Count > 0 && MetricasMineracao.Contains(rec.CamposKMeans[0]))
+                campoMineracaoValor1 = rec.CamposKMeans[0];
+
+            if (rec.CamposKMeans.Count > 1 && MetricasMineracao.Contains(rec.CamposKMeans[1]))
+                campoMineracaoValor2 = rec.CamposKMeans[1];
+
+            if (rec.CamposKMeans.Count > 2 && MetricasMineracao.Contains(rec.CamposKMeans[2]))
+                campoMineracaoValor3 = rec.CamposKMeans[2];
+            else
+                campoMineracaoValor3 = string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(rec.CampoValorAbc) && MetricasMineracao.Contains(rec.CampoValorAbc))
+                campoMineracaoValorAbc = rec.CampoValorAbc;
+
+            kMeansK = rec.KRecomendado;
+            aplicarLog1pKMeans = rec.AplicarLog1p;
+            limiarAbcA = rec.LimiarA;
+            limiarAbcB = rec.LimiarB;
+
+            mensagemMineracaoModal = $"Parâmetros sugeridos pela IA ({rec.ProvedorUtilizado}): {rec.Justificativa}";
+            classeMensagemMineracaoModal = "alert-success";
+        }
+        catch (Exception ex)
+        {
+            mensagemMineracaoModal = $"Aviso ao consultar IA: {ex.Message}";
+            classeMensagemMineracaoModal = "alert-warning";
+        }
+        finally
+        {
+            isProcessandoMineracaoIa = false;
+        }
+    }
+
+    private async Task ExecutarAnaliseCompletaIaAsync()
+    {
+        isProcessandoMineracaoIa = true;
+        mensagemMineracaoModal = null;
+        try
+        {
+            var registros = await ObterRegistrosMineracaoAsync(ColunasMineracao);
+            if (registros.Count == 0) return;
+
+            var nomeFonte = FonteMineracao?.Nome ?? DatasetMineracao?.Nome ?? "Base_BI";
+            var resultado = await MineracaoAgenteService.ExecutarAnaliseCompletaAsync(
+                registros, nomeFonte, objetivoMineracaoIa, UserState.UsuarioID);
+
+            resultadoAnaliseIa = resultado;
+            recomendacaoIa = resultado.Recomendacao;
+            previewKMeans = resultado.KMeans;
+            previewCurvaAbc = resultado.CurvaAbc;
+            previewChurn = resultado.Churn;
+
+            mensagemMineracaoModal = $"Análise completa executada com sucesso! {resultado.WidgetsSugeridos.Count} widgets analíticos gerados e modelo preditivo FastTree treinado.";
+            classeMensagemMineracaoModal = "alert-success";
+        }
+        catch (Exception ex)
+        {
+            mensagemMineracaoModal = $"Erro na execução da análise com IA: {ex.Message}";
+            classeMensagemMineracaoModal = "alert-danger";
+        }
+        finally
+        {
+            isProcessandoMineracaoIa = false;
+        }
+    }
+
+    private async Task InjetarAnaliseCompletaNoCanvasAsync()
+    {
+        if (DashboardAtivo == null || resultadoAnaliseIa == null) return;
+
+        foreach (var w in resultadoAnaliseIa.WidgetsSugeridos)
+        {
+            DashboardAtivo.Widgets.Add(w);
+        }
+
+        isDataMiningModalOpen = false;
+        await SalvarDashboardAtualAsync();
+        ExibirFeedback("Todos os widgets de IA (K-Means, Curva ABC, Churn ML.NET e Síntese Executiva) foram injetados no Canvas!", "alert-success");
+    }
+
+    private async Task SalvarBaseEnriquecidaComoFonteAsync()
+    {
+        if (resultadoAnaliseIa?.DatasetEnriquecido == null) return;
+
+        try
+        {
+            var contexto = BIUsuarioContexto.De(UserState);
+            var ds = resultadoAnaliseIa.DatasetEnriquecido;
+            ds.UsuarioId = contexto.UsuarioId;
+            ds.UsuarioUid = contexto.UsuarioUid;
+            ds.UsuarioNome = contexto.UsuarioNome;
+
+            await DashboardService.SalvarDatasetAsync(ds);
+            var origem = await DataSourceService.RegistrarDatasetComoFonteAsync(ds);
+            await RecarregarFontesAsync();
+
+            ExibirFeedback($"Base minerada '{ds.Nome}' ({ds.QtdLinhas} registros) salva como nova Fonte de Dados no sistema!", "alert-success");
+        }
+        catch (Exception ex)
+        {
+            ExibirFeedback($"Erro ao salvar base enriquecida: {ex.Message}", "alert-danger");
+        }
+    }
+
     private async Task PrevisualizarKMeansAsync()
     {
         previewCurvaAbc = null;
-        var registros = await ObterRegistrosMineracaoAsync(
-            new[] { campoMineracaoNome, campoMineracaoValor1, campoMineracaoValor2 });
+        previewChurn = null;
+        var campos = new[] { campoMineracaoValor1, campoMineracaoValor2, campoMineracaoValor3 }
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
+        var cols = new List<string> { campoMineracaoNome };
+        cols.AddRange(campos);
+
+        var registros = await ObterRegistrosMineracaoAsync(cols);
         if (registros.Count < 2)
         {
             mensagemMineracaoModal = "São necessários ao menos 2 registros na fonte vinculada para executar o K-Means.";
@@ -1573,8 +2014,15 @@ else
             return;
         }
 
-        previewKMeans = DataMiningService.ExecutarKMeans(
-            registros, campoMineracaoNome, campoMineracaoValor1, campoMineracaoValor2, kMeansK);
+        previewKMeans = DataMiningService.ExecutarKMeans(registros, new KMeansParametros
+        {
+            CampoId = campoMineracaoNome,
+            Campos = campos,
+            K = kMeansK,
+            Log1p = aplicarLog1pKMeans,
+            NomesPorRanking = recomendacaoIa?.NomesSugeridosSegmentos
+        });
+
         mensagemMineracaoModal = previewKMeans.ResumoExecutivo;
         classeMensagemMineracaoModal = "alert-success";
     }
@@ -1582,6 +2030,7 @@ else
     private async Task PrevisualizarCurvaAbcAsync()
     {
         previewKMeans = null;
+        previewChurn = null;
         var registros = await ObterRegistrosMineracaoAsync(
             new[] { campoMineracaoNome, campoMineracaoValorAbc });
 
@@ -1592,9 +2041,42 @@ else
             return;
         }
 
-        previewCurvaAbc = DataMiningService.CalcularCurvaAbc(
-            registros, campoMineracaoNome, campoMineracaoValorAbc);
-        mensagemMineracaoModal = $"Curva ABC calculada: {previewCurvaAbc.QtdClasseA} item(ns) na Classe A (80% do volume).";
+        previewCurvaAbc = DataMiningService.CalcularCurvaAbc(registros, new CurvaAbcParametros
+        {
+            CampoId = campoMineracaoNome,
+            CampoValor = campoMineracaoValorAbc,
+            LimiarA = limiarAbcA,
+            LimiarB = limiarAbcB
+        });
+
+        mensagemMineracaoModal = $"Curva ABC calculada: {previewCurvaAbc.QtdClasseA} item(ns) na Classe A ({limiarAbcA:N0}% do volume).";
+        classeMensagemMineracaoModal = "alert-success";
+    }
+
+    private async Task PrevisualizarChurnAsync()
+    {
+        previewKMeans = null;
+        previewCurvaAbc = null;
+        var colunas = new[] { campoMineracaoNome, campoMineracaoValor1, campoMineracaoValor2, campoMineracaoValorAbc }
+            .Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+
+        var registros = await ObterRegistrosMineracaoAsync(colunas);
+        if (registros.Count < 5)
+        {
+            mensagemMineracaoModal = "São necessários ao menos 5 registros na fonte vinculada para treinar o modelo de Churn.";
+            classeMensagemMineracaoModal = "alert-warning";
+            return;
+        }
+
+        previewChurn = DataMiningService.TreinarPreverChurn(registros, new ChurnParametros
+        {
+            CampoId = campoMineracaoNome,
+            CampoRecencia = campoMineracaoValor1,
+            CampoFrequencia = campoMineracaoValor2,
+            CampoMonetario = campoMineracaoValorAbc
+        });
+
+        mensagemMineracaoModal = previewChurn.ResumoExecutivo;
         classeMensagemMineracaoModal = "alert-success";
     }
 
@@ -1602,15 +2084,27 @@ else
     {
         if (DashboardAtivo == null) return;
 
-        var registros = await ObterRegistrosMineracaoAsync(
-            new[] { campoMineracaoNome, campoMineracaoValor1, campoMineracaoValor2 });
+        var campos = new[] { campoMineracaoValor1, campoMineracaoValor2, campoMineracaoValor3 }
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
+        var cols = new List<string> { campoMineracaoNome };
+        cols.AddRange(campos);
+
+        var registros = await ObterRegistrosMineracaoAsync(cols);
         if (registros.Count < 2) return;
 
-        var resultado = DataMiningService.ExecutarKMeans(
-            registros, campoMineracaoNome, campoMineracaoValor1, campoMineracaoValor2, kMeansK);
-        var widgets = DataMiningService.GerarWidgetsMinacao(resultado);
+        var resultado = DataMiningService.ExecutarKMeans(registros, new KMeansParametros
+        {
+            CampoId = campoMineracaoNome,
+            Campos = campos,
+            K = kMeansK,
+            Log1p = aplicarLog1pKMeans,
+            NomesPorRanking = recomendacaoIa?.NomesSugeridosSegmentos
+        });
 
+        var widgets = DataMiningService.GerarWidgetsKMeans(resultado);
         foreach (var w in widgets)
         {
             DashboardAtivo.Widgets.Add(w);
@@ -1630,10 +2124,15 @@ else
 
         if (registros.Count == 0) return;
 
-        var resultado = DataMiningService.CalcularCurvaAbc(
-            registros, campoMineracaoNome, campoMineracaoValorAbc);
-        var widgets = DataMiningService.GerarWidgetsCurvaAbc(resultado);
+        var resultado = DataMiningService.CalcularCurvaAbc(registros, new CurvaAbcParametros
+        {
+            CampoId = campoMineracaoNome,
+            CampoValor = campoMineracaoValorAbc,
+            LimiarA = limiarAbcA,
+            LimiarB = limiarAbcB
+        });
 
+        var widgets = DataMiningService.GerarWidgetsCurvaAbc(resultado);
         foreach (var w in widgets)
         {
             DashboardAtivo.Widgets.Add(w);
@@ -1641,7 +2140,36 @@ else
 
         isDataMiningModalOpen = false;
         await SalvarDashboardAtualAsync();
-        ExibirFeedback($"Curva ABC calculada: {resultado.QtdClasseA} itens na Classe A (80% da receita).", "alert-success");
+        ExibirFeedback($"Curva ABC calculada: {resultado.QtdClasseA} itens na Classe A ({limiarAbcA:N0}% da receita).", "alert-success");
+    }
+
+    private async Task ExecutarChurnNoCanvasAsync()
+    {
+        if (DashboardAtivo == null) return;
+
+        var colunas = new[] { campoMineracaoNome, campoMineracaoValor1, campoMineracaoValor2, campoMineracaoValorAbc }
+            .Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+
+        var registros = await ObterRegistrosMineracaoAsync(colunas);
+        if (registros.Count < 5) return;
+
+        var resultado = DataMiningService.TreinarPreverChurn(registros, new ChurnParametros
+        {
+            CampoId = campoMineracaoNome,
+            CampoRecencia = campoMineracaoValor1,
+            CampoFrequencia = campoMineracaoValor2,
+            CampoMonetario = campoMineracaoValorAbc
+        });
+
+        var widgets = DataMiningService.GerarWidgetsChurn(resultado);
+        foreach (var w in widgets)
+        {
+            DashboardAtivo.Widgets.Add(w);
+        }
+
+        isDataMiningModalOpen = false;
+        await SalvarDashboardAtualAsync();
+        ExibirFeedback(resultado.ResumoExecutivo, "alert-success");
     }
 
     private async Task<List<Dictionary<string, string>>> ObterRegistrosMineracaoAsync(IEnumerable<string> colunas)

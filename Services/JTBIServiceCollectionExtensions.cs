@@ -80,6 +80,8 @@ public static class JTBIServiceCollectionExtensions
         services.AddScoped<JT_Servicos.DW.OrigemDadosService>();
         services.AddScoped<JT_Servicos.DW.DwConsultaService>();
         services.AddScoped<JT_Servicos.DW.IndicadorDashboardService>();
+        services.AddScoped<JT_Servicos.IA.ConfiguracaoIAService>();
+        services.AddScoped<IBIMineracaoAgenteService, BIMineracaoAgenteService>();
 
         return services;
     }
