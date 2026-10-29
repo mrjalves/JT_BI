@@ -1,8 +1,12 @@
 @page "/configuracoes"
 @using JT_Classes.Comum
 @using JT_Classes.IA
+@using JT_Classes.Gestao
+@using JT_Classes.Portfolio
+@using JT_Classes.Acessos
 @using JT_UserInterface.Shared.Components.Core
 @using JT_UserInterface.Shared.Components.IA
+@using Microsoft.JSInterop
 @inherits JT_UserInterface.Shared.Pages.Comum.ConfiguracoesBase
 
 <div data-tutorial="configuracoes-pagina">
@@ -10,6 +14,8 @@
 </div>
 
 @code {
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+
     public override string ObterTituloPagina() => "Configurações do Sistema & BI";
 
     protected override async Task CarregarConfiguracoes()
@@ -56,6 +62,117 @@
         {
             Console.WriteLine($"[Configuracoes] Erro ao salvar configuração: {ex.Message}");
             return false;
+        }
+    }
+
+    public override async Task HandleSalvarConfiguracoes()
+    {
+        if (configuracaoAtual == null) return;
+
+        bool salvouAlgo = false;
+        var erros = new List<string>();
+
+        try
+        {
+            // 1. Tenta salvar a configuração base
+            try
+            {
+                var okComum = await SalvarConfiguracao(configuracaoAtual);
+                if (okComum) salvouAlgo = true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Configuracoes] Aviso ao salvar configuração comum: {ex.Message}");
+            }
+
+            // 2. Salva configurações modulares com isolamento por módulo
+            foreach (var (modulo, configuracao) in ModuloState.Configuracoes)
+            {
+                if (modulo == JT_Aplicacao.Classes.eModuloSistema.Comum)
+                    continue;
+
+                try
+                {
+                    bool okModulo = false;
+                    switch (modulo)
+                    {
+                        case JT_Aplicacao.Classes.eModuloSistema.IA:
+                            var iaConfig = (ConfiguracaoIA)configuracao;
+                            var iaService = ServiceProvider.GetRequiredService<JT_Servicos.IA.ConfiguracaoIAService>();
+                            okModulo = await iaService.Save(iaConfig);
+
+                            // Sincroniza também no localStorage para disponibilidade imediata e offline-first
+                            try
+                            {
+                                if (!string.IsNullOrWhiteSpace(iaConfig.ApiKey))
+                                {
+                                    await JSRuntime.InvokeVoidAsync("localStorage.setItem", "jt_gemini_api_key", iaConfig.ApiKey);
+                                }
+                                if (!string.IsNullOrWhiteSpace(iaConfig.Modelo))
+                                {
+                                    await JSRuntime.InvokeVoidAsync("localStorage.setItem", "jt_gemini_model", iaConfig.Modelo);
+                                }
+                            }
+                            catch { }
+                            break;
+
+                        case JT_Aplicacao.Classes.eModuloSistema.Hotkeys:
+                            var hotkeysService = ServiceProvider.GetService<JT_Servicos.Comum.ConfiguracaoHotkeysService>();
+                            if (hotkeysService != null)
+                                okModulo = await hotkeysService.Save((ConfiguracaoHotkeys)configuracao);
+                            break;
+
+                        case JT_Aplicacao.Classes.eModuloSistema.Gestao:
+                            var gestaoService = ServiceProvider.GetService<JT_Servicos.Interfaces.IMGestaoConfiguracaoService>();
+                            if (gestaoService != null)
+                                okModulo = await gestaoService.Save((MGestaoConfiguracao)configuracao);
+                            break;
+
+                        case JT_Aplicacao.Classes.eModuloSistema.Portfolio:
+                            var portService = ServiceProvider.GetService<JT_Servicos.Interfaces.IMPortfolioConfiguracaoService>();
+                            if (portService != null)
+                                okModulo = await portService.Save((MPortfolioConfiguracoes)configuracao);
+                            break;
+
+                        case JT_Aplicacao.Classes.eModuloSistema.Acessos:
+                            var acessosService = ServiceProvider.GetService<JT_Servicos.Interfaces.IMAcessosConfiguracaoService>();
+                            if (acessosService != null)
+                                okModulo = await acessosService.Save((MAcessosConfiguracao)configuracao);
+                            break;
+
+                        default:
+                            okModulo = true;
+                            break;
+                    }
+
+                    if (okModulo) salvouAlgo = true;
+                }
+                catch (HttpRequestException ex)
+                {
+                    Console.WriteLine($"[Configuracoes] Aviso: API retornou {(int?)ex.StatusCode} para o módulo {modulo}: {ex.Message}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Configuracoes] Falha ao salvar módulo {modulo}: {ex.Message}");
+                    erros.Add($"{modulo}: {ex.Message}");
+                }
+            }
+
+            // 3. Executa delegates adicionais (se houver)
+            await DispararSalvarConfiguracoesAdicionaisAsync();
+
+            if (salvouAlgo || erros.Count == 0)
+            {
+                ToastService.ShowSuccess("Configurações Salvas!", "As suas configurações foram atualizadas com sucesso.");
+            }
+            else
+            {
+                ToastService.ShowError("Erro ao Salvar", "Não foi possível persistir algumas configurações no servidor.");
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError("Erro Inesperado!", $"Ocorreu um problema ao salvar: {ex.Message}");
         }
     }
 
