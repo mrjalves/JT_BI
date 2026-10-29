@@ -1,3 +1,5 @@
+@using System.Diagnostics
+@using System.Globalization
 @using System.Text
 @using JT_BI.Models
 @using JT_BI.Services
@@ -22,7 +24,7 @@
                         </div>
                         <div>
                             <h5 class="modal-title fw-bold mb-0 text-white" style="color: #ffffff !important;">Importar Dados Externos</h5>
-                            <small style="color: rgba(241, 245, 249, 0.88) !important;">Envie um arquivo CSV/JSON, informe um link público ou cole os dados para criar uma Fonte de Dados</small>
+                            <small style="color: rgba(241, 245, 249, 0.88) !important;">Envie um arquivo CSV/JSON (até 5 GB), informe um link público ou cole os dados para criar uma Fonte de Dados</small>
                         </div>
                     </div>
                     <button type="button" class="btn-close btn-close-white" @onclick="Fechar"></button>
@@ -65,18 +67,38 @@
                         @if (abaOrigem == "arquivo")
                         {
                             <div class="col-12">
-                                <label class="form-label fw-semibold small text-muted">Selecione um arquivo CSV ou JSON (até 10 MB):</label>
+                                <label class="form-label fw-semibold small text-muted">Selecione um arquivo CSV ou JSON (até 5 GB):</label>
                                 <InputFile OnChange="AoSelecionarArquivo" accept=".csv,.tsv,.txt,.json,text/csv,application/json" class="form-control form-control-sm" disabled="@carregandoArquivo" />
+
                                 @if (carregandoArquivo)
                                 {
-                                    <div class="small text-muted mt-1">
-                                        <span class="spinner-border spinner-border-sm me-1" role="status"></span> Lendo arquivo...
+                                    <div class="mt-2 p-2 bg-body-tertiary rounded-3 border">
+                                        <div class="d-flex justify-content-between align-items-center small text-muted mb-1">
+                                            <span>
+                                                <span class="spinner-border spinner-border-sm me-1 text-primary" role="status"></span>
+                                                @progressoUploadTexto
+                                            </span>
+                                            <span class="fw-semibold text-primary">@progressoUploadPorcentagem%</span>
+                                        </div>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                                                 role="progressbar"
+                                                 style="width: @progressoUploadPorcentagem%;"
+                                                 aria-valuenow="@progressoUploadPorcentagem"
+                                                 aria-valuemin="0"
+                                                 aria-valuemax="100"></div>
+                                        </div>
                                     </div>
                                 }
                                 else if (!string.IsNullOrWhiteSpace(arquivoNome))
                                 {
-                                    <div class="small text-success mt-1">
-                                        <i class="bi bi-check-circle-fill me-1"></i>@arquivoNome
+                                    <div class="small text-success mt-1 d-flex align-items-center gap-1">
+                                        <i class="bi bi-check-circle-fill"></i>
+                                        <strong>@arquivoNome</strong>
+                                        @if (datasetPreview?.TamanhoBytes > 0)
+                                        {
+                                            <span class="text-muted">(@FormatarBytes(datasetPreview.TamanhoBytes))</span>
+                                        }
                                     </div>
                                 }
                                 <div class="small text-muted mt-1">
@@ -102,8 +124,28 @@
                                         }
                                     </button>
                                 </div>
+                                @if (baixandoUrl)
+                                {
+                                    <div class="mt-2 p-2 bg-body-tertiary rounded-3 border">
+                                        <div class="d-flex justify-content-between align-items-center small text-muted mb-1">
+                                            <span>
+                                                <span class="spinner-border spinner-border-sm me-1 text-primary" role="status"></span>
+                                                @progressoUploadTexto
+                                            </span>
+                                            <span class="fw-semibold text-primary">@progressoUploadPorcentagem%</span>
+                                        </div>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                                                 role="progressbar"
+                                                 style="width: @progressoUploadPorcentagem%;"
+                                                 aria-valuenow="@progressoUploadPorcentagem"
+                                                 aria-valuemin="0"
+                                                 aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+                                }
                                 <div class="small text-muted mt-1">
-                                    Aceita apenas HTTP/HTTPS. Limite de 10 MB. Links que exigem autenticação não são suportados.
+                                    Aceita apenas HTTP/HTTPS. Limite de 5 GB. Links que exigem autenticação não são suportados.
                                 </div>
                                 @if (linkCarregado)
                                 {
@@ -117,7 +159,7 @@
                         {
                             <div class="col-12">
                                 <div class="d-flex align-items-center justify-content-between mb-1">
-                                    <label class="form-label fw-semibold small text-muted mb-0">Cole os dados brutos (até 500 KB; para arquivos até 10 MB use a aba Arquivo):</label>
+                                    <label class="form-label fw-semibold small text-muted mb-0">Cole os dados brutos (até 500 KB; para arquivos até 5 GB use a aba Arquivo):</label>
                                     <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" @onclick="CarregarExemplo">
                                         <i class="bi bi-magic me-1"></i> Preencher Exemplo de Vendas
                                     </button>
@@ -126,34 +168,47 @@
                             </div>
                         }
 
-                        @if (datasetPreview != null && datasetPreview.Linhas.Count > 0)
+                        @if (datasetPreview != null && (datasetPreview.Linhas.Count > 0 || datasetPreview.QtdLinhas > 0))
                         {
                             <div class="col-12">
                                 <div class="card border border-success border-opacity-25 bg-success bg-opacity-10 rounded-3 p-3">
                                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-                                        <div class="d-flex align-items-center gap-2">
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
                                             <i class="bi bi-check-circle-fill text-success fs-5"></i>
                                             <span class="fw-bold text-success">Dados identificados com sucesso!</span>
-                                            <span class="badge bg-success">@datasetPreview.QtdLinhas linhas</span>
+                                            <span class="badge bg-success">@datasetPreview.QtdLinhas.ToString("N0") linhas</span>
                                             <span class="badge bg-secondary">@datasetPreview.Colunas.Count colunas</span>
+                                            @if (datasetPreview.TamanhoBytes > 0)
+                                            {
+                                                <span class="badge bg-info text-dark">@FormatarBytes(datasetPreview.TamanhoBytes)</span>
+                                            }
+                                            @if (datasetPreview.Linhas.Count < datasetPreview.QtdLinhas)
+                                            {
+                                                <span class="badge bg-light text-dark border" title="Amostra mantida em memória para visualização e gráficos instantâneos">
+                                                    Amostra ativa: @datasetPreview.Linhas.Count.ToString("N0") registros
+                                                </span>
+                                            }
                                         </div>
-                                        <button type="button" class="btn btn-xs btn-link text-decoration-none p-0 small"
-                                                @onclick="() => exibirAmostraTabela = !exibirAmostraTabela">
-                                            <i class="bi @(exibirAmostraTabela ? "bi-chevron-up" : "bi-table") me-1"></i>
-                                            @(exibirAmostraTabela ? "Ocultar amostra de linhas" : "Ver amostra de linhas")
-                                        </button>
+                                        @if (datasetPreview.Linhas.Count > 0)
+                                        {
+                                            <button type="button" class="btn btn-xs btn-link text-decoration-none p-0 small"
+                                                    @onclick="() => exibirAmostraTabela = !exibirAmostraTabela">
+                                                <i class="bi @(exibirAmostraTabela ? "bi-chevron-up" : "bi-table") me-1"></i>
+                                                @(exibirAmostraTabela ? "Ocultar amostra de linhas" : "Ver amostra de linhas")
+                                            </button>
+                                        }
                                     </div>
                                     <div class="d-flex flex-wrap gap-2">
                                         @foreach (var col in datasetPreview.Colunas)
                                         {
                                             <span class="badge bg-body-secondary text-body border">
-                                                <i class="bi @(col.TipoDado == "Numero" ? "bi-123 text-primary" : "bi-fonts text-muted") me-1"></i>
+                                                <i class="bi @(col.TipoDado == "Numero" ? "bi-123 text-primary" : col.TipoDado == "Data" ? "bi-calendar text-info" : "bi-fonts text-muted") me-1"></i>
                                                 @col.Nome (@col.TipoDado)
                                             </span>
                                         }
                                     </div>
 
-                                    @if (exibirAmostraTabela)
+                                    @if (exibirAmostraTabela && datasetPreview.Linhas.Count > 0)
                                     {
                                         <div class="table-responsive mt-3 bg-body rounded-3 border" style="max-height: 170px;">
                                             <table class="table table-sm table-striped small mb-0">
@@ -197,14 +252,36 @@
                 <div class="modal-footer bg-light p-3 border-0 d-flex justify-content-between flex-wrap gap-2">
                     <button type="button" class="btn btn-sm btn-outline-secondary rounded-3" @onclick="Fechar">Cancelar</button>
                     <div class="d-flex flex-wrap gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-primary rounded-3" @onclick="AlternarPreviewAmostra" disabled="@(string.IsNullOrWhiteSpace(conteudoBruto))">
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-3"
+                                @onclick="AlternarPreviewAmostra"
+                                disabled="@(datasetPreview == null || datasetPreview.Linhas.Count == 0)">
                             <i class="bi bi-eye me-1"></i> Pré-visualizar
                         </button>
-                        <button type="button" class="btn btn-sm btn-success rounded-3 fw-semibold" @onclick="SalvarApenasComoFonteAsync" disabled="@(salvando || string.IsNullOrWhiteSpace(conteudoBruto))">
-                            <i class="bi bi-database-fill-add me-1"></i> Salvar como Fonte de Dados
+                        <button type="button" class="btn btn-sm btn-success rounded-3 fw-semibold"
+                                @onclick="SalvarApenasComoFonteAsync"
+                                disabled="@(salvando || carregandoArquivo || baixandoUrl || !TemDadosProntosParaSalvar)">
+                            @if (salvando)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-database-fill-add me-1"></i>
+                            }
+                            <span>Salvar como Fonte de Dados</span>
                         </button>
-                        <button type="button" class="btn btn-sm btn-primary rounded-3 fw-semibold" @onclick="SalvarEGerarDashboardAsync" disabled="@(salvando || string.IsNullOrWhiteSpace(conteudoBruto))">
-                            <i class="bi bi-speedometer2 me-1"></i> Salvar Fonte e Gerar Painel
+                        <button type="button" class="btn btn-sm btn-primary rounded-3 fw-semibold"
+                                @onclick="SalvarEGerarDashboardAsync"
+                                disabled="@(salvando || carregandoArquivo || baixandoUrl || !TemDadosProntosParaSalvar)">
+                            @if (salvando)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-speedometer2 me-1"></i>
+                            }
+                            <span>Salvar Fonte e Gerar Painel</span>
                         </button>
                     </div>
                 </div>
@@ -214,7 +291,7 @@
 }
 
 @code {
-    private const long LimiteBytes = 10 * 1024 * 1024;
+    private const long LimiteBytes = 5L * 1024 * 1024 * 1024; // 5 GB
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
@@ -234,6 +311,13 @@
     private bool exibirAmostraTabela;
     private string? mensagemErro = null;
     private BIDataset? datasetPreview = null;
+
+    private int progressoUploadPorcentagem;
+    private string progressoUploadTexto = "";
+
+    private bool TemDadosProntosParaSalvar
+        => (datasetPreview != null && (datasetPreview.Linhas.Count > 0 || datasetPreview.QtdLinhas > 0)) ||
+           !string.IsNullOrWhiteSpace(conteudoBruto);
 
     private void CarregarExemplo()
     {
@@ -259,6 +343,7 @@
 
         var inicio = conteudoBruto.TrimStart();
         formato = inicio.StartsWith("[") || inicio.StartsWith("{") ? "JSON" : "CSV";
+        ProcessarPreview();
     }
 
     private async Task AoSelecionarArquivo(InputFileChangeEventArgs e)
@@ -268,30 +353,57 @@
         linkCarregado = false;
         exibirAmostraTabela = false;
         arquivoNome = "";
+        conteudoBruto = "";
 
         var arquivo = e.File;
         if (arquivo == null) return;
 
         if (arquivo.Size > LimiteBytes)
         {
-            mensagemErro = "O arquivo excede o limite de 10 MB.";
+            mensagemErro = $"O arquivo excede o limite máximo de 5 GB ({FormatarBytes(arquivo.Size)}).";
             return;
         }
 
         carregandoArquivo = true;
+        progressoUploadPorcentagem = 0;
+        progressoUploadTexto = "Iniciando upload...";
+        arquivoNome = arquivo.Name;
+
+        var baseNome = Path.GetFileNameWithoutExtension(arquivo.Name);
+        if (!string.IsNullOrWhiteSpace(baseNome))
+            nomeDataset = baseNome;
+
+        var ext = Path.GetExtension(arquivo.Name).ToLowerInvariant();
+        formato = (ext == ".json") ? "JSON" : "CSV";
+
         try
         {
-            await using var stream = arquivo.OpenReadStream(LimiteBytes);
-            using var reader = new StreamReader(stream);
-            conteudoBruto = await reader.ReadToEndAsync();
+            await using var stream = arquivo.OpenReadStream(maxAllowedSize: LimiteBytes);
 
-            arquivoNome = arquivo.Name;
-            var baseNome = System.IO.Path.GetFileNameWithoutExtension(arquivo.Name);
-            if (!string.IsNullOrWhiteSpace(baseNome))
-                nomeDataset = baseNome;
+            var dataset = await ImportService.ImportarStreamAsync(
+                stream: stream,
+                nome: nomeDataset,
+                formato: formato,
+                tamanhoBytes: arquivo.Size,
+                nomeArquivoOriginal: arquivo.Name,
+                onProgresso: (lidos, total) =>
+                {
+                    if (total > 0)
+                    {
+                        progressoUploadPorcentagem = Math.Clamp((int)((double)lidos / total * 100), 0, 100);
+                        progressoUploadTexto = $"Transferindo {FormatarBytes(lidos)} de {FormatarBytes(total)}";
+                    }
+                    else
+                    {
+                        progressoUploadTexto = $"Transferido {FormatarBytes(lidos)}...";
+                    }
+                    _ = InvokeAsync(StateHasChanged);
+                });
 
-            DetectarFormato();
-            ProcessarPreview();
+            datasetPreview = dataset;
+            progressoUploadPorcentagem = 100;
+            progressoUploadTexto = "Concluído com sucesso!";
+            exibirAmostraTabela = true;
         }
         catch (Exception ex)
         {
@@ -300,6 +412,7 @@
         finally
         {
             carregandoArquivo = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -309,6 +422,7 @@
         datasetPreview = null;
         linkCarregado = false;
         exibirAmostraTabela = false;
+        conteudoBruto = "";
         urlOrigem = urlOrigem?.Trim() ?? string.Empty;
 
         if (!Uri.TryCreate(urlOrigem, UriKind.Absolute, out var uri) ||
@@ -319,6 +433,8 @@
         }
 
         baixandoUrl = true;
+        progressoUploadPorcentagem = 0;
+        progressoUploadTexto = "Conectando ao servidor...";
         try
         {
             var client = HttpClientFactory.CreateClient();
@@ -330,30 +446,45 @@
                 return;
             }
 
-            var tamanho = resposta.Content.Headers.ContentLength;
-            if (tamanho.HasValue && tamanho.Value > LimiteBytes)
+            var tamanho = resposta.Content.Headers.ContentLength ?? 0L;
+            if (tamanho > LimiteBytes)
             {
-                mensagemErro = "O conteúdo do link excede o limite de 10 MB.";
+                mensagemErro = "O conteúdo do link excede o limite de 5 GB.";
                 return;
             }
 
-            await using var stream = await resposta.Content.ReadAsStreamAsync();
-            conteudoBruto = await LerTextoLimitadoAsync(stream);
+            var nomeArquivo = Path.GetFileName(uri.LocalPath);
+            if (string.IsNullOrWhiteSpace(nomeArquivo))
+                nomeArquivo = "dataset_url.csv";
 
-            linkCarregado = true;
-            arquivoNome = "";
-
-            var nomeArquivo = System.IO.Path.GetFileName(uri.LocalPath);
-            var baseNome = System.IO.Path.GetFileNameWithoutExtension(nomeArquivo);
+            var baseNome = Path.GetFileNameWithoutExtension(nomeArquivo);
             if (!string.IsNullOrWhiteSpace(baseNome))
                 nomeDataset = baseNome;
 
-            DetectarFormato();
-            ProcessarPreview();
-        }
-        catch (InvalidOperationException ex)
-        {
-            mensagemErro = ex.Message;
+            var ext = Path.GetExtension(nomeArquivo).ToLowerInvariant();
+            formato = (ext == ".json") ? "JSON" : "CSV";
+
+            await using var stream = await resposta.Content.ReadAsStreamAsync();
+            var dataset = await ImportService.ImportarStreamAsync(
+                stream: stream,
+                nome: nomeDataset,
+                formato: formato,
+                tamanhoBytes: tamanho,
+                nomeArquivoOriginal: nomeArquivo,
+                onProgresso: (lidos, total) =>
+                {
+                    if (total > 0)
+                    {
+                        progressoUploadPorcentagem = Math.Clamp((int)((double)lidos / total * 100), 0, 100);
+                        progressoUploadTexto = $"Baixando {FormatarBytes(lidos)} de {FormatarBytes(total)}";
+                    }
+                    _ = InvokeAsync(StateHasChanged);
+                });
+
+            datasetPreview = dataset;
+            linkCarregado = true;
+            arquivoNome = nomeArquivo;
+            exibirAmostraTabela = true;
         }
         catch (Exception ex)
         {
@@ -362,33 +493,18 @@
         finally
         {
             baixandoUrl = false;
+            await InvokeAsync(StateHasChanged);
         }
-    }
-
-    private static async Task<string> LerTextoLimitadoAsync(Stream stream)
-    {
-        using var reader = new StreamReader(stream);
-        var buffer = new char[8192];
-        var builder = new StringBuilder();
-
-        int lidos;
-        while ((lidos = await reader.ReadAsync(buffer, 0, buffer.Length)) > 0)
-        {
-            if (builder.Length + lidos > LimiteBytes)
-                throw new InvalidOperationException("O conteúdo do link excede o limite de 10 MB.");
-
-            builder.Append(buffer, 0, lidos);
-        }
-
-        return builder.ToString();
     }
 
     private void AlternarPreviewAmostra()
     {
-        ProcessarPreview();
-        if (datasetPreview != null && datasetPreview.QtdLinhas > 0)
+        if (datasetPreview == null && !string.IsNullOrWhiteSpace(conteudoBruto))
+            ProcessarPreview();
+
+        if (datasetPreview != null && datasetPreview.Linhas.Count > 0)
         {
-            exibirAmostraTabela = true;
+            exibirAmostraTabela = !exibirAmostraTabela;
         }
     }
 
@@ -419,10 +535,10 @@
 
     private async Task SalvarApenasComoFonteAsync()
     {
-        if (datasetPreview == null)
+        if (datasetPreview == null && !string.IsNullOrWhiteSpace(conteudoBruto))
             ProcessarPreview();
 
-        if (datasetPreview == null || datasetPreview.QtdLinhas == 0)
+        if (datasetPreview == null || (datasetPreview.Linhas.Count == 0 && datasetPreview.QtdLinhas == 0))
             return;
 
         salvando = true;
@@ -447,10 +563,10 @@
 
     private async Task SalvarEGerarDashboardAsync()
     {
-        if (datasetPreview == null)
+        if (datasetPreview == null && !string.IsNullOrWhiteSpace(conteudoBruto))
             ProcessarPreview();
 
-        if (datasetPreview == null || datasetPreview.QtdLinhas == 0)
+        if (datasetPreview == null || (datasetPreview.Linhas.Count == 0 && datasetPreview.QtdLinhas == 0))
             return;
 
         salvando = true;
@@ -480,5 +596,16 @@
     {
         IsOpen = false;
         await IsOpenChanged.InvokeAsync(false);
+    }
+
+    private static string FormatarBytes(long bytes)
+    {
+        if (bytes >= 1024L * 1024L * 1024L)
+            return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+        if (bytes >= 1024L * 1024L)
+            return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        if (bytes >= 1024L)
+            return $"{bytes / 1024.0:F0} KB";
+        return $"{bytes} B";
     }
 }

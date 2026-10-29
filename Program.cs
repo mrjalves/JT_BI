@@ -6,6 +6,12 @@ using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    // Permite payloads e uploads de arquivos de até 5 GB
+    serverOptions.Limits.MaxRequestBodySize = 5L * 1024 * 1024 * 1024;
+});
+
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
@@ -14,8 +20,11 @@ builder.Services.AddRazorComponents()
     })
     .AddHubOptions(options =>
     {
-        // Permite colar CSVs/JSONs maiores no BIImportModal sem derrubar o circuito SignalR (padrão é 32 KB)
-        options.MaximumReceiveMessageSize = 512 * 1024; // 512 KB
+        // Suporta uploads de grandes arquivos (até 5 GB) e mensagens SignalR sem derrubar o circuito
+        options.MaximumReceiveMessageSize = null;
+        options.ClientTimeoutInterval = TimeSpan.FromMinutes(15);
+        options.HandshakeTimeout = TimeSpan.FromSeconds(60);
+        options.KeepAliveInterval = TimeSpan.FromSeconds(15);
     });
 
 builder.Services.AddHealthChecks();

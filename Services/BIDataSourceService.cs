@@ -344,14 +344,15 @@ public class BIDataSourceService : IBIDataSourceService
                 StringComparer.OrdinalIgnoreCase))
             .ToList();
 
+        var totalLinhas = dataset.QtdLinhas > 0 ? dataset.QtdLinhas : linhasTexto.Count;
         var origem = existente ?? new MOrigemDados();
         origem.Nome = string.IsNullOrWhiteSpace(dataset.Nome) ? "Dataset Importado" : dataset.Nome.Trim();
-        origem.Descricao = $"Arquivo {dataset.Origem} importado ({linhasTexto.Count} registros, {colunas.Count} colunas)";
+        origem.Descricao = $"Arquivo {dataset.Origem} importado ({totalLinhas:N0} registros, {colunas.Count} colunas)";
         origem.ClasseOrigem = classeImportada;
         origem.TabelaOrigem = $"Arquivo {dataset.Origem}";
-        origem.LinhasCarregadas = linhasTexto.Count;
+        origem.LinhasCarregadas = totalLinhas;
         origem.UltimaExecucao = DateTime.Now;
-        origem.UltimaMensagem = $"Importado ({linhasTexto.Count} registros prontos para uso)";
+        origem.UltimaMensagem = $"Importado ({totalLinhas:N0} registros prontos para uso)";
         origem.Configuracao = new OrigemConfiguracao
         {
             ClasseOrigem = origem.ClasseOrigem,

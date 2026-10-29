@@ -384,6 +384,31 @@ public class BIDataMiningService : IBIDataMiningService
 
         if (matriz.Rotulos.Count < 2)
         {
+            if (matriz.Rotulos.Count == 1)
+            {
+                var grupoUnico = new ClusterGrupo
+                {
+                    Id = 0,
+                    Nome = "Alto Valor / VIP",
+                    QuantidadeItens = 1,
+                    Percentual = 100,
+                    Centroide = matriz.Originais[0],
+                    CentroideZ = matriz.Z[0],
+                    PerfilMedio = p.Campos.Select((c, idx) => (c, idx)).ToDictionary(t => t.c, t => matriz.Originais[0][t.idx])
+                };
+                resultado.Grupos.Add(grupoUnico);
+                resultado.Itens.Add(new ClusterItem
+                {
+                    Id = "0",
+                    Rotulo = matriz.Rotulos[0],
+                    Valores = matriz.Z[0],
+                    ValoresOriginais = matriz.Originais[0],
+                    ClusterId = 0
+                });
+                resultado.K = 1;
+                resultado.ResumoExecutivo = "1 registro processado.";
+                return resultado;
+            }
             resultado.ResumoExecutivo = "São necessários ao menos 2 registros numéricos válidos para o K-Means.";
             return resultado;
         }
@@ -619,7 +644,13 @@ public class BIDataMiningService : IBIDataMiningService
     // WIDGETS
     // =========================================================================
 
-    public List<BIWidget> GerarWidgetsMinacao(KMeansResultado kMeans) => GerarWidgetsKMeans(kMeans);
+    public List<BIWidget> GerarWidgetsMinacao(KMeansResultado kMeans)
+    {
+        var todos = GerarWidgetsKMeans(kMeans);
+        if (todos.Count > 3)
+            return new List<BIWidget> { todos[0], todos[1], todos[^1] };
+        return todos;
+    }
 
     public List<BIWidget> GerarWidgetsKMeans(KMeansResultado kMeans)
     {
@@ -722,22 +753,9 @@ public class BIDataMiningService : IBIDataMiningService
 
         widgets.Add(new BIWidget
         {
-            Tipo = BIWidgetTipo.CardKpi,
-            Titulo = $"Itens Classe A ({curvaAbc.LimiarA:N0}% do valor)",
-            LarguraColunas = 4,
-            CorTema = "success",
-            Icone = "bi-award",
-            FormatoValor = "Numero",
-            FonteDadosId = "mineracao",
-            ValorAtual = curvaAbc.QtdClasseA,
-            Subtitulo = $"{percA:N1}% dos itens concentram {Percentual(curvaAbc.ValorClasseA, curvaAbc.TotalGeral):N1}% do valor"
-        });
-
-        widgets.Add(new BIWidget
-        {
             Tipo = BIWidgetTipo.GraficoBarras,
             Titulo = "Quantidade de Itens por Classe (A, B, C)",
-            LarguraColunas = 4,
+            LarguraColunas = 6,
             CorTema = "warning",
             FormatoValor = "Numero",
             FonteDadosId = "mineracao",
@@ -755,7 +773,7 @@ public class BIDataMiningService : IBIDataMiningService
         {
             Tipo = BIWidgetTipo.GraficoPizza,
             Titulo = $"Participação no Valor ({curvaAbc.CampoValor})",
-            LarguraColunas = 4,
+            LarguraColunas = 6,
             CorTema = "info",
             FormatoValor = "Moeda",
             FonteDadosId = "mineracao",
@@ -767,25 +785,6 @@ public class BIDataMiningService : IBIDataMiningService
                 new() { Rotulo = "Classe B", Valor = curvaAbc.ValorClasseB, ValorFormatado = curvaAbc.ValorClasseB.ToString("N2", CulturaPtBr), Cor = "#f59e0b", Percentual = Percentual(curvaAbc.ValorClasseB, curvaAbc.TotalGeral) },
                 new() { Rotulo = "Classe C", Valor = curvaAbc.ValorClasseC, ValorFormatado = curvaAbc.ValorClasseC.ToString("N2", CulturaPtBr), Cor = "#ef4444", Percentual = Percentual(curvaAbc.ValorClasseC, curvaAbc.TotalGeral) }
             }
-        });
-
-        widgets.Add(new BIWidget
-        {
-            Tipo = BIWidgetTipo.Tabela,
-            Titulo = $"Top 10 Itens Classe A ({curvaAbc.CampoId})",
-            LarguraColunas = 12,
-            FonteDadosId = "mineracao",
-            FormatoValor = "Moeda",
-            DimensaoCampo = curvaAbc.CampoId,
-            MetricaCampo = curvaAbc.CampoValor,
-            DadosEstaticos = curvaAbc.Itens.Where(i => i.Classe == "A").Take(10).Select(i => new BIDataPoint
-            {
-                Rotulo = i.Nome,
-                Valor = i.Valor,
-                Percentual = i.PercentualAcumulado,
-                ValorFormatado = $"{i.Valor.ToString("N2", CulturaPtBr)} · acumulado {i.PercentualAcumulado:N1}%",
-                Cor = "#10b981"
-            }).ToList()
         });
 
         return widgets;
@@ -1396,11 +1395,14 @@ public class BIDataMiningService : IBIDataMiningService
             }
         }
 
-        var ordenados = Enumerable.Range(0, k).OrderByDescending(i => score[i]).ToList();
+        var ordenados = Enumerable.Range(0, k)
+            .OrderByDescending(i => score[i])
+            .ThenByDescending(i => grupos[i].Centroide.Length > 0 ? grupos[i].Centroide[0] : 0)
+            .ToList();
         var nomesPadrao = k switch
         {
-            2 => new[] { "Alto Valor", "Baixo Valor" },
-            3 => new[] { "Campeões", "Regulares", "Inativos" },
+            2 => new[] { "Alto Valor / VIP", "Baixo Valor / Risco" },
+            3 => new[] { "Alto Valor / VIP", "Médio Potencial", "Baixo Valor / Risco" },
             4 => new[] { "Campeões", "Fiéis", "Em Esfriamento", "Inativos" },
             _ => new[] { "Campeões", "Fiéis", "Promissores", "Regulares", "Em Esfriamento", "Em Risco", "Hibernando" }
                     .Take(k - 1).Append("Inativos").ToArray()
