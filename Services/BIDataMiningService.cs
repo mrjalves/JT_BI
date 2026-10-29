@@ -368,7 +368,9 @@ public class BIDataMiningService : IBIDataMiningService
             return "O processamento da IA excedeu o tempo limite da requisição. Tente reduzir o tamanho da amostra ou verificar a conexão.";
         }
 
-        if (msg.Contains("Out of memory", StringComparison.OrdinalIgnoreCase))
+        if (ex is OutOfMemoryException ||
+            msg.Contains("Out of memory", StringComparison.OrdinalIgnoreCase) ||
+            msg.Contains("Insufficient memory", StringComparison.OrdinalIgnoreCase))
         {
             return "Memória insuficiente para processar o volume selecionado em memória. Reduza a amostra de registros.";
         }

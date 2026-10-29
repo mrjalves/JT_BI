@@ -295,11 +295,16 @@ public class BIDataMiningServiceTests
 
         var kmeans = new KMeansResultado
         {
-            Itens = new List<KMeansItem>
+            Grupos = new List<ClusterGrupo>
             {
-                new() { Rotulo = "17850", ClusterIndex = 0, NomeCluster = "VIP" },
-                new() { Rotulo = "17850", ClusterIndex = 0, NomeCluster = "VIP" },
-                new() { Rotulo = "17851", ClusterIndex = 1, NomeCluster = "Regular" }
+                new() { Id = 0, Nome = "VIP" },
+                new() { Id = 1, Nome = "Regular" }
+            },
+            Itens = new List<ClusterItem>
+            {
+                new() { Rotulo = "17850", ClusterId = 0 },
+                new() { Rotulo = "17850", ClusterId = 0 },
+                new() { Rotulo = "17851", ClusterId = 1 }
             }
         };
 
@@ -307,19 +312,19 @@ public class BIDataMiningServiceTests
         {
             Itens = new List<ItemCurvaAbc>
             {
-                new() { Rotulo = "17850", Classe = "A", Valor = 600m },
-                new() { Rotulo = "17850", Classe = "A", Valor = 600m },
-                new() { Rotulo = "17851", Classe = "B", Valor = 500m }
+                new() { Nome = "17850", Classe = "A", Valor = 600m },
+                new() { Nome = "17850", Classe = "A", Valor = 600m },
+                new() { Nome = "17851", Classe = "B", Valor = 500m }
             }
         };
 
         var churn = new ResultadoChurn
         {
-            Previsoes = new List<PrevisaoChurnItem>
+            ClientesEmRisco = new List<ItemClienteRisco>
             {
-                new() { Id = "17850", ProbabilidadeChurn = 0.15f, ClassificacaoRisco = "Baixo" },
-                new() { Id = "17850", ProbabilidadeChurn = 0.15f, ClassificacaoRisco = "Baixo" },
-                new() { Id = "17851", ProbabilidadeChurn = 0.75f, ClassificacaoRisco = "Alto" }
+                new() { Id = "17850", ProbabilidadeChurn = 0.15, CategoriaRisco = "Baixo" },
+                new() { Id = "17850", ProbabilidadeChurn = 0.15, CategoriaRisco = "Baixo" },
+                new() { Id = "17851", ProbabilidadeChurn = 0.75, CategoriaRisco = "Alto" }
             }
         };
 
@@ -328,8 +333,8 @@ public class BIDataMiningServiceTests
             var ds = _service.EnriquecerDataset(registros, "Online_Retail", kmeans, abc, churn);
             Assert.That(ds, Is.Not.Null);
             Assert.That(ds.Linhas, Has.Count.EqualTo(4));
-            Assert.That(ds.Linhas[0]["Cluster_Nome"], Is.EqualTo("VIP"));
-            Assert.That(ds.Linhas[0]["Curva_ABC"], Is.EqualTo("A"));
+            Assert.That(ds.Linhas[0]["Segmento_KMeans"], Is.EqualTo("VIP"));
+            Assert.That(ds.Linhas[0]["Classe_CurvaABC"], Is.EqualTo("A"));
             Assert.That(ds.Linhas[0]["Risco_Churn"], Is.EqualTo("Baixo"));
         });
     }
@@ -398,7 +403,7 @@ public class BIDataMiningServiceTests
         var exDup = new ArgumentException("An item with the same key has already been added. Key: 17850");
         var traduzidaDup = _service.TraduzirMensagemErro(exDup);
 
-        Assert.That(traduzidaDup, Does.Contain("chave duplicada"));
+        Assert.That(traduzidaDup, Does.Contain("Identificador repetido"));
         Assert.That(traduzidaDup, Does.Contain("17850"));
 
         var exOom = new OutOfMemoryException();
