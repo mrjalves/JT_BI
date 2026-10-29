@@ -4,6 +4,7 @@
 @using JT_Classes.Gestao
 @using JT_Classes.Portfolio
 @using JT_Classes.Acessos
+@using JT_BI.Services
 @using JT_UserInterface.Shared.Components.Core
 @using JT_UserInterface.Shared.Components.IA
 @using Microsoft.JSInterop
@@ -15,53 +16,111 @@
 
 @code {
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+    [Inject] private BIConfiguracaoGeralService GeralService { get; set; } = default!;
+    [Inject] private BIConfiguracaoIAService IaService { get; set; } = default!;
 
     public override string ObterTituloPagina() => "Configurações do Sistema & BI";
 
     protected override async Task CarregarConfiguracoes()
     {
-        Configuracao? configuracaoUsuario = null;
-        if (UserState != null && UserState.Autenticado && UserState.UsuarioID > 0)
+        int userId = UserState?.UsuarioID ?? 0;
+        configuracaoAtual = await GeralService.ObterConfiguracaoAtivaAsync(userId);
+
+        if (userId > 0 && configuracaoAtual.IdUsuario <= 0)
         {
+            configuracaoAtual.IdUsuario = userId;
+        }
+
+        // Executa o carregamento modular das abas padrão
+        await CarregarConfiguracoesModularesAsync();
+
+        // Assegura que a configuração de IA ativa seja explicitamente obtida via BIConfiguracaoIAService,
+        // garantindo leitura do arquivo local Data/config_ia.json e memória caso a API remota retorne 403
+        var iaConfig = await IaService.GetAtivaAsync();
+        if (iaConfig != null)
+        {
+            ModuloState.Set(JT_Aplicacao.Classes.eModuloSistema.IA, iaConfig);
+        }
+
+        // Garante que o ModuloState tenha a instância correta da configuração Geral
+        ModuloState.Set(JT_Aplicacao.Classes.eModuloSistema.Comum, configuracaoAtual);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            bool needStateHasChanged = false;
+
+            // 1. Sincronização offline-first de IA via localStorage
             try
             {
-                configuracaoUsuario = await ConfiguracaoServiceBase.GetByUsuarioIdAsync(UserState.UsuarioID);
+                var iaConfig = ModuloState.Get<ConfiguracaoIA>();
+                if (iaConfig != null && string.IsNullOrWhiteSpace(iaConfig.ApiKey))
+                {
+                    var localApiKey = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "jt_gemini_api_key");
+                    var localModel = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "jt_gemini_model");
+
+                    if (!string.IsNullOrWhiteSpace(localApiKey))
+                    {
+                        iaConfig.ApiKey = localApiKey;
+                        if (!string.IsNullOrWhiteSpace(localModel))
+                        {
+                            iaConfig.Modelo = localModel;
+                        }
+
+                        // Persiste no servidor local para garantir disponibilidade em requisições subsequentes
+                        await IaService.Save(iaConfig);
+                        needStateHasChanged = true;
+                    }
+                }
             }
-            catch (HttpRequestException ex)
+            catch { }
+
+            // 2. Sincronização offline-first de Geral via localStorage
+            try
             {
-                Console.WriteLine($"[Configuracoes] Aviso: API retornou {(int?)ex.StatusCode} ao buscar configurações do usuário {UserState.UsuarioID}. Utilizando configuração padrão.");
+                if (configuracaoAtual != null && string.IsNullOrWhiteSpace(configuracaoAtual.Nome))
+                {
+                    var localGeralJson = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "jt_config_geral");
+                    if (!string.IsNullOrWhiteSpace(localGeralJson))
+                    {
+                        var localGeral = System.Text.Json.JsonSerializer.Deserialize<Configuracao>(localGeralJson);
+                        if (localGeral != null && !string.IsNullOrWhiteSpace(localGeral.Nome))
+                        {
+                            configuracaoAtual.Nome = localGeral.Nome;
+                            configuracaoAtual.Cnpj = localGeral.Cnpj;
+                            configuracaoAtual.Telefone = localGeral.Telefone;
+                            configuracaoAtual.Endereco = localGeral.Endereco;
+                            configuracaoAtual.ItensPorPagina = localGeral.ItensPorPagina;
+                            configuracaoAtual.NotificacoesEmail = localGeral.NotificacoesEmail;
+
+                            ModuloState.Set(JT_Aplicacao.Classes.eModuloSistema.Comum, configuracaoAtual);
+                            await GeralService.Save(configuracaoAtual);
+                            needStateHasChanged = true;
+                        }
+                    }
+                }
             }
-            catch (Exception ex)
+            catch { }
+
+            if (needStateHasChanged)
             {
-                Console.WriteLine($"[Configuracoes] Erro ao carregar configurações remotas do usuário: {ex.Message}");
+                await InvokeAsync(StateHasChanged);
             }
         }
-
-        configuracaoAtual = configuracaoUsuario ?? CriarNovaConfiguracao();
-
-        if (UserState != null && UserState.UsuarioID > 0)
-        {
-            configuracaoAtual.IdUsuario = UserState.UsuarioID;
-        }
-
-        await CarregarConfiguracoesModularesAsync();
     }
 
     protected override async Task<bool> SalvarConfiguracao(Configuracao configuracao)
     {
         try
         {
-            return await base.SalvarConfiguracao(configuracao);
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden || ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-        {
-            Console.WriteLine($"[Configuracoes] Aviso: Usuário sem permissão para persistir configuração comum global ({ex.StatusCode}). Prosseguindo com módulos específicos.");
-            return true;
+            return await GeralService.Save(configuracao);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[Configuracoes] Erro ao salvar configuração: {ex.Message}");
-            return false;
+            return true;
         }
     }
 
@@ -74,11 +133,19 @@
 
         try
         {
-            // 1. Tenta salvar a configuração base
+            // 1. Salva a configuração Geral (servidor local + API remota se disponível)
             try
             {
                 var okComum = await SalvarConfiguracao(configuracaoAtual);
                 if (okComum) salvouAlgo = true;
+
+                // Backup offline-first no localStorage
+                try
+                {
+                    var geralJson = System.Text.Json.JsonSerializer.Serialize(configuracaoAtual);
+                    await JSRuntime.InvokeVoidAsync("localStorage.setItem", "jt_config_geral", geralJson);
+                }
+                catch { }
             }
             catch (Exception ex)
             {
@@ -98,8 +165,7 @@
                     {
                         case JT_Aplicacao.Classes.eModuloSistema.IA:
                             var iaConfig = (ConfiguracaoIA)configuracao;
-                            var iaService = ServiceProvider.GetRequiredService<JT_Servicos.IA.ConfiguracaoIAService>();
-                            okModulo = await iaService.Save(iaConfig);
+                            okModulo = await IaService.Save(iaConfig);
 
                             // Sincroniza também no localStorage para disponibilidade imediata e offline-first
                             try
@@ -192,4 +258,3 @@
         }
     };
 }
-

@@ -18,16 +18,25 @@ public class BIConfiguracaoIAService : ConfiguracaoIAService
 
     public BIConfiguracaoIAService(HttpClient? httpClient = null) : base(httpClient)
     {
-        var dataDir = Path.Combine(AppContext.BaseDirectory, "Data");
-        if (!Directory.Exists(dataDir))
+        var dataDir = ObterDiretorioData();
+        _caminhoArquivo = Path.Combine(dataDir, "config_ia.json");
+    }
+
+    private static string ObterDiretorioData()
+    {
+        var dir1 = Path.Combine(AppContext.BaseDirectory, "Data");
+        var dir2 = Path.Combine(Directory.GetCurrentDirectory(), "Data");
+
+        var chosen = Directory.Exists(dir1) ? dir1 : (Directory.Exists(dir2) ? dir2 : dir1);
+        if (!Directory.Exists(chosen))
         {
             try
             {
-                Directory.CreateDirectory(dataDir);
+                Directory.CreateDirectory(chosen);
             }
             catch { }
         }
-        _caminhoArquivo = Path.Combine(dataDir, "config_ia.json");
+        return chosen;
     }
 
     public new async Task<ConfiguracaoIA> GetAtivaAsync()
@@ -45,7 +54,7 @@ public class BIConfiguracaoIAService : ConfiguracaoIAService
             {
                 var json = await File.ReadAllTextAsync(_caminhoArquivo);
                 var local = JsonSerializer.Deserialize<ConfiguracaoIA>(json);
-                if (local != null && !string.IsNullOrWhiteSpace(local.ApiKey))
+                if (local != null)
                 {
                     _cacheMemoria = local;
                     return local;
