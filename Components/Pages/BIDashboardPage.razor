@@ -1688,8 +1688,8 @@ else
             {
                 var contexto = BIUsuarioContexto.De(UserState);
                 datasetsDisponiveis = await DashboardService.ObterDatasetsVisiveisAsync(contexto);
-                fontesMineracao = await DataSourceService.ObterFontesDisponiveisAsync(datasetsDisponiveis);
-                fonteMineracaoSelecionadaId = fonte.Id;
+                fontesMineracao = await DataSourceService.ObterFontesDisponiveisAsync();
+                fonteMineracaoSelecionadaId = $"origem_{fonte.Id}";
                 isFontesModalOpen = true;
                 ExibirFeedback($"Fonte de dados '{fonte.Nome}' ({fonte.LinhasCarregadas} linhas) salva! Gerencie colunas, amostra e sincronização na tela de Fontes de Dados.", "alert-success");
                 await InvokeAsync(StateHasChanged);
@@ -1708,7 +1708,7 @@ else
             }
         }
 
-        fontesMineracao = await DataSourceService.ObterFontesDisponiveisAsync(datasetsDisponiveis);
+        fontesMineracao = await DataSourceService.ObterFontesDisponiveisAsync();
         ListaDashboards.RemoveAll(d => d.Id == novo.Id);
         ListaDashboards.Insert(0, novo);
         DashboardAtivo = novo;
