@@ -510,7 +510,7 @@
         var qtdWidgets = Dashboard?.Widgets.Count ?? 0;
         var tiposWidgets = string.Join(", ", Dashboard?.Widgets.Select(w => $"{w.Titulo} ({w.Tipo})").Take(10) ?? Array.Empty<string>());
         var resumoDatasets = Datasets.Count > 0 
-            ? string.Join("; ", Datasets.Select(d => $"{d.Nome} ({d.TotalLinhas:N0} linhas, {d.Colunas.Count} colunas)"))
+            ? string.Join("; ", Datasets.Select(d => $"{d.Nome} ({d.QtdLinhas:N0} linhas, {d.Colunas.Count} colunas)"))
             : "Nenhuma base tabular externa conectada";
 
         return tipo switch
@@ -535,17 +535,17 @@ Termine com uma linha em itálico indicando '*⏱ Gerado em: {DateTime.Now:dd/MM
         };
     }
 
-    private async Task<string?> ChamarLlmAsync(string prompt, MConfiguracaoIA config)
+    private async Task<string?> ChamarLlmAsync(string prompt, ConfiguracaoIA config)
     {
         var client = HttpClientFactory.CreateClient();
         client.Timeout = TimeSpan.FromSeconds(25);
 
         if (string.Equals(config.Provedor, "OpenAICompatible", StringComparison.OrdinalIgnoreCase))
         {
-            var url = (config.EndpointUrl ?? "https://api.openai.com/v1").TrimEnd('/') + "/chat/completions";
+            var url = string.IsNullOrWhiteSpace(config.Endpoint) ? "https://api.openai.com/v1/chat/completions" : config.Endpoint;
             var body = new
             {
-                model = config.Modelo ?? "gpt-4o-mini",
+                model = string.IsNullOrWhiteSpace(config.Modelo) ? "gpt-4o-mini" : config.Modelo,
                 messages = new[]
                 {
                     new { role = "system", content = "Você é um Consultor Executivo IA especialista em BI corporativo, Crisp-DM e métricas executivas." },
@@ -605,7 +605,7 @@ Termine com uma linha em itálico indicando '*⏱ Gerado em: {DateTime.Now:dd/MM
         var dataHora = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
         var totalWidgets = Dashboard?.Widgets.Count ?? 0;
         var totalDatasets = Datasets.Count;
-        var totalLinhas = Datasets.Sum(d => d.TotalLinhas);
+        var totalLinhas = Datasets.Sum(d => d.QtdLinhas);
 
         // Detecção de widgets analíticos específicos
         var temPareto = Dashboard?.Widgets.Any(w => w.Titulo.Contains("Pareto", StringComparison.OrdinalIgnoreCase) || w.Titulo.Contains("Classe", StringComparison.OrdinalIgnoreCase)) ?? false;
