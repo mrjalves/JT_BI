@@ -50,6 +50,37 @@ html, body {
     overflow: hidden !important;
 }
 
+/* =========================================================================
+   Layout Público / Painéis Compartilhados - Habilita Rolagem Vertical Suave
+   ========================================================================= */
+.public-shell,
+body:has(.public-shell) {
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+.public-shell::-webkit-scrollbar {
+    width: 8px;
+}
+
+.public-shell::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.public-shell::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4);
+    border-radius: 4px;
+}
+
+.public-shell::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.7);
+}
+
 .main-content {
     height: 100vh !important;
     max-height: 100vh !important;
