@@ -65,7 +65,7 @@
 }
 else
 {
-    <div class="bi-spa-wrapper d-flex flex-column h-100" style="height: calc(100vh - 5rem); max-height: calc(100vh - 5rem); overflow: hidden;">
+    <div class="bi-spa-wrapper d-flex flex-column h-100">
             <!-- Barra Superior Executiva SPA -->
             <header class="bi-header card card-modern border-0 mb-3" data-tutorial="bi-header">
                 <div class="card-body py-2 px-3">
@@ -88,7 +88,7 @@ else
                         </div>
 
                         <!-- Seletor de Painel / Ações Rápidas -->
-                        <div class="col-12 col-lg-6 col-xl-6 d-flex align-items-center justify-content-center gap-2 flex-wrap">
+                        <div class="col-12 col-lg-6 col-xl-6 d-flex align-items-center justify-content-lg-center gap-2 flex-wrap bi-header-actions-scroll">
                             @if (ListaDashboards.Any())
                             {
                                 <select class="form-select form-select-sm border-0 bg-light rounded-3 fw-semibold text-secondary"
@@ -200,8 +200,29 @@ else
 
             <!-- Área Central SPA Tripartite -->
             <div class="row g-3 flex-grow-1 bi-spa-row" style="flex: 1 1 0; min-height: 0; overflow: hidden;">
+                <!-- Seletor de Foco Mobile (Aparece apenas em telas < 992px) -->
+                <div class="col-12 d-lg-none mb-1">
+                    <div class="bi-mobile-tabs-bar">
+                        <button type="button" class="bi-mobile-tab-btn @(abaMobileStudio == "canvas" ? "active" : "")"
+                                @onclick='() => abaMobileStudio = "canvas"'>
+                            <i class="bi bi-bounding-box-circles"></i>
+                            <span>Painel (@(DashboardAtivo?.Widgets.Count ?? 0))</span>
+                        </button>
+                        <button type="button" class="bi-mobile-tab-btn @(abaMobileStudio == "toolbox" ? "active" : "")"
+                                @onclick='() => abaMobileStudio = "toolbox"'>
+                            <i class="bi bi-plus-circle-dotted"></i>
+                            <span>+ Widgets</span>
+                        </button>
+                        <button type="button" class="bi-mobile-tab-btn @(abaMobileStudio == "inspector" ? "active" : "")"
+                                @onclick='() => abaMobileStudio = "inspector"'>
+                            <i class="bi bi-stars"></i>
+                            <span>IA & Ajustes</span>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- COLUNA ESQUERDA: Barra de Ferramentas / Widgets & Datasets (Fase 2 Drag & Drop) -->
-                <aside class="col-12 col-lg-2 d-flex flex-column bi-col-toolbox bi-sticky-sidebar" style="height: 100%; max-height: 100%;">
+                <aside class="col-12 col-lg-2 flex-column bi-col-toolbox bi-sticky-sidebar @(abaMobileStudio == "toolbox" ? "d-flex" : "d-none d-lg-flex")" style="height: 100%; max-height: 100%;">
                     <div class="card card-modern border-0 h-100 overflow-hidden d-flex flex-column" data-tutorial="bi-toolbox">
                         <div class="card-header border-bottom py-2 px-3 d-flex align-items-center justify-content-between">
                             <span class="fw-bold small text-uppercase text-secondary" style="letter-spacing: 0.5px;">
@@ -329,7 +350,7 @@ else
                 </aside>
 
                 <!-- COLUNA CENTRAL: Canvas Interativo do BI (Drag-and-Drop Dropzone) -->
-                <main class="col-12 col-lg-7 d-flex flex-column bi-col-canvas" style="height: 100%; max-height: 100%;">
+                <main class="col-12 col-lg-7 flex-column bi-col-canvas @(abaMobileStudio == "canvas" ? "d-flex" : "d-none d-lg-flex")" style="height: 100%; max-height: 100%;">
                     <div class="card card-modern border-0 h-100 overflow-hidden d-flex flex-column" data-tutorial="bi-canvas">
                         <div class="card-header border-bottom py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
                             <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width: 65%;">
@@ -441,7 +462,7 @@ else
                 </main>
 
                 <!-- COLUNA DIREITA: Inspetor de Propriedades & Agente IA (Fase 4) -->
-                <aside class="col-12 col-lg-3 d-flex flex-column bi-col-inspector bi-sticky-sidebar" style="height: 100%; max-height: 100%;">
+                <aside class="col-12 col-lg-3 flex-column bi-col-inspector bi-sticky-sidebar @(abaMobileStudio == "inspector" ? "d-flex" : "d-none d-lg-flex")" style="height: 100%; max-height: 100%;">
                     <div class="card card-modern border-0 h-100 overflow-hidden d-flex flex-column">
                         <div class="card-header border-bottom py-2 px-3 d-flex align-items-center justify-content-between">
                             <ul class="nav nav-pills card-header-pills gap-1">
@@ -731,7 +752,7 @@ else
         @if (isTemplatesModalOpen)
         {
             <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(15, 23, 42, 0.72); backdrop-filter: blur(4px); z-index: 1055;">
-                <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-dialog modal-lg modal-fullscreen-md-down modal-dialog-centered modal-dialog-scrollable">
                     <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
                         <div class="modal-header bi-modal-header p-3 border-0">
                             <h5 class="modal-title fw-bold mb-0 text-white" style="color: #ffffff !important;">
@@ -793,7 +814,7 @@ else
         @if (isDataMiningModalOpen)
         {
             <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(15, 23, 42, 0.72); backdrop-filter: blur(4px); z-index: 1055;">
-                <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-dialog modal-xl modal-fullscreen-md-down modal-dialog-centered modal-dialog-scrollable">
                     <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
                         <div class="modal-header bi-modal-header p-3 border-0">
                             <div class="d-flex align-items-center gap-3">
@@ -1572,6 +1593,7 @@ else
     private bool IsCarregando = true;
     private bool IsSalvando = false;
     private string AbaDireitaAtiva = "ia";
+    private string abaMobileStudio = "canvas";
     private string? MensagemFeedback;
     private string ClasseFeedback = "alert-success";
     private string PromptIaRapido = string.Empty;
@@ -2921,6 +2943,7 @@ else
         DashboardAtivo.Widgets.Add(widget);
         WidgetSelecionado = widget;
         AbaDireitaAtiva = "propriedades";
+        abaMobileStudio = "canvas";
         ExibirFeedback($"Widget '{widget.Titulo}' inserido no Canvas.", "alert-info");
     }
 
@@ -2928,6 +2951,7 @@ else
     {
         WidgetSelecionado = widget;
         AbaDireitaAtiva = "propriedades";
+        abaMobileStudio = "inspector";
         StateHasChanged();
     }
 

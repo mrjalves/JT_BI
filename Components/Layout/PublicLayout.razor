@@ -43,7 +43,7 @@
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2 py-1 small d-none d-md-inline-flex align-items-center gap-1">
                             <i class="bi bi-share-fill"></i> Painel Compartilhado
                         </span>
-                        <h6 class="mb-0 fw-bold text-truncate @(ViewState.IsModoEscuro ? "text-white" : "text-dark")" style="max-width: 360px;" title="@ViewState.Titulo">
+                        <h6 class="mb-0 fw-bold text-truncate @(ViewState.IsModoEscuro ? "text-white" : "text-dark")" style="max-width: clamp(120px, 40vw, 360px);" title="@ViewState.Titulo">
                             @ViewState.Titulo
                         </h6>
                     </div>
