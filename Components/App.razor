@@ -44,6 +44,21 @@
     <JT_BI.Components.Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
 
+    <script>
+        // Suprime ruídos de promessas rejeitadas de extensões do navegador (ex: Cuponomia, extensões de cupons/cashback)
+        // que fecham portas de comunicação em background e emitem 'A listener indicated an asynchronous response...'
+        window.addEventListener('unhandledrejection', function (event) {
+            var msg = event && event.reason && (event.reason.message || event.reason.toString());
+            if (typeof msg === 'string' && (
+                msg.includes('message channel closed') ||
+                msg.includes('A listener indicated an asynchronous response') ||
+                msg.includes('cuponomia')
+            )) {
+                event.preventDefault();
+            }
+        });
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="_content/JT_UserInterface.Shared/js/blazorInterop.js"></script>
     <script src="_framework/blazor.web.js"></script>
