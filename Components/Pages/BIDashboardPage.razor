@@ -425,7 +425,7 @@ else
                                 <div class="row g-3">
                                     @foreach (var widget in DashboardAtivo.Widgets)
                                     {
-                                        <div class="@ObterClasseGridWidget(widget.LarguraColunas) transition-all" @key="widget.Id">
+                                        <div class="@ObterClasseGridWidget(widget) transition-all" @key="widget.Id">
                                             <BIWidgetView Widget="widget"
                                                           IsEditor="true"
                                                           IsSelected="@(WidgetSelecionado?.Id == widget.Id)"
@@ -3006,15 +3006,31 @@ else
         }
     }
 
-    private string ObterClasseGridWidget(int colunas) => colunas switch
+    private string ObterClasseGridWidget(BIWidget w)
     {
-        12 => "col-12",
-        8 => "col-12 col-xl-8",
-        6 => "col-12 col-md-6",
-        4 => "col-12 col-sm-6 col-lg-4",
-        3 => "col-12 col-sm-6 col-xl-3",
-        _ => "col-12 col-md-6"
-    };
+        int colunas = w.LarguraColunas;
+        if (colunas <= 0 || colunas > 12)
+        {
+            colunas = w.Largura switch
+            {
+                <= 28 => 3,
+                <= 38 => 4,
+                <= 58 => 6,
+                <= 78 => 8,
+                _ => 12
+            };
+        }
+
+        return colunas switch
+        {
+            12 => "col-12",
+            8 => "col-12 col-xl-8",
+            6 => "col-12 col-md-6",
+            4 => "col-12 col-sm-6 col-lg-4",
+            3 => "col-12 col-sm-6 col-xl-3",
+            _ => "col-12 col-md-6"
+        };
+    }
 
     private void AbrirTutorialPagina()
     {

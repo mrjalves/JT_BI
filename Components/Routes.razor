@@ -4,7 +4,7 @@
     <Found Context="routeData">
         @{
             var pageName = routeData.PageType.Name;
-            var effectiveRouteData = (pageName == "OrigensDados" || pageName == "IndicadoresDashboard")
+            var effectiveRouteData = (pageName == "OrigensDados" || pageName == "IndicadoresDashboard" || pageName == "Dashboard")
                 ? new RouteData(typeof(Pages.BIDashboardPage), new Dictionary<string, object?>())
                 : routeData;
         }
